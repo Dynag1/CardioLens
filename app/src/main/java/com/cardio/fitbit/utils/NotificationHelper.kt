@@ -60,6 +60,7 @@ class NotificationHelper @Inject constructor(
              val notificationManager = NotificationManagerCompat.from(context)
              // SecurityException can happen if POST_NOTIFICATIONS is not granted
              notificationManager.notify(NOTIFICATION_ID, builder.build())
+             android.util.Log.d("NotificationHelper", "Notification sent successfully: $title")
         } catch (e: SecurityException) {
             // Permission not granted
             android.util.Log.e("NotificationHelper", "Permission denied for notifications", e)

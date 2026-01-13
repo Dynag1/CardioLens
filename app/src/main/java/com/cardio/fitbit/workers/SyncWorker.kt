@@ -25,9 +25,10 @@ class SyncWorker @AssistedInject constructor(
         return try {
             android.util.Log.d("SyncWorker", "Starting background sync...")
             
-            // 1. Fetch latest data (today)
+            // 1. Fetch latest data (today) - FORCE REFRESH to bypass 24h cache in background
             val today = DateUtils.getToday()
-            val result = healthRepository.getIntradayData(today)
+            android.util.Log.d("SyncWorker", "Fetching fresh intraday data for $today")
+            val result = healthRepository.getIntradayData(today, forceRefresh = true)
             
             if (result.isSuccess) {
                 val data = result.getOrNull()
@@ -40,9 +41,12 @@ class SyncWorker @AssistedInject constructor(
                     android.util.Log.d("SyncWorker", "Checking ${data.minuteData.size} measurements. Thresholds: low=$lowThreshold, high=$highThreshold")
                     
                     if (notificationsEnabled) {
-                        // Check recent measurements (last 15 data points = ~15 min with 1/min data)
-                        val recentMeasurements = data.minuteData.takeLast(15)
-                        android.util.Log.d("SyncWorker", "Analyzing ${recentMeasurements.size} recent measurements")
+                        // Check last 30 minutes for any violation
+                        val recentMeasurements = data.minuteData.takeLast(30)
+                        val maxHr = recentMeasurements.maxOfOrNull { it.heartRate } ?: 0
+                        val minHr = recentMeasurements.filter { it.heartRate > 0 }.minOfOrNull { it.heartRate } ?: 0
+                        
+                        android.util.Log.d("SyncWorker", "Analyzing ${recentMeasurements.size} measurements. Window stats: Min=$minHr, Max=$maxHr BPM")
                         
                         // Check for high HR
                         val highHrViolation = recentMeasurements.find { it.heartRate > highThreshold }
@@ -69,7 +73,7 @@ class SyncWorker @AssistedInject constructor(
                         }
                         
                         if (highHrViolation == null && lowHrViolation == null) {
-                            android.util.Log.d("SyncWorker", "All measurements within normal range")
+                            android.util.Log.d("SyncWorker", "All measurements within normal range ($lowThreshold - $highThreshold BPM)")
                         }
                     } else {
                         android.util.Log.d("SyncWorker", "Notifications disabled, skipping alert checks")

@@ -217,16 +217,7 @@ fun DashboardScreen(
                             }
                         }
 
-                        // Activity Detail Cards (Moved here for better visibility)
-                        activityData?.activities?.forEach { activity ->
-                            item {
-                                ActivityDetailCard(
-                                    activity = activity,
-                                    allMinuteData = intradayData?.minuteData ?: emptyList(),
-                                    selectedDate = selectedDate
-                                )
-                            }
-                        }
+                        // Activity Detail Cards will be displayed at the bottom
 
                         // Total Steps Card
                         item {
@@ -335,6 +326,17 @@ fun DashboardScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        // Activity Detail Cards (Moved to the bottom)
+                        activityData?.activities?.forEach { activity ->
+                            item {
+                                ActivityDetailCard(
+                                    activity = activity,
+                                    allMinuteData = intradayData?.minuteData ?: emptyList(),
+                                    selectedDate = selectedDate
+                                )
                             }
                         }
                     }
