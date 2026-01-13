@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CardioLens</string>
+    
+    <!-- Fitbit OAuth Configuration -->
+    <!-- TODO: Replace with your Fitbit app credentials from https://dev.fitbit.com/apps -->
+    <string name="fitbit_client_id">23TWJW</string>
+    <string name="fitbit_client_secret">def975f100810a4d44ead7572fac6fff</string>
+    <string name="fitbit_redirect_uri">cardioapp://fitbit-auth</string>
+    
+    <!-- OAuth URLs -->
+    <string name="fitbit_auth_url">https://www.fitbit.com/oauth2/authorize</string>
+    <string name="fitbit_token_url">https://api.fitbit.com/oauth2/token</string>
+    <string name="fitbit_api_base_url">https://api.fitbit.com/</string>
+    
+    <!-- OAuth Scopes -->
+    <string name="fitbit_scopes">activity heartrate sleep profile</string>
+    
+    <!-- UI Strings -->
+    <string name="login_title">Bienvenue sur CardioLens</string>
+    <string name="login_subtitle">Connectez-vous à Fitbit pour visualiser vos données de santé</string>
+    <string name="login_button">Se connecter avec Fitbit</string>
+    <string name="logout_button">Se déconnecter</string>
+    
+    <string name="dashboard_title">Tableau de bord</string>
+    <string name="heart_rate_title">Rythme cardiaque</string>
+    <string name="sleep_title">Sommeil</string>
+    <string name="steps_title">Pas</string>
+    <string name="activity_title">Activités</string>
+    
+    <string name="loading">Chargement…</string>
+    <string name="error_network">Erreur réseau. Vérifiez votre connexion.</string>
+    <string name="error_auth">Erreur d\'authentification. Veuillez vous reconnecter.</string>
+    <string name="error_generic">Une erreur est survenue.</string>
+    
+    <string name="sync_now">Synchroniser</string>
+    <string name="last_sync">Dernière synchro: %s</string>
+    <string name="no_data">Aucune donnée disponible</string>
+    
+    <!-- Chart Labels -->
+    <string name="chart_heart_rate">Rythme cardiaque (bpm)</string>
+    <string name="chart_sleep_hours">Heures de sommeil</string>
+    <string name="chart_steps_count">Nombre de pas</string>
+    <string name="chart_calories">Calories brûlées</string>
+    
+    <!-- Stats -->
+    <string name="stat_avg">Moyenne</string>
+    <string name="stat_min">Min</string>
+    <string name="stat_max">Max</string>
+    <string name="stat_resting">Au repos</string>
+    <string name="stat_total">Total</string>
+    
+    <!-- Time periods -->
+    <string name="period_today">Aujourd\'hui</string>
+    <string name="period_week">7 jours</string>
+    <string name="period_month">30 jours</string>
+    
+    <!-- Sleep stages -->
+    <string name="sleep_deep">Profond</string>
+    <string name="sleep_light">Léger</string>
+    <string name="sleep_rem">REM</string>
+    <string name="sleep_awake">Éveillé</string>
+</resources>

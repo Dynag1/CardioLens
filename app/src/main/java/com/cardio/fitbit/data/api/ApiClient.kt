@@ -1,0 +1,94 @@
+package com.cardio.fitbit.data.api
+
+import com.cardio.fitbit.auth.FitbitAuthManager
+import com.google.gson.GsonBuilder
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.runBlocking
+
+/**
+ * API Client for Fitbit Web API
+ */
+@Singleton
+class ApiClient @Inject constructor(
+    private val authManager: FitbitAuthManager
+) {
+    private val baseUrl = "https://api.fitbit.com/"
+
+    private val authInterceptor = Interceptor { chain ->
+        val originalRequest = chain.request()
+        
+        // Get access token
+        var accessToken = authManager.getAccessToken()
+        
+        // If token is null or expired, try to refresh
+        if (accessToken == null) {
+            runBlocking {
+                val result = authManager.refreshAccessToken()
+                accessToken = result.getOrNull()
+            }
+        }
+        
+        // Add authorization header
+        val newRequest = if (accessToken != null) {
+            originalRequest.newBuilder()
+                .addHeader("Authorization", "Bearer $accessToken")
+                .build()
+        } else {
+            originalRequest
+        }
+        
+        val response = chain.proceed(newRequest)
+        
+        // Handle 401 Unauthorized - token might be expired
+        if (response.code == 401 && accessToken != null) {
+            response.close()
+            
+            // Try to refresh token
+            runBlocking {
+                val result = authManager.refreshAccessToken()
+                accessToken = result.getOrNull()
+            }
+            
+            // Retry request with new token
+            if (accessToken != null) {
+                val retryRequest = originalRequest.newBuilder()
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .build()
+                return@Interceptor chain.proceed(retryRequest)
+            }
+        }
+        
+        response
+    }
+
+    private val loggingInterceptor = HttpLoggingInterceptor().apply {
+        level = HttpLoggingInterceptor.Level.BODY
+    }
+
+    private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(authInterceptor)
+        .addInterceptor(loggingInterceptor)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private val gson = GsonBuilder()
+        .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS")
+        .create()
+
+    private val retrofit = Retrofit.Builder()
+        .baseUrl(baseUrl)
+        .client(okHttpClient)
+        .addConverterFactory(GsonConverterFactory.create(gson))
+        .build()
+
+    val fitbitApi: FitbitApiService = retrofit.create(FitbitApiService::class.java)
+}
