@@ -26,8 +26,8 @@ class DashboardViewModel @Inject constructor(
     private val _heartRateData = MutableStateFlow<HeartRateData?>(null)
     val heartRateData: StateFlow<HeartRateData?> = _heartRateData.asStateFlow()
 
-    private val _sleepData = MutableStateFlow<SleepData?>(null)
-    val sleepData: StateFlow<SleepData?> = _sleepData.asStateFlow()
+    private val _sleepData = MutableStateFlow<List<SleepData>>(emptyList())
+    val sleepData: StateFlow<List<SleepData>> = _sleepData.asStateFlow()
 
     private val _stepsData = MutableStateFlow<List<StepsData>>(emptyList())
     val stepsData: StateFlow<List<StepsData>> = _stepsData.asStateFlow()
@@ -72,7 +72,7 @@ class DashboardViewModel @Inject constructor(
 
         // Reset state & Set UI to Loading to provide feedback
         _uiState.value = DashboardUiState.Loading
-        _sleepData.value = null
+        _sleepData.value = emptyList()
         _activityData.value = null
         _intradayData.value = null
         _aggregatedMinuteData.value = emptyList()
@@ -114,7 +114,7 @@ class DashboardViewModel @Inject constructor(
                 android.util.Log.d("DashboardVM", "loadAllData called with forceRefresh=$forceRefresh")
 
                 // Reset state to prevent stales from other days or previous failed loads
-                _sleepData.value = null
+                _sleepData.value = emptyList()
                 _activityData.value = null
                 _intradayData.value = null
                 _aggregatedMinuteData.value = emptyList()
@@ -172,9 +172,8 @@ class DashboardViewModel @Inject constructor(
              }
 
              // 1. RHR Logic
-             // Sleep Logic: Range check
-             val sleepStart = sleep?.startTime?.time ?: 0L
-             val sleepEnd = sleep?.endTime?.time ?: 0L
+             // Sleep Logic: Range check for multiple sessions
+             val sleepRanges = sleep.map { it.startTime.time..it.endTime.time }
              
              // Activity Ranges
              val activityRanges = activity?.activities?.map { 
@@ -190,7 +189,7 @@ class DashboardViewModel @Inject constructor(
              val cooldownMs = 5 * 60 * 1000L // 5 minutes buffer after activity
 
              sortedMinutes.filter { it.third > 0 }.forEach { (data, ts, hr) ->
-                 val isSleep = (ts in sleepStart..sleepEnd)
+                 val isSleep = sleepRanges.any { range -> ts in range }
                  
                  // Mark active if steps > 0 or in specific activity range
                  val isPhysicallyActive = (data.steps > 0) || activityRanges.any { range -> ts in range }
@@ -247,7 +246,7 @@ class DashboardViewModel @Inject constructor(
         android.util.Log.d("DashboardVM", "Loading sleep data for: ${DateUtils.formatForApi(date)}")
         val result = healthRepository.getSleepData(date, forceRefresh)
         result.onSuccess { data ->
-            android.util.Log.d("DashboardVM", "Sleep data loaded: ${data?.startTime} - ${data?.endTime}")
+            android.util.Log.d("DashboardVM", "Sleep sessions loaded: ${data.size}")
             _sleepData.value = data
         }
         result.onFailure { e ->

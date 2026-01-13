@@ -27,8 +27,9 @@ import com.github.mikephil.charting.listener.OnChartValueSelectedListener
 fun HeartRateDetailChart(
     minuteData: List<MinuteData>,
     aggregatedData: List<MinuteData>, // 5min buckets
-    sleepData: SleepData? = null,
+    sleepSessions: List<SleepData> = emptyList(),
     activityData: ActivityData? = null,
+    restingHeartRate: Int? = null,
     selectedDate: java.util.Date,
     modifier: Modifier = Modifier,
     onChartInteraction: (Boolean) -> Unit = {} // true = chart is being touched, false = touch released
@@ -43,11 +44,6 @@ fun HeartRateDetailChart(
     // Let's rely on `scaleX` inside the view update simply.
 
     Column {
-        // Debug only if empty activities (User troubleshooting)
-        if (activityData?.activities.isNullOrEmpty() && !activityData?.debugInfo.isNullOrBlank()) {
-             Text(text = activityData!!.debugInfo!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-        }
-
         AndroidView(
             factory = { context ->
                 CombinedChart(context).apply {
@@ -138,8 +134,7 @@ fun HeartRateDetailChart(
                     
                     // Left Y (HR)
                     axisLeft.textColor = Color.DKGRAY
-                    axisLeft.axisMinimum = 0f
-                    axisLeft.axisMaximum = 200f
+                    axisLeft.axisMinimum = 40f
                     axisLeft.setDrawGridLines(true)
                     axisLeft.gridColor = Color.parseColor("#EEEEEE")
                     
@@ -166,6 +161,10 @@ fun HeartRateDetailChart(
                 
                 val combinedData = CombinedData()
 
+                // Calculate dynamic Y-axis max
+                val maxHr = activeList.maxOfOrNull { it.heartRate } ?: 100
+                chart.axisLeft.axisMaximum = (maxHr + 20).toFloat().coerceAtLeast(140f) // At least 140 for visibility
+
                 // Helper function to convert time string to index (1-minute granularity)
                 fun timeToIndex(time: String): Float {
                     val parts = time.split(":")
@@ -175,7 +174,7 @@ fun HeartRateDetailChart(
                     return (hours * 60 + minutes).toFloat()
                 }
 
-                // 1. HR Bars (With Gradient)
+                // 1. HR Bars (With Fluid Gradient)
                 val hrEntries = activeList.mapNotNull { data ->
                     if (data.heartRate > 0) {
                         BarEntry(timeToIndex(data.time), data.heartRate.toFloat(), data)
@@ -183,20 +182,35 @@ fun HeartRateDetailChart(
                         null
                     }
                 }
+
+                fun interpolateColor(color1: Int, color2: Int, fraction: Float): Int {
+                    val a = (Color.alpha(color1) + (Color.alpha(color2) - Color.alpha(color1)) * fraction).toInt()
+                    val r = (Color.red(color1) + (Color.red(color2) - Color.red(color1)) * fraction).toInt()
+                    val g = (Color.green(color1) + (Color.green(color2) - Color.green(color1)) * fraction).toInt()
+                    val b = (Color.blue(color1) + (Color.blue(color2) - Color.blue(color1)) * fraction).toInt()
+                    return Color.argb(a, r, g, b)
+                }
+
+                fun getHeartRateColor(bpm: Float): Int {
+                    val colorGrey = Color.parseColor("#94A3B8")
+                    val colorYellow = Color.parseColor("#FACC15")
+                    val colorOrange = Color.parseColor("#FB923C")
+                    val colorRed = Color.parseColor("#EF4444")
+                    val colorDeepRed = Color.parseColor("#B91C1C")
+
+                    return when {
+                        bpm < 60f -> colorGrey
+                        bpm < 100f -> interpolateColor(colorGrey, colorYellow, (bpm - 60f) / 40f)
+                        bpm < 140f -> interpolateColor(colorYellow, colorOrange, (bpm - 100f) / 40f)
+                        bpm < 180f -> interpolateColor(colorOrange, colorRed, (bpm - 140f) / 40f)
+                        else -> interpolateColor(colorRed, colorDeepRed, minOf(1f, (bpm - 180f) / 20f))
+                    }
+                }
                 
                 val hrDataSet = BarDataSet(hrEntries, "HR").apply {
                     setDrawValues(false)
-                    // Gradient Colors
-                    val colors = hrEntries.map { entry ->
-                        val y = entry.y
-                         when {
-                             y < 60 -> Color.GREEN
-                             y < 80 -> Color.YELLOW
-                             y < 100 -> Color.rgb(255, 165, 0) // Orange
-                             y < 120 -> Color.rgb(255, 69, 0) // Red-Orange
-                             else -> Color.RED
-                         }
-                    }
+                    // Fluid Gradient Colors
+                    val colors = hrEntries.map { entry -> getHeartRateColor(entry.y) }
                     setColors(colors)
                     isHighlightEnabled = true
                 }
@@ -214,7 +228,18 @@ fun HeartRateDetailChart(
                 val stepDataSet = BarDataSet(stepEntries, "Steps").apply {
                     color = Color.parseColor("#4CAF50") // Green
                     setDrawValues(false)
+                    axisDependency = YAxis.AxisDependency.RIGHT // Use Right Axis for Steps
                     isHighlightEnabled = false // Highlight HR dataset only
+                }
+                
+                // Configure Right Axis for Steps (Hidden, 0-50 scale)
+                chart.axisRight.apply {
+                    isEnabled = true // Enable axis logic
+                    setDrawLabels(false) // Hide labels
+                    setDrawGridLines(false) // Hide grid
+                    setDrawAxisLine(false) // Hide line
+                    axisMinimum = 0f
+                    axisMaximum = 50f // 10f bars will take 20% of height
                 }
 
                 // Combine both in BarData (Order: HR first, then Steps on top)
@@ -224,9 +249,7 @@ fun HeartRateDetailChart(
                 // 3. Sleep Zone (Purple background)
                 val sleepLineData = LineData()
                 
-                if (sleepData != null) {
-                    val sleepStart = sleepData.startTime.time
-                    val sleepEnd = sleepData.endTime.time
+                if (sleepSessions.isNotEmpty()) {
                     val sleepZoneEntries = mutableListOf<Entry>()
                     val cal = java.util.Calendar.getInstance()
                     
@@ -242,7 +265,11 @@ fun HeartRateDetailChart(
                             cal.set(java.util.Calendar.MILLISECOND, 0)
                             val ts = cal.timeInMillis
                             
-                            if (ts >= sleepStart && ts <= sleepEnd) {
+                            val inSleep = sleepSessions.any { session ->
+                                ts >= session.startTime.time && ts <= session.endTime.time
+                            }
+                            
+                            if (inSleep) {
                                 sleepZoneEntries.add(Entry(timeToIndex(data.time), 200f))
                             } else {
                                 sleepZoneEntries.add(Entry(timeToIndex(data.time), 0f))
@@ -258,7 +285,7 @@ fun HeartRateDetailChart(
                             setDrawFilled(true)
                             fillColor = Color.parseColor("#E1BEE7")
                             color = Color.TRANSPARENT
-                            fillAlpha = 120
+                            fillAlpha = 60
                             lineWidth = 0f
                             isHighlightEnabled = false
                         }
@@ -303,7 +330,7 @@ fun HeartRateDetailChart(
                                 setDrawFilled(true)
                                 fillColor = Color.parseColor("#2196F3") // Blue for activity
                                 color = Color.TRANSPARENT
-                                fillAlpha = 120
+                                fillAlpha = 60
                                 lineWidth = 0f
                                 isHighlightEnabled = false
                             }

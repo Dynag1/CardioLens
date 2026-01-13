@@ -29,9 +29,7 @@ fun DashboardScreen(
     onLogout: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val heartRateData by viewModel.heartRateData.collectAsState()
     val sleepData by viewModel.sleepData.collectAsState()
-    val stepsData by viewModel.stepsData.collectAsState()
     val activityData by viewModel.activityData.collectAsState()
     val intradayData by viewModel.intradayData.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -189,140 +187,68 @@ fun DashboardScreen(
                         intradayData?.let { data ->
                             item {
                                 Card(
-                                    colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.White), // Explicit White
-                                    shape = RoundedCornerShape(16.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    ),
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.2f))
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        Text(
-                                            text = "Fréquence Cardiaque",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(bottom = 16.dp)
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Fréquence Cardiaque",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            
+                                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text(
+                                                        text = "${rhrNight ?: "--"} bpm",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(text = "Repos (Nuit)", style = MaterialTheme.typography.labelSmall)
+                                                }
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text(
+                                                        text = "${rhrDay ?: "--"} bpm",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(text = "Repos (Jour)", style = MaterialTheme.typography.labelSmall)
+                                                }
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    val totalSteps = activityData?.summary?.steps ?: 0
+                                                    Text(
+                                                        text = totalSteps.toString(),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(text = "Pas", style = MaterialTheme.typography.labelSmall)
+                                                }
+                                            }
+                                        }
+
                                         HeartRateDetailChart(
                                             minuteData = data.minuteData,
                                             aggregatedData = aggregatedMinuteData,
-                                            sleepData = sleepData,
+                                            sleepSessions = sleepData,
                                             activityData = activityData,
+                                            restingHeartRate = rhrDay,
                                             selectedDate = selectedDate,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(350.dp),
+                                                .height(280.dp),
                                             onChartInteraction = { isInteracting ->
                                                 drawerGesturesEnabled = !isInteracting
                                             }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Activity Detail Cards will be displayed at the bottom
-
-                        // Total Steps Card
-                        item {
-                            val totalSteps = aggregatedMinuteData.sumOf { it.steps }
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Surface),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(24.dp)
-                                        .fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = "Nombre de pas total",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = OnSurface.copy(alpha = 0.7f)
-                                        )
-                                        Text(
-                                            text = "$totalSteps",
-                                            style = MaterialTheme.typography.displayMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Primary
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Default.DirectionsWalk,
-                                        contentDescription = null,
-                                        tint = Primary,
-                                        modifier = Modifier.size(48.dp)
-                                    )
-                                }
-                            }
-                        }
-                        
-                        // Resting Heart Rate Card
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Surface),
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(24.dp)
-                                        .fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                        Icon(
-                                            imageVector = Icons.Default.WbSunny,
-                                            contentDescription = "Jour",
-                                            tint = Color(0xFFFFB74D), // Orange
-                                            modifier = Modifier.size(32.dp).padding(end = 8.dp)
-                                        )
-                                        Column {
-                                            Text(
-                                                text = "Repos Jour",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                color = OnSurface.copy(alpha = 0.7f)
-                                            )
-                                            Text(
-                                                text = rhrDay?.let { "$it bpm" } ?: "--",
-                                                style = MaterialTheme.typography.headlineMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = OnSurface
-                                            )
-                                        }
-                                    }
-                                    
-                                    Box(
-                                        modifier = Modifier
-                                            .width(1.dp)
-                                            .height(40.dp)
-                                            .background(OnSurface.copy(alpha = 0.1f))
-                                    )
-                                    
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically, 
-                                        modifier = Modifier.weight(1f),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = "Repos Nuit",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                color = OnSurface.copy(alpha = 0.7f)
-                                            )
-                                            Text(
-                                                text = rhrNight?.let { "$it bpm" } ?: "--",
-                                                style = MaterialTheme.typography.headlineMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = OnSurface
-                                            )
-                                        }
-                                        Icon(
-                                            imageVector = Icons.Default.NightsStay,
-                                            contentDescription = "Nuit",
-                                            tint = Color(0xFF9575CD), // Purple
-                                            modifier = Modifier.size(32.dp).padding(start = 8.dp)
                                         )
                                     }
                                 }

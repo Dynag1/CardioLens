@@ -66,7 +66,7 @@ class HealthRepository @Inject constructor(
      * Get sleep data for a specific date
      * Uses cache-first strategy with 24h TTL
      */
-    suspend fun getSleepData(date: java.util.Date, forceRefresh: Boolean = false): Result<SleepData?> = withContext(Dispatchers.IO) {
+    suspend fun getSleepData(date: java.util.Date, forceRefresh: Boolean = false): Result<List<SleepData>> = withContext(Dispatchers.IO) {
         try {
             val dateString = DateUtils.formatForApi(date)
             android.util.Log.d("HealthRepo", "Loading sleep data for: $dateString (forceRefresh=$forceRefresh)")
@@ -76,7 +76,8 @@ class HealthRepository @Inject constructor(
                 val cached = sleepDataDao.getByDate(dateString)
                 if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MS) {
                     android.util.Log.d("HealthRepo", "Using cached sleep data")
-                    val data = com.google.gson.Gson().fromJson(cached.data, SleepData::class.java)
+                    val type = object : com.google.gson.reflect.TypeToken<List<SleepData>>() {}.type
+                    val data = com.google.gson.Gson().fromJson<List<SleepData>>(cached.data, type)
                     return@withContext Result.success(data)
                 }
             }
@@ -87,11 +88,11 @@ class HealthRepository @Inject constructor(
             
             if (response.isSuccessful && response.body() != null) {
                 val apiResponse = response.body()!!
-                val sleepData = mapSleepResponse(apiResponse)
+                val sleepDataList = mapSleepResponse(apiResponse)
                 
                 // Cache the result
-                if (sleepData != null) {
-                    val json = com.google.gson.Gson().toJson(sleepData)
+                if (sleepDataList.isNotEmpty()) {
+                    val json = com.google.gson.Gson().toJson(sleepDataList)
                     sleepDataDao.insert(
                         com.cardio.fitbit.data.local.entities.SleepDataEntity(
                             date = dateString,
@@ -101,8 +102,8 @@ class HealthRepository @Inject constructor(
                     )
                 }
                 
-                android.util.Log.d("HealthRepo", "Sleep data loaded: ${sleepData?.startTime} - ${sleepData?.endTime}")
-                Result.success(sleepData)
+                android.util.Log.d("HealthRepo", "Sleep data loaded: ${sleepDataList.size} sessions")
+                Result.success(sleepDataList)
             } else {
                 Result.failure(Exception("Failed to fetch sleep data: ${response.code()}"))
             }
@@ -271,19 +272,18 @@ class HealthRepository @Inject constructor(
             val hrData = hrResponse.body()?.intradayData?.dataset ?: emptyList()
             val stepsData = stepsResponse.body()?.intradayData?.dataset ?: emptyList()
             
-            android.util.Log.d("HealthRepo", "HR data points: ${hrData.size}, Steps data points: ${stepsData.size}")
-            
-            // Create a map of time -> steps for quick lookup
+            // Combine data: Ensure we include all minutes from both HR and Steps
+            val allTimes = (hrData.map { it.time } + stepsData.map { it.time }).distinct()
+            val hrMap = hrData.associateBy { it.time }
             val stepsMap = stepsData.associateBy { it.time }
             
-            // Combine data
-            val minuteData = hrData.map { hrPoint ->
+            val minuteData = allTimes.map { time ->
                 MinuteData(
-                    time = hrPoint.time,
-                    heartRate = hrPoint.value,
-                    steps = stepsMap[hrPoint.time]?.value ?: 0
+                    time = time,
+                    heartRate = hrMap[time]?.value ?: 0,
+                    steps = stepsMap[time]?.value ?: 0
                 )
-            }
+            }.sortedBy { it.time }
             
             val intradayData = IntradayData(date, minuteData)
             
@@ -337,45 +337,46 @@ class HealthRepository @Inject constructor(
         )
     }
 
-    private fun mapSleepResponse(response: SleepResponse): SleepData? {
-        if (response.sleep.isEmpty()) return null
+    private fun mapSleepResponse(response: SleepResponse): List<SleepData> {
+        if (response.sleep.isEmpty()) return emptyList()
         
-        val sleepLog = response.sleep[0]
-        val date = DateUtils.parseApiDate(sleepLog.dateOfSleep) ?: return null
-        val startTime = DateUtils.parseApiDateTime(sleepLog.startTime) ?: date
-        val endTime = DateUtils.parseApiDateTime(sleepLog.endTime) ?: date
-        
-        val stages = sleepLog.levels.summary?.let { summary ->
-            SleepStages(
-                deep = summary.deep?.minutes ?: 0,
-                light = summary.light?.minutes ?: 0,
-                rem = summary.rem?.minutes ?: 0,
-                wake = summary.wake?.minutes ?: 0
+        return response.sleep.mapNotNull { sleepLog ->
+            val date = DateUtils.parseApiDate(sleepLog.dateOfSleep) ?: return@mapNotNull null
+            val startTime = DateUtils.parseApiDateTime(sleepLog.startTime) ?: date
+            val endTime = DateUtils.parseApiDateTime(sleepLog.endTime) ?: date
+            
+            val stages = sleepLog.levels.summary?.let { summary ->
+                SleepStages(
+                    deep = summary.deep?.minutes ?: 0,
+                    light = summary.light?.minutes ?: 0,
+                    rem = summary.rem?.minutes ?: 0,
+                    wake = summary.wake?.minutes ?: 0
+                )
+            }
+            
+            val levels = sleepLog.levels.data.mapNotNull { levelData ->
+                val levelDate = DateUtils.parseApiDateTime(levelData.dateTime)
+                if (levelDate != null) {
+                    SleepLevel(
+                        dateTime = levelDate,
+                        level = levelData.level,
+                        seconds = levelData.seconds
+                    )
+                } else null
+            }
+            
+            SleepData(
+                date = date,
+                duration = sleepLog.duration,
+                efficiency = sleepLog.efficiency,
+                startTime = startTime,
+                endTime = endTime,
+                minutesAsleep = sleepLog.minutesAsleep,
+                minutesAwake = sleepLog.minutesAwake,
+                stages = stages,
+                levels = levels
             )
         }
-        
-        val levels = sleepLog.levels.data.mapNotNull { levelData ->
-            val levelDate = DateUtils.parseApiDateTime(levelData.dateTime)
-            if (levelDate != null) {
-                SleepLevel(
-                    dateTime = levelDate,
-                    level = levelData.level,
-                    seconds = levelData.seconds
-                )
-            } else null
-        }
-        
-        return SleepData(
-            date = date,
-            duration = sleepLog.duration,
-            efficiency = sleepLog.efficiency,
-            startTime = startTime,
-            endTime = endTime,
-            minutesAsleep = sleepLog.minutesAsleep,
-            minutesAwake = sleepLog.minutesAwake,
-            stages = stages,
-            levels = levels
-        )
     }
 
     private fun mapStepsResponse(response: StepsResponse): List<StepsData> {
@@ -395,15 +396,11 @@ class HealthRepository @Inject constructor(
 
     private fun mapActivityResponse(response: ActivityResponse, date: java.util.Date): ActivityData {
         val rawList = response.activities
-        
-        // Deduplicate: Fitbit returns the same activity in summary and logs.
-        // Use logId (unique instance) or startTime if logId is null.
-        val distinctRawList = rawList.distinctBy { it.logId ?: it.startTime }
-        
-        android.util.Log.d("ActivityMap", "Mapping ${distinctRawList.size} distinct activities (out of ${rawList.size}) for ${DateUtils.formatForApi(date)}")
-
         val targetDateStr = DateUtils.formatForApi(date)
-        val activities = distinctRawList.mapNotNull { activityLog ->
+        
+        android.util.Log.d("ActivityMap", "Mapping ${rawList.size} raw activities for $targetDateStr")
+
+        val activities = rawList.mapNotNull { activityLog ->
             val startTime = DateUtils.parseFitbitTimeOrDateTime(activityLog.startTime, date)
             if (startTime == null) {
                 android.util.Log.e("ActivityMap", "Failed to parse startTime: ${activityLog.startTime}")
@@ -414,8 +411,6 @@ class HealthRepository @Inject constructor(
             val activityDateStr = DateUtils.formatForApi(startTime)
             val isSameDay = activityDateStr == targetDateStr
             
-            android.util.Log.d("ActivityMap", "Activity: ${activityLog.activityName ?: activityLog.name}, Time: ${activityLog.startTime}, ParsedDate: $activityDateStr, Target: $targetDateStr, OK: $isSameDay")
-
             if (isSameDay) {
                 Activity(
                     activityId = activityLog.logId ?: activityLog.activityId, 
@@ -431,6 +426,35 @@ class HealthRepository @Inject constructor(
                 null
             }
         }.sortedBy { it.startTime }
+
+        // Fuzzy Deduplication
+        // Merge activities if they start within 2 minutes of each other and have similar names/types
+        val distinctActivities = activities.fold(mutableListOf<Activity>()) { acc, activity ->
+            if (acc.isEmpty()) {
+                acc.add(activity)
+            } else {
+                val last = acc.last()
+                val timeDiff = kotlin.math.abs(activity.startTime.time - last.startTime.time) // in ms
+                val isSameTime = timeDiff < 2 * 60 * 1000 // < 2 minutes tolerance
+
+                // Basic name check (can be improved)
+                val sameName = activity.activityName == last.activityName || 
+                               (activity.activityName.contains(last.activityName, ignoreCase = true)) ||
+                               (last.activityName.contains(activity.activityName, ignoreCase = true))
+
+                if (isSameTime && sameName) {
+                    android.util.Log.d("ActivityMap", "Merging duplicate: ${activity.activityName} ($timeDiff ms diff)")
+                    // Keep the one with the most data or "best" ID (Log ID > Activity ID)
+                    // Here we assume the latter one in the list (sorted by time or source) might be better, 
+                    // or strictly prefer the one that came from Logs (which we can't easily tell here without extra flags).
+                    // Logic: Retain the one with the longer duration or just the first one found?
+                    // Actually, let's keep the one that seems 'richer'. For now: keep the first ONE.
+                } else {
+                    acc.add(activity)
+                }
+            }
+            acc
+        }
         
         val totalDistance = response.summary.distances.find { it.activity == "total" }?.distance ?: 0.0
         val activeMinutes = response.summary.fairlyActiveMinutes + 
@@ -446,16 +470,11 @@ class HealthRepository @Inject constructor(
             sedentaryMinutes = response.summary.sedentaryMinutes
         )
 
-        // Debug info for troubleshooting
-        val debugMsg = if (activities.isEmpty()) {
-            "Tgt: $targetDateStr, Raw: ${rawList.size}, Dist: ${distinctRawList.size}, 1stRaw: ${rawList.firstOrNull()?.startTime?.take(10) ?: "N/A"}"
-        } else ""
-        
         return ActivityData(
             date = date,
-            activities = activities,
+            activities = distinctActivities,
             summary = summary,
-            debugInfo = debugMsg
+            debugInfo = ""
         )
     }
 
