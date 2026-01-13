@@ -68,19 +68,36 @@ class DashboardViewModel @Inject constructor(
         val newDate = calendar.time
         _selectedDate.value = newDate
         
+        android.util.Log.d("DashboardVM", "Changing date to: ${DateUtils.formatForApi(newDate)}")
+
+        // Reset state & Set UI to Loading to provide feedback
+        _uiState.value = DashboardUiState.Loading
+        _sleepData.value = null
+        _activityData.value = null
+        _intradayData.value = null
+        _aggregatedMinuteData.value = emptyList()
+        _rhrDay.value = null
+        _rhrNight.value = null
+
         // Only reload date-dependent data
         viewModelScope.launch {
             try {
-                // Launch loads
+                // Launch loads in parallel
+                // forceRefresh is false by default to use CACHE
                 val jobs = listOf(
-                    launch { loadSleep(newDate) },
-                    launch { loadActivity(newDate) },
-                    launch { loadIntradayData(newDate) }
+                    launch { loadHeartRate(newDate) },
+                    launch { loadSleep(newDate, forceRefresh = false) },
+                    launch { loadActivity(newDate, forceRefresh = false) }, 
+                    launch { loadIntradayData(newDate, forceRefresh = false) }
                 )
-                jobs.forEach { it.join() } // Wait for data
+                jobs.forEach { it.join() } // Wait for all data
                 computeDerivedMetrics()
+                
+                // Switch back to success
+                _uiState.value = DashboardUiState.Success
             } catch (e: Exception) {
                 android.util.Log.e("DashboardVM", "Error changing date", e)
+                _uiState.value = DashboardUiState.Error(e.message ?: "Erreur de navigation")
             }
         }
     }
@@ -96,12 +113,20 @@ class DashboardViewModel @Inject constructor(
 
                 android.util.Log.d("DashboardVM", "loadAllData called with forceRefresh=$forceRefresh")
 
+                // Reset state to prevent stales from other days or previous failed loads
+                _sleepData.value = null
+                _activityData.value = null
+                _intradayData.value = null
+                _aggregatedMinuteData.value = emptyList()
+                _rhrDay.value = null
+                _rhrNight.value = null
+
                 // Load all data in parallel
                 val jobs = listOf(
                     launch { loadHeartRate(today) },
                     launch { loadSleep(selectedDate, forceRefresh) },
                     launch { loadSteps(sevenDaysAgo, today) },
-                    launch { loadActivity(selectedDate, forceRefresh) },
+                    launch { loadActivity(selectedDate, forceRefresh = true) }, 
                     launch { loadIntradayData(selectedDate, forceRefresh) }
                 )
                 jobs.forEach { it.join() }
@@ -116,7 +141,14 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun computeDerivedMetrics() {
-        val intraday = _intradayData.value?.minuteData ?: return
+        val intraday = _intradayData.value?.minuteData
+        if (intraday == null) {
+            // Clear metrics if no intraday data is available for current date
+            _rhrDay.value = null
+            _rhrNight.value = null
+            _aggregatedMinuteData.value = emptyList()
+            return
+        }
         val sleep = _sleepData.value
         val activity = _activityData.value
         val date = _selectedDate.value
@@ -199,37 +231,9 @@ class DashboardViewModel @Inject constructor(
                  null
              }
 
-             // 2. Aggregation Logic (5 min buckets)
-             val aggregated = mutableListOf<MinuteData>()
-             
-             // Group by 5 min chunks (0-4, 5-9...)
-             // Assuming sorted list? Yes.
-             // We can just iterate or bucket manually.
-             val bucketMap = mutableMapOf<String, MutableList<MinuteData>>() // Key: "HH:00", "HH:05"
-             
-             intraday.forEach { data ->
-                 val parts = data.time.split(":")
-                 val h = parts[0].toInt()
-                 val m = parts[1].toInt()
-                 val bucketM = (m / 5) * 5
-                 val bucketTime = String.format("%02d:%02d", h, bucketM)
-                 
-                 bucketMap.getOrPut(bucketTime) { mutableListOf() }.add(data)
-             }
-             bucketMap.forEach { (time, list) ->
-                  val hrValues = list.map { it.heartRate }.filter { it > 0 }
-                  val totalSteps = list.sumOf { it.steps }
-                  
-                  // Only create entry if we have actual HR data or steps
-                  if (hrValues.isNotEmpty() || totalSteps > 0) {
-                      val avgHr = if (hrValues.isNotEmpty()) hrValues.average().toInt() else 0
-                      aggregated.add(MinuteData(time, avgHr, totalSteps))
-                  }
-                  // If no HR data and no steps, we don't add anything -> creates a gap in the chart
-              }
-             
-             _aggregatedMinuteData.value = aggregated.sortedBy { it.time }
-        }
+              // 2. Aggregation Logic (Now Pass-through Minute-by-Minute)
+              _aggregatedMinuteData.value = intraday.sortedBy { it.time }
+         }
     }
 
     private suspend fun loadHeartRate(date: java.util.Date) {

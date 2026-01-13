@@ -153,28 +153,63 @@ class HealthRepository @Inject constructor(
             }
             
             // Fetch from API
-            android.util.Log.d("HealthRepo", "Fetching activity data from API")
-            val response = apiClient.fitbitApi.getActivities(dateString)
+            android.util.Log.d("HealthRepo", "Fetching activity data from API (Double Fetch)")
             
-            if (response.isSuccessful && response.body() != null) {
-                val apiResponse = response.body()!!
-                val activityData = mapActivityResponse(apiResponse, date) // Keep original signature for mapActivityResponse
+            // 1. Get Summary (Daily)
+            val summaryRes = apiClient.fitbitApi.getActivities(dateString)
+            
+            if (summaryRes.isSuccessful && summaryRes.body() != null) {
+                val summaryBody = summaryRes.body()!!
+                var finalActivities = summaryBody.activities
+                
+                // 2. Get Logs (Detailed List to catch SmartTrack activities)
+                try {
+                    val cal = java.util.Calendar.getInstance()
+                    val parsedDate = DateUtils.parseApiDate(dateString)
+                    if (parsedDate != null) {
+                        cal.time = parsedDate
+                        cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                        val nextDayString = DateUtils.formatForApi(cal.time)
+                        
+                        android.util.Log.d("HealthRepo", "Fetching activity logs for $dateString (beforeDate=$nextDayString)")
+                        val logsRes = apiClient.fitbitApi.getActivityLogs(beforeDate = nextDayString, limit = 50)
+                        
+                        if (logsRes.isSuccessful && logsRes.body() != null) {
+                            val logs = logsRes.body()!!.activities
+                            android.util.Log.d("HealthRepo", "Fetched ${logs.size} detailed logs")
+                            android.util.Log.d("HealthRepo", "Summary activities before merge: ${finalActivities.size}")
+                            // Merge and deduplicate
+                            finalActivities = (finalActivities + logs).distinctBy { it.activityId }
+                            android.util.Log.d("HealthRepo", "Total activities after merge: ${finalActivities.size}")
+                        } else {
+                            android.util.Log.w("HealthRepo", "Failed to fetch activity logs: ${logsRes.code()}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HealthRepo", "Error fetching activity logs", e)
+                }
+
+                // Create synthetic response
+                val syntheticResponse = ActivityResponse(
+                    activities = finalActivities,
+                    summary = summaryBody.summary
+                )
+
+                val activityData = mapActivityResponse(syntheticResponse, date) 
                 
                 // Cache the result
-                if (activityData != null) {
-                    val json = com.google.gson.Gson().toJson(activityData)
-                    activityDataDao.insert(
-                        com.cardio.fitbit.data.local.entities.ActivityDataEntity(
-                            date = dateString,
-                            data = json,
-                            timestamp = System.currentTimeMillis()
-                        )
+                val json = com.google.gson.Gson().toJson(activityData)
+                activityDataDao.insert(
+                    com.cardio.fitbit.data.local.entities.ActivityDataEntity(
+                        date = dateString,
+                        data = json,
+                        timestamp = System.currentTimeMillis()
                     )
-                }
+                )
                 
                 Result.success(activityData)
             } else {
-                Result.failure(Exception("Failed to fetch activity data: ${response.code()}"))
+                Result.failure(Exception("Failed to fetch activity data: ${summaryRes.code()}"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -359,21 +394,43 @@ class HealthRepository @Inject constructor(
     }
 
     private fun mapActivityResponse(response: ActivityResponse, date: java.util.Date): ActivityData {
-        val activities = response.activities.mapNotNull { activityLog ->
-            val startTime = DateUtils.parseApiDateTime(activityLog.startTime)
-            if (startTime != null) {
+        val rawList = response.activities
+        
+        // Deduplicate: Fitbit returns the same activity in summary and logs.
+        // Use logId (unique instance) or startTime if logId is null.
+        val distinctRawList = rawList.distinctBy { it.logId ?: it.startTime }
+        
+        android.util.Log.d("ActivityMap", "Mapping ${distinctRawList.size} distinct activities (out of ${rawList.size}) for ${DateUtils.formatForApi(date)}")
+
+        val targetDateStr = DateUtils.formatForApi(date)
+        val activities = distinctRawList.mapNotNull { activityLog ->
+            val startTime = DateUtils.parseFitbitTimeOrDateTime(activityLog.startTime, date)
+            if (startTime == null) {
+                android.util.Log.e("ActivityMap", "Failed to parse startTime: ${activityLog.startTime}")
+                return@mapNotNull null
+            }
+
+            // Filter to ensure it's for the requested day
+            val activityDateStr = DateUtils.formatForApi(startTime)
+            val isSameDay = activityDateStr == targetDateStr
+            
+            android.util.Log.d("ActivityMap", "Activity: ${activityLog.activityName ?: activityLog.name}, Time: ${activityLog.startTime}, ParsedDate: $activityDateStr, Target: $targetDateStr, OK: $isSameDay")
+
+            if (isSameDay) {
                 Activity(
-                    activityId = activityLog.activityId,
-                    activityName = activityLog.activityName,
+                    activityId = activityLog.logId ?: activityLog.activityId, 
+                    activityName = activityLog.activityName ?: activityLog.name ?: "Activité",
                     startTime = startTime,
                     duration = activityLog.duration,
                     calories = activityLog.calories,
-                    distance = activityLog.distance,
-                    steps = activityLog.steps,
-                    averageHeartRate = activityLog.averageHeartRate
+                    distance = activityLog.distance ?: 0.0,
+                    steps = activityLog.steps ?: 0,
+                    averageHeartRate = activityLog.averageHeartRate ?: 0
                 )
-            } else null
-        }
+            } else {
+                null
+            }
+        }.sortedBy { it.startTime }
         
         val totalDistance = response.summary.distances.find { it.activity == "total" }?.distance ?: 0.0
         val activeMinutes = response.summary.fairlyActiveMinutes + 
@@ -388,11 +445,17 @@ class HealthRepository @Inject constructor(
             activeMinutes = activeMinutes,
             sedentaryMinutes = response.summary.sedentaryMinutes
         )
+
+        // Debug info for troubleshooting
+        val debugMsg = if (activities.isEmpty()) {
+            "Tgt: $targetDateStr, Raw: ${rawList.size}, Dist: ${distinctRawList.size}, 1stRaw: ${rawList.firstOrNull()?.startTime?.take(10) ?: "N/A"}"
+        } else ""
         
         return ActivityData(
             date = date,
             activities = activities,
-            summary = summary
+            summary = summary,
+            debugInfo = debugMsg
         )
     }
 

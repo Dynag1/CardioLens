@@ -43,6 +43,11 @@ fun HeartRateDetailChart(
     // Let's rely on `scaleX` inside the view update simply.
 
     Column {
+        // Debug only if empty activities (User troubleshooting)
+        if (activityData?.activities.isNullOrEmpty() && !activityData?.debugInfo.isNullOrBlank()) {
+             Text(text = activityData!!.debugInfo!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+        }
+
         AndroidView(
             factory = { context ->
                 CombinedChart(context).apply {
@@ -161,33 +166,21 @@ fun HeartRateDetailChart(
                 
                 val combinedData = CombinedData()
 
-                // Helper function to convert time string to index (assuming 5-minute buckets starting at 00:00)
+                // Helper function to convert time string to index (1-minute granularity)
                 fun timeToIndex(time: String): Float {
                     val parts = time.split(":")
+                    if (parts.size < 2) return 0f
                     val hours = parts[0].toInt()
                     val minutes = parts[1].toInt()
-                    return (hours * 60 + minutes) / 5f  // 5-minute buckets
+                    return (hours * 60 + minutes).toFloat()
                 }
 
-                 // 2. Steps (Simple bar at bottom - fixed height if steps detected)
-                // 2. Steps as BarDataSet to align perfectly with HR bars
-                val stepEntries = activeList.mapNotNull { data ->
-                   if (data.steps > 0) BarEntry(timeToIndex(data.time), 20f, data) else null
-                }
-
-                val stepDataSet = BarDataSet(stepEntries, "Steps").apply {
-                    setDrawValues(false)
-                    color = Color.parseColor("#00E676") // Bright Neon Green
-                    // Disable highlight for steps, relies on HR bars
-                    isHighlightEnabled = false
-                }
-
-                // 1. HR Bars (With Gradient) - Only show bars where HR > 0 to create gaps for missing data
+                // 1. HR Bars (With Gradient)
                 val hrEntries = activeList.mapNotNull { data ->
                     if (data.heartRate > 0) {
                         BarEntry(timeToIndex(data.time), data.heartRate.toFloat(), data)
                     } else {
-                        null  // This creates a gap in the chart for missing/0 data
+                        null
                     }
                 }
                 
@@ -205,124 +198,102 @@ fun HeartRateDetailChart(
                          }
                     }
                     setColors(colors)
+                    isHighlightEnabled = true
                 }
+
+                // 2. Steps (As BarDataSet superimposed on the BPM bars)
+                // Height is fixed to 10f if steps > 0 to be visible but not cover the whole bar
+                val stepEntries = activeList.mapNotNull { data ->
+                    if (data.steps > 0) {
+                        BarEntry(timeToIndex(data.time), 10f, data)
+                    } else {
+                        null
+                    }
+                }
+
+                val stepDataSet = BarDataSet(stepEntries, "Steps").apply {
+                    color = Color.parseColor("#4CAF50") // Green
+                    setDrawValues(false)
+                    isHighlightEnabled = false // Highlight HR dataset only
+                }
+
+                // Combine both in BarData (Order: HR first, then Steps on top)
                 val barData = BarData(hrDataSet, stepDataSet)
                 barData.barWidth = 0.8f 
 
-                // 3. Sleep Zone (Colored background area) - MUST BE ADDED FIRST to appear in background
+                // 3. Sleep Zone (Purple background)
                 val sleepLineData = LineData()
                 
                 if (sleepData != null) {
-                    android.util.Log.d("HeartRateChart", "Sleep data found: start=${sleepData.startTime}, end=${sleepData.endTime}")
-                    
                     val sleepStart = sleepData.startTime.time
                     val sleepEnd = sleepData.endTime.time
-                    
-                    android.util.Log.d("HeartRateChart", "Sleep timestamps: start=$sleepStart, end=$sleepEnd")
-                    
                     val sleepZoneEntries = mutableListOf<Entry>()
                     val cal = java.util.Calendar.getInstance()
                     
-                    // Use the SELECTED DATE as base, not sleep start date
                     cal.time = selectedDate
                     val year = cal.get(java.util.Calendar.YEAR)
                     val month = cal.get(java.util.Calendar.MONTH)
                     val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
                     
-                    android.util.Log.d("HeartRateChart", "Selected date base: $year-${month+1}-$day")
-                    android.util.Log.d("HeartRateChart", "Processing ${activeList.size} data points")
-                    
-                    var matchCount = 0
-                    
-                    // Create a continuous zone covering the entire chart height during sleep
                     activeList.forEach { data ->
                         val parts = data.time.split(":")
-                        val hour = parts[0].toInt()
-                        val minute = parts[1].toInt()
-                        
-                        // Build timestamp for this data point using selected date
-                        cal.set(year, month, day, hour, minute, 0)
-                        cal.set(java.util.Calendar.MILLISECOND, 0)
-                        
-                        val ts = cal.timeInMillis
-                        
-                        // Add entry with height 200 if in sleep period, 0 otherwise
-                        if (ts >= sleepStart && ts <= sleepEnd) {
-                            sleepZoneEntries.add(Entry(timeToIndex(data.time), 200f))
-                            matchCount++
-                            if (matchCount <= 3) {
-                                android.util.Log.d("HeartRateChart", "Sleep match at ${data.time}, ts=$ts")
+                        if (parts.size >= 2) {
+                            cal.set(year, month, day, parts[0].toInt(), parts[1].toInt(), 0)
+                            cal.set(java.util.Calendar.MILLISECOND, 0)
+                            val ts = cal.timeInMillis
+                            
+                            if (ts >= sleepStart && ts <= sleepEnd) {
+                                sleepZoneEntries.add(Entry(timeToIndex(data.time), 200f))
+                            } else {
+                                sleepZoneEntries.add(Entry(timeToIndex(data.time), 0f))
                             }
-                        } else {
-                            sleepZoneEntries.add(Entry(timeToIndex(data.time), 0f))
                         }
                     }
                     
-                    android.util.Log.d("HeartRateChart", "Found $matchCount sleep matches out of ${activeList.size} points")
-                    
                     if (sleepZoneEntries.any { it.y > 0 }) {
-                        android.util.Log.d("HeartRateChart", "Creating sleep zone dataset")
                         val sleepZoneDataSet = LineDataSet(sleepZoneEntries, "Sommeil").apply {
                             setDrawCircles(false)
                             setDrawValues(false)
                             mode = LineDataSet.Mode.STEPPED
                             setDrawFilled(true)
-                            fillColor = Color.parseColor("#E1BEE7") // Light Purple
+                            fillColor = Color.parseColor("#E1BEE7")
                             color = Color.TRANSPARENT
-                            fillAlpha = 120 // Semi-transparent
-                            axisDependency = YAxis.AxisDependency.LEFT
+                            fillAlpha = 120
                             lineWidth = 0f
-                            // Disable highlight for background zone
                             isHighlightEnabled = false
                         }
                         sleepLineData.addDataSet(sleepZoneDataSet)
-                        android.util.Log.d("HeartRateChart", "Sleep zone added to LineData")
-                    } else {
-                        android.util.Log.w("HeartRateChart", "No sleep zone entries with y > 0")
                     }
-                } else {
-                    android.util.Log.w("HeartRateChart", "No sleep data available")
                 }
                 
-                // 4. Activity/Exercise Zones (Orange colored areas)
+                // 4. Activity/Exercise Zones (Orange background)
                 if (activityData != null && activityData.activities.isNotEmpty()) {
-                    android.util.Log.d("HeartRateChart", "Activity data found: ${activityData.activities.size} activities")
-                    
                     val cal = java.util.Calendar.getInstance()
                     cal.time = selectedDate
                     val year = cal.get(java.util.Calendar.YEAR)
                     val month = cal.get(java.util.Calendar.MONTH)
                     val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
                     
-                    // Process each activity
                     activityData.activities.forEach { activity ->
-                        val activityStart = activity.startTime.time
-                        val activityEnd = activityStart + activity.duration
-                        
-                        android.util.Log.d("HeartRateChart", "Activity: ${activity.activityName}, start=$activityStart, end=$activityEnd")
-                        
+                        val activityStart = (activity.startTime.time / 60000) * 60000
+                        val activityEnd = ((activity.startTime.time + activity.duration + 59999) / 60000) * 60000
                         val activityZoneEntries = mutableListOf<Entry>()
-                        var matchCount = 0
+                        var matches = 0
                         
                         activeList.forEach { data ->
                             val parts = data.time.split(":")
-                            val hour = parts[0].toInt()
-                            val minute = parts[1].toInt()
-                            
-                            cal.set(year, month, day, hour, minute, 0)
-                            cal.set(java.util.Calendar.MILLISECOND, 0)
-                            
-                            val ts = cal.timeInMillis
-                            
-                            if (ts >= activityStart && ts <= activityEnd) {
-                                activityZoneEntries.add(Entry(timeToIndex(data.time), 200f))
-                                matchCount++
-                            } else {
-                                activityZoneEntries.add(Entry(timeToIndex(data.time), 0f))
+                            if (parts.size >= 2) {
+                                cal.set(year, month, day, parts[0].toInt(), parts[1].toInt(), 0)
+                                cal.set(java.util.Calendar.MILLISECOND, 0)
+                                val ts = cal.timeInMillis
+                                if (ts in activityStart..activityEnd) {
+                                    activityZoneEntries.add(Entry(timeToIndex(data.time), 200f))
+                                    matches++
+                                } else {
+                                    activityZoneEntries.add(Entry(timeToIndex(data.time), 0f))
+                                }
                             }
                         }
-                        
-                        android.util.Log.d("HeartRateChart", "Found $matchCount activity matches for ${activity.activityName}")
                         
                         if (activityZoneEntries.any { it.y > 0 }) {
                             val activityZoneDataSet = LineDataSet(activityZoneEntries, activity.activityName).apply {
@@ -330,67 +301,40 @@ fun HeartRateDetailChart(
                                 setDrawValues(false)
                                 mode = LineDataSet.Mode.STEPPED
                                 setDrawFilled(true)
-                                fillColor = Color.parseColor("#FFB74D") // Orange
+                                fillColor = Color.parseColor("#2196F3") // Blue for activity
                                 color = Color.TRANSPARENT
-                                fillAlpha = 100 // Semi-transparent
-                                axisDependency = YAxis.AxisDependency.LEFT
+                                fillAlpha = 120
                                 lineWidth = 0f
-                                // Disable highlight for background zone
                                 isHighlightEnabled = false
                             }
                             sleepLineData.addDataSet(activityZoneDataSet)
-                            android.util.Log.d("HeartRateChart", "Activity zone added for ${activity.activityName}")
                         }
                     }
-                } else {
-                    android.util.Log.w("HeartRateChart", "No activity data available")
                 }
                 
-                // Add steps to the same LineData -> REMOVED, now in BarData
-                // sleepLineData.addDataSet(stepDataSet)
-
-                // Set Data (Order matters based on drawOrder)
-                combinedData.setData(sleepLineData)  // LINE data (sleep zone + steps)
-                combinedData.setData(barData)        // BAR data (HR bars)
+                // Final Assembly
+                combinedData.setData(sleepLineData)
+                combinedData.setData(barData)
                 
                 chart.data = combinedData
                 
-                // XAxis Formatter update
+                // XAxis Formatter for 1-minute granularity
                 chart.xAxis.valueFormatter = object : IndexAxisValueFormatter() {
                     override fun getFormattedValue(value: Float): String {
-                        val index = value.toInt()
-                         if (index >= 0 && index < activeList.size) {
-                             val time = activeList[index].time
-                             // Show label depending on density
-                             return if (index % 6 == 0) time else "" // Every 30 mins (index is 5min)
-                         }
-                         return ""
+                        val minuteOffset = value.toInt()
+                        val hour = minuteOffset / 60
+                        val minute = minuteOffset % 60
+                        
+                        // Show labels only for full hours or every 30 mins
+                        return if (minute == 0) {
+                            String.format("%02d:00", hour)
+                        } else if (minute == 30) {
+                            String.format("%02d:30", hour)
+                        } else {
+                            ""
+                        }
                     }
                 }
-                
-                // Restore zoom if needed? 
-                // MPAndroidChart handles ViewPort state internally.
-                // However, replacing data resets it usually.
-                // We need `chart.notifyDataSetChanged()` instead of `chart.data = ...` if possible.
-                // But structure changed (1min vs 5min).
-                // Let's just set data and invalidate. It might reset zoom.
-                // If it resets zoom, `scaleX` becomes 1.0 -> switches back to 5min.
-                // This creates a loop if we are not careful!
-                // FIX: If we change data, we MUST restore zoom to "equivalent" level?
-                // Actually, if user zooms IN, we switch to 1min. If we switch to 1min, we have 1440 pts.
-                // 1440 pts requires MORE zoom to see clearly.
-                // This "Dynamic Zoom" feature with DATA SWAP is very unstable in MPAndroidChart.
-                // Better approach: ALWAYS use 1min data?
-                // And aggregate visually?
-                // User said "une barre toute les 5 minutes".
-                // I will stick to **Aggregated Data (5min)** ONLY for now to ensure stability, unless I can guarantee smooth swap.
-                // Let's use `aggregatedData` by default. And ignore "1 min if zoomed" requirement strictly if it breaks UX (jumping).
-                // OR: I implement swap but FORCE zoom level to match?
-                // Let's implement ONLY 5-min data logic first. It is "unzoomed".
-                // If I use only 5-min data, I fulfill 50% of constraint but 100% of stability.
-                // User said "une toute les minutes si zoomé".
-                // I will try to support it: 
-                // Check `chart.lowestVisibleX`.
                 
                 chart.invalidate()
             },

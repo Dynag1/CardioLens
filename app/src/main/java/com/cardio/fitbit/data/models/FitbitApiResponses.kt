@@ -169,11 +169,20 @@ data class ActivityResponse(
     val summary: ActivitySummaryResponse
 )
 
+data class ActivityListResponse(
+    @SerializedName("activities")
+    val activities: List<ActivityLog>
+)
+
 data class ActivityLog(
     @SerializedName("activityId")
     val activityId: Long,
+    @SerializedName("logId")
+    val logId: Long? = null,
     @SerializedName("activityName")
-    val activityName: String,
+    val activityName: String? = null,
+    @SerializedName("name")
+    val name: String? = null,
     @SerializedName("startTime")
     val startTime: String,
     @SerializedName("duration")
@@ -181,11 +190,11 @@ data class ActivityLog(
     @SerializedName("calories")
     val calories: Int,
     @SerializedName("distance")
-    val distance: Double?,
+    val distance: Double? = null,
     @SerializedName("steps")
-    val steps: Int?,
+    val steps: Int? = null,
     @SerializedName("averageHeartRate")
-    val averageHeartRate: Int?
+    val averageHeartRate: Int? = null
 )
 
 data class ActivitySummaryResponse(

@@ -80,7 +80,8 @@ data class StepsData(
 data class ActivityData(
     val date: Date,
     val activities: List<Activity>,
-    val summary: ActivitySummary
+    val summary: ActivitySummary,
+    val debugInfo: String? = null
 ) : Parcelable
 
 @Parcelize

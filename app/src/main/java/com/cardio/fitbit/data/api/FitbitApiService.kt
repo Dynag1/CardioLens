@@ -97,5 +97,5 @@ interface FitbitApiService {
         @Query("sort") sort: String = "desc",
         @Query("offset") offset: Int = 0,
         @Query("limit") limit: Int = 20
-    ): Response<ActivityResponse>
+    ): Response<ActivityListResponse>
 }

@@ -94,17 +94,6 @@ fun DashboardScreen(
                         onLogout()
                     }
                 )
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                Text(
-                    text = "Version ${com.cardio.fitbit.BuildConfig.VERSION_NAME}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OnSurface.copy(alpha = 0.5f),
-                    modifier = Modifier
-                        .padding(bottom = 16.dp)
-                        .align(Alignment.CenterHorizontally)
-                )
             }
         }
     ) {
@@ -225,6 +214,17 @@ fun DashboardScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        // Activity Detail Cards (Moved here for better visibility)
+                        activityData?.activities?.forEach { activity ->
+                            item {
+                                ActivityDetailCard(
+                                    activity = activity,
+                                    allMinuteData = intradayData?.minuteData ?: emptyList(),
+                                    selectedDate = selectedDate
+                                )
                             }
                         }
 
