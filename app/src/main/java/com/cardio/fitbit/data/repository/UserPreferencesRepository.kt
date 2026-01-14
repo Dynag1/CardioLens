@@ -24,6 +24,9 @@ class UserPreferencesRepository @Inject constructor(
         val LOW_HR_THRESHOLD = intPreferencesKey("low_hr_threshold")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val SYNC_INTERVAL_MINUTES = intPreferencesKey("sync_interval_minutes")
+        // BYOK Credentials
+        val CLIENT_ID = androidx.datastore.preferences.core.stringPreferencesKey("client_id")
+        val CLIENT_SECRET = androidx.datastore.preferences.core.stringPreferencesKey("client_secret")
     }
 
     val highHrThreshold: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -40,6 +43,21 @@ class UserPreferencesRepository @Inject constructor(
     
     val syncIntervalMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[PreferencesKeys.SYNC_INTERVAL_MINUTES] ?: 15 // Default 15 min
+    }
+
+    // BYOK Flows
+    val clientId: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.CLIENT_ID]
+    }
+
+    val clientSecret: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.CLIENT_SECRET]
+    }
+
+    // Helper to check if API is configured
+    val areKeysSet: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        !preferences[PreferencesKeys.CLIENT_ID].isNullOrBlank() && 
+        !preferences[PreferencesKeys.CLIENT_SECRET].isNullOrBlank()
     }
 
     suspend fun setHighHrThreshold(threshold: Int) {
@@ -63,6 +81,13 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setSyncIntervalMinutes(minutes: Int) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.SYNC_INTERVAL_MINUTES] = minutes
+        }
+    }
+
+    suspend fun setApiCredentials(clientId: String, clientSecret: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CLIENT_ID] = clientId
+            preferences[PreferencesKeys.CLIENT_SECRET] = clientSecret
         }
     }
 }

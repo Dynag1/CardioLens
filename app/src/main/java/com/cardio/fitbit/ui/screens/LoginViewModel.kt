@@ -17,6 +17,8 @@ class LoginViewModel @Inject constructor(
     val authState: StateFlow<AuthState> = authManager.authState
 
     fun startLogin(context: android.content.Context) {
-        authManager.startAuthorization(context)
+        viewModelScope.launch {
+            authManager.startAuthorization(context)
+        }
     }
 }

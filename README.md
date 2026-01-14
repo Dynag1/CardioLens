@@ -45,14 +45,23 @@ Application Android moderne qui se connecte à Fitbit pour récupérer et affich
 
 Le projet est déjà créé dans: `/home/hemge/Clood/021 - Programmation/Android/Cardio`
 
-### 2. Configurer les credentials Fitbit
+### 2. Configuration API (Deux options)
 
-Éditez le fichier `app/src/main/res/values/strings.xml` et remplacez les placeholders:
+#### Option A: Mode "Bring Your Own Keys" (BYOK) - Recommandé
+L'application demandera à chaque utilisateur ses propres clés Fitbit au démarrage.
+1.  L'utilisateur va sur [dev.fitbit.com](https://dev.fitbit.com)
+2.  Crée une app **"Personal"**
+3.  Utilise ces clés dans l'application.
+    *   ✅ Graphiques détaillés (Intraday) activés.
+    *   ❌ Nécessite une configuration par l'utilisateur.
 
-```xml
-<string name="fitbit_client_id">VOTRE_CLIENT_ID</string>
-<string name="fitbit_client_secret">VOTRE_CLIENT_SECRET</string>
-```
+#### Option B: Mode "Server" (Public)
+Pour éviter la configuration à l'utilisateur :
+1.  Configurez votre app sur Fitbit en type **"Server"**.
+2.  Intégrez vos clés directement dans l'application (nécessite modification du code pour retirer l'écran de setup).
+3.  **Important** : Par défaut, Fitbit **bloque** les données Intraday pour les apps Server.
+    *   Vous devez remplir le **[Formulaire de demande Intraday](https://dev.fitbit.com/build/reference/web-api/intraday-requests/)**.
+    *   Sans validation, les utilisateurs n'auront que les statistiques journalières.
 
 ### 3. Synchroniser le projet
 

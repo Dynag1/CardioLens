@@ -1,0 +1,27 @@
+Categories:
+  - Sports & Health
+License: Apache-2.0
+SourceCode: https://github.com/Dynag1/CardioLens
+IssueTracker: https://github.com/Dynag1/CardioLens/issues
+
+AutoName: CardioLens
+Summary: Visualize Fitbit health data
+Description: |-
+  CardioLens is a modern Android application that connects to Fitbit to retrieve and visualize your health data.
+  It supports OAuth 2.0 (BYOK), Heart Rate visualization, Sleep analysis, and more.
+  
+  Note: This application requires a Fitbit account. To access intraday (minute-by-minute) data, you must use your own Fitbit Developer credentials (BYOK mode).
+
+RepoType: git
+Repo: https://github.com/Dynag1/CardioLens.git
+
+Builds:
+  - versionName: 1.1.0
+    versionCode: 3
+    commit: v1.1.0
+    subdir: app
+    gradle:
+      - yes
+
+AntiFeatures:
+  - NonFreeNet

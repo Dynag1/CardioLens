@@ -1,0 +1,12 @@
+Cardio is a modern Android application that connects to Fitbit to retrieve and visualize your health data in interactive charts.
+
+Features:
+*   OAuth 2.0 Authentication with Fitbit (PKCE)
+*   Heart Rate: Visualization of resting heart rate and frequency zones
+*   Sleep: Detailed analysis of sleep phases (deep, light, REM, awake)
+*   Steps: Daily tracking and weekly statistics
+*   Activities: Summary of exercises and calories burned
+*   Modern Interface: Dark design with Material 3 and Jetpack Compose
+*   Secure Storage: OAuth tokens encrypted with EncryptedSharedPreferences
+
+Note: This application requires a Fitbit account. To access intraday (minute-by-minute) data, you must use your own Fitbit Developer credentials (BYOK mode).

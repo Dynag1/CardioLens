@@ -1,0 +1,25 @@
+Categories:
+  - Sports & Health
+License: Apache-2.0
+SourceCode: https://your-public-repo-url.com/cardio-android
+IssueTracker: https://your-public-repo-url.com/cardio-android/issues
+
+AutoName: Cardio
+Summary: Visualize Fitbit health data
+Description: |-
+  Cardio is a modern Android application that connects to Fitbit to retrieve and visualize your health data.
+  It supports OAuth 2.0 (BYOK), Heart Rate visualization, Sleep analysis, and more.
+
+RepoType: git
+Repo: https://your-public-repo-url.com/cardio-android.git
+
+Builds:
+  - versionName: 1.1.0
+    versionCode: 3
+    commit: v1.1.0
+    subdir: app
+    gradle:
+      - yes
+
+AntiFeatures:
+  - NonFreeNet

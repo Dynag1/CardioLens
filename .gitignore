@@ -23,5 +23,7 @@ out/
 *.so
 *.log
 sdk/
-*.txt
+debug_log.txt
+auth_debug.txt
+intraday_debug.txt
 release/

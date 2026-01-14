@@ -22,9 +22,12 @@ import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import kotlinx.coroutines.flow.firstOrNull
+
 @Singleton
 class FitbitAuthManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val userPreferencesRepository: com.cardio.fitbit.data.repository.UserPreferencesRepository
 ) {
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -41,8 +44,7 @@ class FitbitAuthManager @Inject constructor(
     private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    private val clientId = context.getString(R.string.fitbit_client_id)
-    private val clientSecret = context.getString(R.string.fitbit_client_secret)
+    // Removed hardcoded credentials
     private val redirectUri = context.getString(R.string.fitbit_redirect_uri)
     private val authUrl = context.getString(R.string.fitbit_auth_url)
     private val tokenUrl = context.getString(R.string.fitbit_token_url)
@@ -61,7 +63,14 @@ class FitbitAuthManager @Inject constructor(
     /**
      * Start OAuth 2.0 authorization flow with PKCE
      */
-    fun startAuthorization(context: Context) {
+    suspend fun startAuthorization(context: Context) {
+        val clientId = userPreferencesRepository.clientId.firstOrNull()
+        
+        if (clientId.isNullOrBlank()) {
+             _authState.value = AuthState.Error("ID Client Fitbit manquant. Veuillez configurer l'API.")
+            return
+        }
+
         // Generate PKCE code verifier and challenge
         codeVerifier = generateCodeVerifier()
         val codeChallenge = generateCodeChallenge(codeVerifier!!)
@@ -112,44 +121,49 @@ class FitbitAuthManager @Inject constructor(
     /**
      * Exchange authorization code for access token
      */
-    private suspend fun exchangeCodeForToken(code: String, codeVerifier: String): TokenResponse = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val client = OkHttpClient()
-        
-        val credentials = "$clientId:$clientSecret"
-        val encodedCredentials = Base64.encodeToString(
-            credentials.toByteArray(),
-            Base64.NO_WRAP
-        )
+    private suspend fun exchangeCodeForToken(code: String, codeVerifier: String): TokenResponse {
+        val clientId = userPreferencesRepository.clientId.firstOrNull() ?: throw Exception("Client ID missing")
+        val clientSecret = userPreferencesRepository.clientSecret.firstOrNull() ?: throw Exception("Client Secret missing")
 
-        val requestBody = FormBody.Builder()
-            .add("client_id", clientId)
-            .add("grant_type", "authorization_code")
-            .add("code", code)
-            .add("redirect_uri", redirectUri)
-            .add("code_verifier", codeVerifier)
-            .build()
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val client = OkHttpClient()
+            
+            val credentials = "$clientId:$clientSecret"
+            val encodedCredentials = Base64.encodeToString(
+                credentials.toByteArray(),
+                Base64.NO_WRAP
+            )
 
-        val request = Request.Builder()
-            .url(tokenUrl)
-            .addHeader("Content-Type", "application/x-www-form-urlencoded")
-            .post(requestBody)
-            .build()
+            val requestBody = FormBody.Builder()
+                .add("client_id", clientId)
+                .add("grant_type", "authorization_code")
+                .add("code", code)
+                .add("redirect_uri", redirectUri)
+                .add("code_verifier", codeVerifier)
+                .build()
 
-        val response = client.newCall(request).execute()
-        val responseBody = response.body?.string()
-            ?: throw Exception("Réponse vide du serveur Fitbit")
+            val request = Request.Builder()
+                .url(tokenUrl)
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Authorization", "Basic $encodedCredentials") // Some Fitbit endpoints require Basic Auth even for code exchange
+                .post(requestBody)
+                .build()
 
-        android.util.Log.d("FitbitAuth", "Token response code: ${response.code}")
-        android.util.Log.d("FitbitAuth", "Token response body: $responseBody")
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string()
+                ?: throw Exception("Réponse vide du serveur Fitbit")
 
-        if (!response.isSuccessful) {
-            android.util.Log.e("FitbitAuth", "Auth Failed: Code=${response.code}, Body=$responseBody")
-            throw Exception("Échec (${response.code}): $responseBody")
+            android.util.Log.d("FitbitAuth", "Token response code: ${response.code}")
+            // Don't log full response body in production if it contains tokens, but for debugging it's useful
+            
+            if (!response.isSuccessful) {
+                android.util.Log.e("FitbitAuth", "Auth Failed: Code=${response.code}, Body=$responseBody")
+                throw Exception("Échec (${response.code}): $responseBody")
+            }
+
+            val tokenResponse = Gson().fromJson(responseBody, TokenResponse::class.java)
+            tokenResponse
         }
-
-        val tokenResponse = Gson().fromJson(responseBody, TokenResponse::class.java)
-        android.util.Log.d("FitbitAuth", "Parsed token: accessToken=${tokenResponse.accessToken?.take(10)}..., userId=${tokenResponse.userId}")
-        tokenResponse
     }
 
     /**
@@ -159,6 +173,9 @@ class FitbitAuthManager @Inject constructor(
         try {
             val refreshToken = getRefreshToken()
                 ?: return@withContext Result.failure(Exception("No refresh token available"))
+                
+            val clientId = userPreferencesRepository.clientId.firstOrNull() ?: throw Exception("Client ID missing")
+            val clientSecret = userPreferencesRepository.clientSecret.firstOrNull() ?: throw Exception("Client Secret missing")
 
             val client = OkHttpClient()
             
