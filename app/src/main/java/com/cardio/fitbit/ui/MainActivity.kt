@@ -69,6 +69,24 @@ class MainActivity : ComponentActivity() {
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+        
+        // Request to disable battery optimization for background sync
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+            val packageName = packageName
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                try {
+                    val intent = android.content.Intent().apply {
+                        action = android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                        data = android.net.Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                    android.util.Log.d("MainActivity", "Requesting battery optimization exemption")
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Failed to request battery optimization exemption", e)
+                }
+            }
+        }
     }
     
     private fun setupPeriodicSync() {
@@ -88,11 +106,18 @@ class MainActivity : ComponentActivity() {
             android.util.Log.w("MainActivity", "Sync interval set to $intervalMinutes min, but minimum is 15 min. Using 15 min.")
         }
         
+        val constraints = androidx.work.Constraints.Builder()
+            .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(false) // Allow sync even on low battery
+            .build()
+        
         val workRequest = PeriodicWorkRequest.Builder(
             SyncWorker::class.java,
             actualInterval.toLong(),
             TimeUnit.MINUTES
-        ).build()
+        )
+            .setConstraints(constraints)
+            .build()
 
         WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
             "CardioSyncWork",
@@ -100,6 +125,6 @@ class MainActivity : ComponentActivity() {
             workRequest
         )
         
-        android.util.Log.d("MainActivity", "Periodic sync scheduled every $actualInterval minutes")
+        android.util.Log.d("MainActivity", "Periodic sync scheduled every $actualInterval minutes with network constraint")
     }
 }

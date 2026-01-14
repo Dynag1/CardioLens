@@ -219,43 +219,54 @@ fun DashboardScreen(
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Row(
-                                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                            horizontalArrangement = Arrangement.SpaceAround,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = "Fréquence Cardiaque",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                            // Resting HR
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    text = "${rhrNight ?: "--"} / ${rhrDay ?: "--"}",
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "Repos (N/J)",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                             
-                                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                                Column(horizontalAlignment = Alignment.End) {
-                                                    Text(
-                                                        text = "${rhrNight ?: "--"} / ${rhrDay ?: "--"}",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(text = "Repos (N/J)", style = MaterialTheme.typography.labelSmall)
-                                                }
-                                                Column(horizontalAlignment = Alignment.End) {
-                                                    Text(
-                                                        text = "${minHr ?: "--"} / ${maxHr ?: "--"}",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(text = "Min / Max", style = MaterialTheme.typography.labelSmall)
-                                                }
-                                                Column(horizontalAlignment = Alignment.End) {
-                                                    val totalSteps = activityData?.summary?.steps ?: 0
-                                                    Text(
-                                                        text = totalSteps.toString(),
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(text = "Pas", style = MaterialTheme.typography.labelSmall)
-                                                }
+                                            // Min/Max
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    text = "${minHr ?: "--"} / ${maxHr ?: "--"}",
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "Min / Max",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            
+                                            // Steps
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                val totalSteps = activityData?.summary?.steps ?: 0
+                                                Text(
+                                                    text = totalSteps.toString(),
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "Pas",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
                                             }
                                         }
 

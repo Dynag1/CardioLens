@@ -268,9 +268,13 @@ class DashboardViewModel @Inject constructor(
                  }
              }
 
-             // 5. Select Average Baseline (Average of ALL Valid Windows)
+             // 5. Select Resting Baseline (20th Percentile of Valid Windows)
+             // Scientific Method: Lowest 20% represents true resting state
+             // Balanced approach between strict minimum and overall average
              _rhrDay.value = if (windowAverages.isNotEmpty()) {
-                 windowAverages.average().toInt()
+                 val sorted = windowAverages.sorted()
+                 val percentile20Index = (sorted.size * 0.20).toInt().coerceAtLeast(0).coerceAtMost(sorted.size - 1)
+                 sorted[percentile20Index].toInt()
              } else null
 
               // Aggregation & Min/Max

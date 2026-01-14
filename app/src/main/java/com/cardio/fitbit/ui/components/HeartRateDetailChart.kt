@@ -57,36 +57,111 @@ fun HeartRateDetailChart(
                     legend.isEnabled = false
                     
                     setTouchEnabled(true)
-                    isDragEnabled = false // Default to false so 1 finger = highlight
-                    setScaleEnabled(true)
-                    setPinchZoom(true)
-                    isHighlightPerDragEnabled = true // Ensure highlight follows finger
+                    isDragEnabled = false // We'll handle everything manually
+                    setScaleEnabled(false) // Disable library zoom, we'll do it manually
+                    setPinchZoom(false)
+                    isDoubleTapToZoomEnabled = false
+                    isHighlightPerDragEnabled = true
                     
-                    // Enable Drag (Pan) ONLY with 2 fingers, keep 1 finger for Highlight
+                    // Variables to track gestures
+                    var initialFingerDistance = 0f
+                    var lastFingerDistance = 0f
+                    var isZoomingActive = false
+                    var lastTouchX = 0f
+                    var isPanning = false
+                    
+                    // Helper to calculate distance between two fingers
+                    fun getFingerSpacing(event: android.view.MotionEvent): Float {
+                        if (event.pointerCount < 2) return 0f
+                        val x = event.getX(0) - event.getX(1)
+                        val y = event.getY(0) - event.getY(1)
+                        return kotlin.math.sqrt(x * x + y * y)
+                    }
+                    
+                    // Get center X of two fingers
+                    fun getCenterX(event: android.view.MotionEvent): Float {
+                        return if (event.pointerCount >= 2) {
+                            (event.getX(0) + event.getX(1)) / 2f
+                        } else event.x
+                    }
+                    
+                    // 1 finger = highlight, 2 fingers = manual pan or zoom
                     setOnTouchListener { v, event ->
                         when (event.action and android.view.MotionEvent.ACTION_MASK) {
                             android.view.MotionEvent.ACTION_DOWN -> {
-                                // Stop parent (LazyColumn) from stealing touch immediately
                                 v.parent.requestDisallowInterceptTouchEvent(true)
+                            }
+                            android.view.MotionEvent.ACTION_POINTER_DOWN -> {
+                                // Second finger down
+                                val distance = getFingerSpacing(event)
+                                initialFingerDistance = distance
+                                lastFingerDistance = distance
+                                lastTouchX = getCenterX(event)
+                                isZoomingActive = false
+                                isPanning = false
                             }
                             android.view.MotionEvent.ACTION_MOVE -> {
                                 if (event.pointerCount >= 2) {
-                                    isDragEnabled = true
+                                    val currentDistance = getFingerSpacing(event)
+                                    val distanceChange = kotlin.math.abs(currentDistance - initialFingerDistance)
+                                    
+                                    // Detect zoom intent
+                                    if (distanceChange > 100f) {
+                                        // Zoom mode
+                                        isZoomingActive = true
+                                        isPanning = false
+                                        
+                                        // Calculate zoom factor
+                                        if (lastFingerDistance > 0f) {
+                                            val scaleFactor = currentDistance / lastFingerDistance
+                                            
+                                            // Apply zoom centered on touch point
+                                            val centerX = getCenterX(event)
+                                            val touchValue = getValuesByTouchPoint(centerX, 0f, YAxis.AxisDependency.LEFT)
+                                            
+                                            zoom(scaleFactor, 1f, touchValue.x.toFloat(), 0f, YAxis.AxisDependency.LEFT)
+                                        }
+                                        
+                                        lastFingerDistance = currentDistance
+                                    } else {
+                                        // Pan mode - handle manually
+                                        isPanning = true
+                                        val currentX = getCenterX(event)
+                                        val deltaX = currentX - lastTouchX
+                                        
+                                        if (kotlin.math.abs(deltaX) > 5f) { // Threshold to avoid jitter
+                                            // Calculate how much to scroll
+                                            val pixelsToScroll = -deltaX
+                                            val valueToScroll = pixelsToScroll / viewPortHandler.scaleX
+                                            
+                                            // Get current view position
+                                            val currentLowest = lowestVisibleX
+                                            
+                                            // Move view
+                                            moveViewToX(currentLowest + valueToScroll)
+                                            
+                                            lastTouchX = currentX
+                                        }
+                                    }
                                 } else {
-                                    isDragEnabled = false
-                                    // Force highlight update for 1-finger scrubbing
+                                    // 1 finger: highlight only
                                     val h = getHighlightByTouchPoint(event.x, event.y)
                                     if (h != null) {
                                         highlightValue(h, true)
                                     }
                                 }
                             }
+                            android.view.MotionEvent.ACTION_POINTER_UP -> {
+                                isZoomingActive = false
+                                isPanning = false
+                            }
                             android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                                isDragEnabled = false
+                                isZoomingActive = false
+                                isPanning = false
                                 v.parent.requestDisallowInterceptTouchEvent(false)
                             }
                         }
-                        false // Let the chart consume the event
+                        true // Consume all events
                     }
                     
                     // Enable zoom on X axis only (horizontal)
@@ -163,7 +238,9 @@ fun HeartRateDetailChart(
 
                 // Calculate dynamic Y-axis max
                 val maxHr = activeList.maxOfOrNull { it.heartRate } ?: 100
-                chart.axisLeft.axisMaximum = (maxHr + 20).toFloat().coerceAtLeast(140f) // At least 140 for visibility
+                val finalYMax = (maxHr + 10).toFloat().coerceAtLeast(110f) // Min 110 to ensure zones visible
+                chart.axisLeft.axisMaximum = finalYMax
+                val zoneHeight = 40f + (finalYMax - 40f) / 2f // Visual 50% height (taking offset 40f into account)
 
                 // Helper function to convert time string to index (1-minute granularity)
                 fun timeToIndex(time: String): Float {
@@ -231,116 +308,173 @@ fun HeartRateDetailChart(
                     isHighlightEnabled = false // Highlight HR dataset only
                 }
                 
-                // Configure Right Axis for Steps (Hidden, 0-50 scale)
+                // Configure Right Axis for Steps (Hidden, 0-500 scale)
                 chart.axisRight.apply {
                     isEnabled = true // Enable axis logic
                     setDrawLabels(false) // Hide labels
                     setDrawGridLines(false) // Hide grid
                     setDrawAxisLine(false) // Hide line
                     axisMinimum = 0f
-                    axisMaximum = 50f // 20f bars will take 40% of height
+                    axisMaximum = 400f // 20f bars will take 5% of height (Very small)
                 }
 
                 // Combine both in BarData (Order: HR first, then Steps on top)
                 val barData = BarData(hrDataSet, stepDataSet)
-                barData.barWidth = 0.9f // Slightly wider bars
+                barData.barWidth = 0.9f
 
-                // 3. Sleep Zone (Purple background)
+                // --- Zone Rendering Logic (Sleep & Activity) ---
+                
+                // Helper to get start of day timestamp
+                val cal = java.util.Calendar.getInstance()
+                cal.time = selectedDate
+                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                cal.set(java.util.Calendar.MINUTE, 0)
+                cal.set(java.util.Calendar.SECOND, 0)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                val startOfDay = cal.timeInMillis
+                val endOfDay = startOfDay + (24 * 60 * 60 * 1000L) // +24h
+
+                // Helper to safely convert range to chart X-values (0..1440)
+                // Returns null if the range doesn't intersect with today
+                fun getClampedRange(startTs: Long, endTs: Long): Pair<Float, Float>? {
+                    // 1. Check intersection
+                    if (endTs <= startOfDay || startTs >= endOfDay) return null
+                    
+                    // 2. Clamp timestamps
+                    val clampedStart = maxOf(startTs, startOfDay)
+                    val clampedEnd = minOf(endTs, endOfDay)
+                    
+                    if (clampedStart >= clampedEnd) return null
+
+                    // 3. Convert to minutes
+                    val startMin = (clampedStart - startOfDay) / 60_000f
+                    val endMin = (clampedEnd - startOfDay) / 60_000f
+                    
+                    return startMin to endMin
+                }
+
+                // 3. Sleep Zone (Blue background, 50% height)
                 val sleepLineData = LineData()
                 
                 if (sleepSessions.isNotEmpty()) {
-                    val sleepZoneEntries = mutableListOf<Entry>()
-                    val cal = java.util.Calendar.getInstance()
+                    val sleepEntries = mutableListOf<Entry>()
+                    // Begin with anchor at 0
+                    sleepEntries.add(Entry(0f, 0f))
                     
-                    cal.time = selectedDate
-                    val year = cal.get(java.util.Calendar.YEAR)
-                    val month = cal.get(java.util.Calendar.MONTH)
-                    val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
-                    
-                    activeList.forEach { data ->
-                        val parts = data.time.split(":")
-                        if (parts.size >= 2) {
-                            cal.set(year, month, day, parts[0].toInt(), parts[1].toInt(), 0)
-                            cal.set(java.util.Calendar.MILLISECOND, 0)
-                            val ts = cal.timeInMillis
+                    // Sort sessions to ensure monotonic X (required by Chart)
+                    sleepSessions.sortedBy { it.startTime }.forEach { session ->
+                        val range = getClampedRange(session.startTime.time, session.endTime.time)
+                        if (range != null) {
+                            val (start, end) = range
                             
-                            val inSleep = sleepSessions.any { session ->
-                                ts >= session.startTime.time && ts <= session.endTime.time
-                            }
-                            
-                            if (inSleep) {
-                                sleepZoneEntries.add(Entry(timeToIndex(data.time), 200f))
-                            } else {
-                                sleepZoneEntries.add(Entry(timeToIndex(data.time), 0f))
-                            }
+                            // To create a distinct block, we need to ensure we return to 0 before starting new block if there's a gap
+                            // But simplistic "Square Wave" add:
+                            // (Start, 0) -> (Start, 100) -> (End, 100) -> (End, 0)
+                            // We must ensure 'Start' > last entry's X to strictly increase, but 
+                            // coincident points (x, 0) and (x, 100) are allowed for vertical lines.
+
+                            sleepEntries.add(Entry(start, 0f))
+                            sleepEntries.add(Entry(start, zoneHeight))
+                            sleepEntries.add(Entry(end, zoneHeight))
+                            sleepEntries.add(Entry(end, 0f))
                         }
                     }
                     
-                    if (sleepZoneEntries.any { it.y > 0 }) {
-                        val sleepZoneDataSet = LineDataSet(sleepZoneEntries, "Sommeil").apply {
+                    // Final anchor
+                    sleepEntries.add(Entry(1440f, 0f))
+                    
+                    if (sleepEntries.size > 2) { // Only add if we actually have data points
+                         val sleepDataSet = LineDataSet(sleepEntries, "Sommeil").apply {
                             setDrawCircles(false)
                             setDrawValues(false)
-                            mode = LineDataSet.Mode.STEPPED
+                            mode = LineDataSet.Mode.LINEAR 
                             setDrawFilled(true)
-                            fillColor = Color.parseColor("#E1BEE7")
+                            fillColor = Color.parseColor("#BBDEFB") // Blue for sleep
                             color = Color.TRANSPARENT
                             fillAlpha = 60
                             lineWidth = 0f
                             isHighlightEnabled = false
                         }
-                        sleepLineData.addDataSet(sleepZoneDataSet)
+                        sleepLineData.addDataSet(sleepDataSet)
                     }
                 }
                 
-                // 4. Activity/Exercise Zones (Orange background)
+                // 4. Activity/Exercise Zones (Purple background, 50% height)
                 if (activityData != null && activityData.activities.isNotEmpty()) {
-                    val cal = java.util.Calendar.getInstance()
-                    cal.time = selectedDate
-                    val year = cal.get(java.util.Calendar.YEAR)
-                    val month = cal.get(java.util.Calendar.MONTH)
-                    val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
+                    val activityEntries = mutableListOf<Entry>()
+                    activityEntries.add(Entry(0f, 0f))
                     
-                    activityData.activities.forEach { activity ->
-                        val activityStart = (activity.startTime.time / 60000) * 60000
-                        val activityEnd = ((activity.startTime.time + activity.duration + 59999) / 60000) * 60000
-                        val activityZoneEntries = mutableListOf<Entry>()
-                        var matches = 0
+                    activityData.activities.sortedBy { it.startTime }.forEach { activity ->
+                        val startTs = activity.startTime.time
+                        val endTs = activity.startTime.time + activity.duration
                         
-                        activeList.forEach { data ->
-                            val parts = data.time.split(":")
-                            if (parts.size >= 2) {
-                                cal.set(year, month, day, parts[0].toInt(), parts[1].toInt(), 0)
-                                cal.set(java.util.Calendar.MILLISECOND, 0)
-                                val ts = cal.timeInMillis
-                                if (ts in activityStart..activityEnd) {
-                                    activityZoneEntries.add(Entry(timeToIndex(data.time), 200f))
-                                    matches++
-                                } else {
-                                    activityZoneEntries.add(Entry(timeToIndex(data.time), 0f))
-                                }
-                            }
+                        val range = getClampedRange(startTs, endTs)
+                        if (range != null) {
+                            val (start, end) = range
+                            activityEntries.add(Entry(start, 0f))
+                            activityEntries.add(Entry(start, zoneHeight))
+                            activityEntries.add(Entry(end, zoneHeight))
+                            activityEntries.add(Entry(end, 0f))
+                        }
+                    }
+                    
+                    activityEntries.add(Entry(1440f, 0f))
+                    
+                    if (activityEntries.size > 2) {
+                        val activityZoneDataSet = LineDataSet(activityEntries, "Activité").apply {
+                            setDrawCircles(false)
+                            setDrawValues(false)
+                            mode = LineDataSet.Mode.LINEAR
+                            setDrawFilled(true)
+                            fillColor = Color.parseColor("#8E24AA") // Darker Purple for activity
+                            color = Color.TRANSPARENT
+                            fillAlpha = 60
+                            lineWidth = 0f
+                            isHighlightEnabled = false
+                        }
+                        sleepLineData.addDataSet(activityZoneDataSet)
+                    }
+                }
+                
+                // 5. Min/Max Markers (Green/Red Triangles)
+                val scatterData = ScatterData()
+                
+                if (activeList.isNotEmpty()) {
+                    val validData = activeList.filter { it.heartRate > 0 }
+                    
+                    if (validData.isNotEmpty()) {
+                        val maxVal = validData.maxByOrNull { it.heartRate }!!
+                        val minVal = validData.minByOrNull { it.heartRate }!!
+                        
+                        // Min Marker (Green)
+                        val minEntry = Entry(timeToIndex(minVal.time), minVal.heartRate.toFloat())
+                        val minDataSet = ScatterDataSet(listOf(minEntry), "Min").apply {
+                            setScatterShape(ScatterChart.ScatterShape.TRIANGLE)
+                            color = Color.parseColor("#10B981") // Green
+                            scatterShapeSize = 15f
+                            setDrawValues(false)
+                            isHighlightEnabled = false
                         }
                         
-                        if (activityZoneEntries.any { it.y > 0 }) {
-                            val activityZoneDataSet = LineDataSet(activityZoneEntries, activity.activityName).apply {
-                                setDrawCircles(false)
-                                setDrawValues(false)
-                                mode = LineDataSet.Mode.STEPPED
-                                setDrawFilled(true)
-                                fillColor = Color.parseColor("#2196F3") // Blue for activity
-                                color = Color.TRANSPARENT
-                                fillAlpha = 60
-                                lineWidth = 0f
-                                isHighlightEnabled = false
-                            }
-                            sleepLineData.addDataSet(activityZoneDataSet)
+                        // Max Marker (Red)
+                        val maxEntry = Entry(timeToIndex(maxVal.time), maxVal.heartRate.toFloat())
+                        val maxDataSet = ScatterDataSet(listOf(maxEntry), "Max").apply {
+                            setScatterShape(ScatterChart.ScatterShape.TRIANGLE) // Inverted triangle logic would be better but standard triangle is fine
+                            color = Color.parseColor("#EF4444") // Red
+                            scatterShapeSize = 15f
+                            setDrawValues(false)
+                            isHighlightEnabled = false
                         }
+                        
+                        scatterData.addDataSet(minDataSet)
+                        scatterData.addDataSet(maxDataSet)
                     }
                 }
                 
                 // Final Assembly
                 combinedData.setData(sleepLineData)
                 combinedData.setData(barData)
+                combinedData.setData(scatterData)
                 
                 chart.data = combinedData
                 
