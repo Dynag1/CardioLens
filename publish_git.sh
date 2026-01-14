@@ -1,21 +1,20 @@
 #!/bin/bash
-echo "🚀 Preparing repository for F-Droid..."
+echo "🚀 Preparing repository for Release..."
 
-# Add all files (including new license and metadata)
+# Add all files (including GitHub workflows)
 git add .
-git add LICENSE
-git add fastlane/
+git commit -m "chore: configure release automation (GitHub Actions, F-Droid metadata)"
 
-# Commit
-git commit -m "chore: prepare for F-Droid release (add license, metadata, BYOK)"
-
-# Tag version 1.1.0 (Critical for F-Droid build to find the right commit)
-git tag -a v1.1.0 -m "Release 1.1.0 for F-Droid"
-
-# Push to GitHub
-echo "📤 Pushing code and tags to GitHub..."
+# Push master first
+echo "📤 Pushing code to GitHub..."
 git push origin master
-git push origin v1.1.0
 
-echo "✅ Code pushed successfully!"
-echo "Now go to https://gitlab.com/fdroid/fdroiddata to submit your merge request."
+# Create and push tag to trigger GitHub Action
+echo "🏷️ Tagging version v1.1.0 to trigger release..."
+# Force tag update if it exists locally but wasn't pushed effectively
+git tag -f -a v1.1.0 -m "Release 1.1.0"
+git push -f origin v1.1.0
+
+echo "✅ Done!"
+echo "➡️ Go to https://github.com/Dynag1/CardioLens/actions to see your APK being built."
+echo "➡️ Once finished, the APK will be available in 'Releases' on the right sidebar."
