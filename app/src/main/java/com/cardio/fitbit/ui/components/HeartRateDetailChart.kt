@@ -57,36 +57,111 @@ fun HeartRateDetailChart(
                     legend.isEnabled = false
                     
                     setTouchEnabled(true)
-                    isDragEnabled = false // Default to false so 1 finger = highlight
-                    setScaleEnabled(true)
-                    setPinchZoom(true)
-                    isHighlightPerDragEnabled = true // Ensure highlight follows finger
+                    isDragEnabled = false // We'll handle everything manually
+                    setScaleEnabled(false) // Disable library zoom, we'll do it manually
+                    setPinchZoom(false)
+                    isDoubleTapToZoomEnabled = false
+                    isHighlightPerDragEnabled = true
                     
-                    // Enable Drag (Pan) ONLY with 2 fingers, keep 1 finger for Highlight
+                    // Variables to track gestures
+                    var initialFingerDistance = 0f
+                    var lastFingerDistance = 0f
+                    var isZoomingActive = false
+                    var lastTouchX = 0f
+                    var isPanning = false
+                    
+                    // Helper to calculate distance between two fingers
+                    fun getFingerSpacing(event: android.view.MotionEvent): Float {
+                        if (event.pointerCount < 2) return 0f
+                        val x = event.getX(0) - event.getX(1)
+                        val y = event.getY(0) - event.getY(1)
+                        return kotlin.math.sqrt(x * x + y * y)
+                    }
+                    
+                    // Get center X of two fingers
+                    fun getCenterX(event: android.view.MotionEvent): Float {
+                        return if (event.pointerCount >= 2) {
+                            (event.getX(0) + event.getX(1)) / 2f
+                        } else event.x
+                    }
+                    
+                    // 1 finger = highlight, 2 fingers = manual pan or zoom
                     setOnTouchListener { v, event ->
                         when (event.action and android.view.MotionEvent.ACTION_MASK) {
                             android.view.MotionEvent.ACTION_DOWN -> {
-                                // Stop parent (LazyColumn) from stealing touch immediately
                                 v.parent.requestDisallowInterceptTouchEvent(true)
+                            }
+                            android.view.MotionEvent.ACTION_POINTER_DOWN -> {
+                                // Second finger down
+                                val distance = getFingerSpacing(event)
+                                initialFingerDistance = distance
+                                lastFingerDistance = distance
+                                lastTouchX = getCenterX(event)
+                                isZoomingActive = false
+                                isPanning = false
                             }
                             android.view.MotionEvent.ACTION_MOVE -> {
                                 if (event.pointerCount >= 2) {
-                                    isDragEnabled = true
+                                    val currentDistance = getFingerSpacing(event)
+                                    val distanceChange = kotlin.math.abs(currentDistance - initialFingerDistance)
+                                    
+                                    // Detect zoom intent
+                                    if (distanceChange > 100f) {
+                                        // Zoom mode
+                                        isZoomingActive = true
+                                        isPanning = false
+                                        
+                                        // Calculate zoom factor
+                                        if (lastFingerDistance > 0f) {
+                                            val scaleFactor = currentDistance / lastFingerDistance
+                                            
+                                            // Apply zoom centered on touch point
+                                            val centerX = getCenterX(event)
+                                            val touchValue = getValuesByTouchPoint(centerX, 0f, YAxis.AxisDependency.LEFT)
+                                            
+                                            zoom(scaleFactor, 1f, touchValue.x.toFloat(), 0f, YAxis.AxisDependency.LEFT)
+                                        }
+                                        
+                                        lastFingerDistance = currentDistance
+                                    } else {
+                                        // Pan mode - handle manually
+                                        isPanning = true
+                                        val currentX = getCenterX(event)
+                                        val deltaX = currentX - lastTouchX
+                                        
+                                        if (kotlin.math.abs(deltaX) > 5f) { // Threshold to avoid jitter
+                                            // Calculate how much to scroll
+                                            val pixelsToScroll = -deltaX
+                                            val valueToScroll = pixelsToScroll / viewPortHandler.scaleX
+                                            
+                                            // Get current view position
+                                            val currentLowest = lowestVisibleX
+                                            
+                                            // Move view
+                                            moveViewToX(currentLowest + valueToScroll)
+                                            
+                                            lastTouchX = currentX
+                                        }
+                                    }
                                 } else {
-                                    isDragEnabled = false
-                                    // Force highlight update for 1-finger scrubbing
+                                    // 1 finger: highlight only
                                     val h = getHighlightByTouchPoint(event.x, event.y)
                                     if (h != null) {
                                         highlightValue(h, true)
                                     }
                                 }
                             }
+                            android.view.MotionEvent.ACTION_POINTER_UP -> {
+                                isZoomingActive = false
+                                isPanning = false
+                            }
                             android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                                isDragEnabled = false
+                                isZoomingActive = false
+                                isPanning = false
                                 v.parent.requestDisallowInterceptTouchEvent(false)
                             }
                         }
-                        false // Let the chart consume the event
+                        true // Consume all events
                     }
                     
                     // Enable zoom on X axis only (horizontal)
@@ -161,9 +236,9 @@ fun HeartRateDetailChart(
                 
                 val combinedData = CombinedData()
 
-                // Calculate dynamic Y-axis max (Ensure space for bubbles at top)
+                // Calculate dynamic Y-axis max
                 val maxHr = activeList.maxOfOrNull { it.heartRate } ?: 100
-                val finalYMax = (maxHr + 30).toFloat().coerceAtLeast(200f)
+                val finalYMax = (maxHr + 10).toFloat().coerceAtLeast(110f) // Min 110 to ensure zones visible
                 chart.axisLeft.axisMaximum = finalYMax
                 val zoneHeight = 40f + (finalYMax - 40f) / 2f // Visual 50% height (taking offset 40f into account)
 
@@ -361,9 +436,45 @@ fun HeartRateDetailChart(
                     }
                 }
                 
+                // 5. Min/Max Markers (Green/Red Triangles)
+                val scatterData = ScatterData()
+                
+                if (activeList.isNotEmpty()) {
+                    val validData = activeList.filter { it.heartRate > 0 }
+                    
+                    if (validData.isNotEmpty()) {
+                        val maxVal = validData.maxByOrNull { it.heartRate }!!
+                        val minVal = validData.minByOrNull { it.heartRate }!!
+                        
+                        // Min Marker (Green)
+                        val minEntry = Entry(timeToIndex(minVal.time), minVal.heartRate.toFloat())
+                        val minDataSet = ScatterDataSet(listOf(minEntry), "Min").apply {
+                            setScatterShape(ScatterChart.ScatterShape.TRIANGLE)
+                            color = Color.parseColor("#10B981") // Green
+                            scatterShapeSize = 15f
+                            setDrawValues(false)
+                            isHighlightEnabled = false
+                        }
+                        
+                        // Max Marker (Red)
+                        val maxEntry = Entry(timeToIndex(maxVal.time), maxVal.heartRate.toFloat())
+                        val maxDataSet = ScatterDataSet(listOf(maxEntry), "Max").apply {
+                            setScatterShape(ScatterChart.ScatterShape.TRIANGLE) // Inverted triangle logic would be better but standard triangle is fine
+                            color = Color.parseColor("#EF4444") // Red
+                            scatterShapeSize = 15f
+                            setDrawValues(false)
+                            isHighlightEnabled = false
+                        }
+                        
+                        scatterData.addDataSet(minDataSet)
+                        scatterData.addDataSet(maxDataSet)
+                    }
+                }
+                
                 // Final Assembly
                 combinedData.setData(sleepLineData)
                 combinedData.setData(barData)
+                combinedData.setData(scatterData)
                 
                 chart.data = combinedData
                 
