@@ -161,9 +161,11 @@ fun HeartRateDetailChart(
                 
                 val combinedData = CombinedData()
 
-                // Calculate dynamic Y-axis max
+                // Calculate dynamic Y-axis max (Ensure space for bubbles at top)
                 val maxHr = activeList.maxOfOrNull { it.heartRate } ?: 100
-                chart.axisLeft.axisMaximum = (maxHr + 20).toFloat().coerceAtLeast(140f) // At least 140 for visibility
+                val finalYMax = (maxHr + 30).toFloat().coerceAtLeast(200f)
+                chart.axisLeft.axisMaximum = finalYMax
+                val zoneHeight = 40f + (finalYMax - 40f) / 2f // Visual 50% height (taking offset 40f into account)
 
                 // Helper function to convert time string to index (1-minute granularity)
                 fun timeToIndex(time: String): Float {
@@ -231,110 +233,131 @@ fun HeartRateDetailChart(
                     isHighlightEnabled = false // Highlight HR dataset only
                 }
                 
-                // Configure Right Axis for Steps (Hidden, 0-50 scale)
+                // Configure Right Axis for Steps (Hidden, 0-500 scale)
                 chart.axisRight.apply {
                     isEnabled = true // Enable axis logic
                     setDrawLabels(false) // Hide labels
                     setDrawGridLines(false) // Hide grid
                     setDrawAxisLine(false) // Hide line
                     axisMinimum = 0f
-                    axisMaximum = 50f // 20f bars will take 40% of height
+                    axisMaximum = 400f // 20f bars will take 5% of height (Very small)
                 }
 
                 // Combine both in BarData (Order: HR first, then Steps on top)
                 val barData = BarData(hrDataSet, stepDataSet)
-                barData.barWidth = 0.9f // Slightly wider bars
+                barData.barWidth = 0.9f
 
-                // 3. Sleep Zone (Purple background)
+                // --- Zone Rendering Logic (Sleep & Activity) ---
+                
+                // Helper to get start of day timestamp
+                val cal = java.util.Calendar.getInstance()
+                cal.time = selectedDate
+                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                cal.set(java.util.Calendar.MINUTE, 0)
+                cal.set(java.util.Calendar.SECOND, 0)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                val startOfDay = cal.timeInMillis
+                val endOfDay = startOfDay + (24 * 60 * 60 * 1000L) // +24h
+
+                // Helper to safely convert range to chart X-values (0..1440)
+                // Returns null if the range doesn't intersect with today
+                fun getClampedRange(startTs: Long, endTs: Long): Pair<Float, Float>? {
+                    // 1. Check intersection
+                    if (endTs <= startOfDay || startTs >= endOfDay) return null
+                    
+                    // 2. Clamp timestamps
+                    val clampedStart = maxOf(startTs, startOfDay)
+                    val clampedEnd = minOf(endTs, endOfDay)
+                    
+                    if (clampedStart >= clampedEnd) return null
+
+                    // 3. Convert to minutes
+                    val startMin = (clampedStart - startOfDay) / 60_000f
+                    val endMin = (clampedEnd - startOfDay) / 60_000f
+                    
+                    return startMin to endMin
+                }
+
+                // 3. Sleep Zone (Blue background, 50% height)
                 val sleepLineData = LineData()
                 
                 if (sleepSessions.isNotEmpty()) {
-                    val sleepZoneEntries = mutableListOf<Entry>()
-                    val cal = java.util.Calendar.getInstance()
+                    val sleepEntries = mutableListOf<Entry>()
+                    // Begin with anchor at 0
+                    sleepEntries.add(Entry(0f, 0f))
                     
-                    cal.time = selectedDate
-                    val year = cal.get(java.util.Calendar.YEAR)
-                    val month = cal.get(java.util.Calendar.MONTH)
-                    val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
-                    
-                    activeList.forEach { data ->
-                        val parts = data.time.split(":")
-                        if (parts.size >= 2) {
-                            cal.set(year, month, day, parts[0].toInt(), parts[1].toInt(), 0)
-                            cal.set(java.util.Calendar.MILLISECOND, 0)
-                            val ts = cal.timeInMillis
+                    // Sort sessions to ensure monotonic X (required by Chart)
+                    sleepSessions.sortedBy { it.startTime }.forEach { session ->
+                        val range = getClampedRange(session.startTime.time, session.endTime.time)
+                        if (range != null) {
+                            val (start, end) = range
                             
-                            val inSleep = sleepSessions.any { session ->
-                                ts >= session.startTime.time && ts <= session.endTime.time
-                            }
-                            
-                            if (inSleep) {
-                                sleepZoneEntries.add(Entry(timeToIndex(data.time), 200f))
-                            } else {
-                                sleepZoneEntries.add(Entry(timeToIndex(data.time), 0f))
-                            }
+                            // To create a distinct block, we need to ensure we return to 0 before starting new block if there's a gap
+                            // But simplistic "Square Wave" add:
+                            // (Start, 0) -> (Start, 100) -> (End, 100) -> (End, 0)
+                            // We must ensure 'Start' > last entry's X to strictly increase, but 
+                            // coincident points (x, 0) and (x, 100) are allowed for vertical lines.
+
+                            sleepEntries.add(Entry(start, 0f))
+                            sleepEntries.add(Entry(start, zoneHeight))
+                            sleepEntries.add(Entry(end, zoneHeight))
+                            sleepEntries.add(Entry(end, 0f))
                         }
                     }
                     
-                    if (sleepZoneEntries.any { it.y > 0 }) {
-                        val sleepZoneDataSet = LineDataSet(sleepZoneEntries, "Sommeil").apply {
+                    // Final anchor
+                    sleepEntries.add(Entry(1440f, 0f))
+                    
+                    if (sleepEntries.size > 2) { // Only add if we actually have data points
+                         val sleepDataSet = LineDataSet(sleepEntries, "Sommeil").apply {
                             setDrawCircles(false)
                             setDrawValues(false)
-                            mode = LineDataSet.Mode.STEPPED
+                            mode = LineDataSet.Mode.LINEAR 
                             setDrawFilled(true)
-                            fillColor = Color.parseColor("#E1BEE7")
+                            fillColor = Color.parseColor("#BBDEFB") // Blue for sleep
                             color = Color.TRANSPARENT
                             fillAlpha = 60
                             lineWidth = 0f
                             isHighlightEnabled = false
                         }
-                        sleepLineData.addDataSet(sleepZoneDataSet)
+                        sleepLineData.addDataSet(sleepDataSet)
                     }
                 }
                 
-                // 4. Activity/Exercise Zones (Orange background)
+                // 4. Activity/Exercise Zones (Purple background, 50% height)
                 if (activityData != null && activityData.activities.isNotEmpty()) {
-                    val cal = java.util.Calendar.getInstance()
-                    cal.time = selectedDate
-                    val year = cal.get(java.util.Calendar.YEAR)
-                    val month = cal.get(java.util.Calendar.MONTH)
-                    val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
+                    val activityEntries = mutableListOf<Entry>()
+                    activityEntries.add(Entry(0f, 0f))
                     
-                    activityData.activities.forEach { activity ->
-                        val activityStart = (activity.startTime.time / 60000) * 60000
-                        val activityEnd = ((activity.startTime.time + activity.duration + 59999) / 60000) * 60000
-                        val activityZoneEntries = mutableListOf<Entry>()
-                        var matches = 0
+                    activityData.activities.sortedBy { it.startTime }.forEach { activity ->
+                        val startTs = activity.startTime.time
+                        val endTs = activity.startTime.time + activity.duration
                         
-                        activeList.forEach { data ->
-                            val parts = data.time.split(":")
-                            if (parts.size >= 2) {
-                                cal.set(year, month, day, parts[0].toInt(), parts[1].toInt(), 0)
-                                cal.set(java.util.Calendar.MILLISECOND, 0)
-                                val ts = cal.timeInMillis
-                                if (ts in activityStart..activityEnd) {
-                                    activityZoneEntries.add(Entry(timeToIndex(data.time), 200f))
-                                    matches++
-                                } else {
-                                    activityZoneEntries.add(Entry(timeToIndex(data.time), 0f))
-                                }
-                            }
+                        val range = getClampedRange(startTs, endTs)
+                        if (range != null) {
+                            val (start, end) = range
+                            activityEntries.add(Entry(start, 0f))
+                            activityEntries.add(Entry(start, zoneHeight))
+                            activityEntries.add(Entry(end, zoneHeight))
+                            activityEntries.add(Entry(end, 0f))
                         }
-                        
-                        if (activityZoneEntries.any { it.y > 0 }) {
-                            val activityZoneDataSet = LineDataSet(activityZoneEntries, activity.activityName).apply {
-                                setDrawCircles(false)
-                                setDrawValues(false)
-                                mode = LineDataSet.Mode.STEPPED
-                                setDrawFilled(true)
-                                fillColor = Color.parseColor("#2196F3") // Blue for activity
-                                color = Color.TRANSPARENT
-                                fillAlpha = 60
-                                lineWidth = 0f
-                                isHighlightEnabled = false
-                            }
-                            sleepLineData.addDataSet(activityZoneDataSet)
+                    }
+                    
+                    activityEntries.add(Entry(1440f, 0f))
+                    
+                    if (activityEntries.size > 2) {
+                        val activityZoneDataSet = LineDataSet(activityEntries, "Activité").apply {
+                            setDrawCircles(false)
+                            setDrawValues(false)
+                            mode = LineDataSet.Mode.LINEAR
+                            setDrawFilled(true)
+                            fillColor = Color.parseColor("#8E24AA") // Darker Purple for activity
+                            color = Color.TRANSPARENT
+                            fillAlpha = 60
+                            lineWidth = 0f
+                            isHighlightEnabled = false
                         }
+                        sleepLineData.addDataSet(activityZoneDataSet)
                     }
                 }
                 
