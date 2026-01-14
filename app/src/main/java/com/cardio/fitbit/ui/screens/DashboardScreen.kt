@@ -9,10 +9,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -38,6 +41,8 @@ fun DashboardScreen(
     val rhrDay by viewModel.rhrDay.collectAsState()
     val rhrNight by viewModel.rhrNight.collectAsState()
     val aggregatedMinuteData by viewModel.aggregatedMinuteData.collectAsState()
+    val minHr by viewModel.minHr.collectAsState()
+    val maxHr by viewModel.maxHr.collectAsState()
 
     // Settings States
     val highThreshold by viewModel.highHrThreshold.collectAsState(initial = 120)
@@ -52,6 +57,21 @@ fun DashboardScreen(
 
     // State to control if drawer gestures are enabled
     var drawerGesturesEnabled by remember { mutableStateOf(true) }
+
+    // Pull to Refresh State
+    val pullRefreshState = rememberPullToRefreshState()
+
+    if (pullRefreshState.isRefreshing) {
+        LaunchedEffect(true) {
+            viewModel.loadAllData(forceRefresh = true)
+        }
+    }
+
+    LaunchedEffect(uiState) {
+        if (uiState !is DashboardUiState.Loading) {
+            pullRefreshState.endRefresh()
+        }
+    }
 
     if (showSettingsDialog) {
         SettingsDialog(
@@ -100,7 +120,7 @@ fun DashboardScreen(
                 TopAppBar(
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.Black)
                         }
                     },
                     title = {
@@ -108,46 +128,49 @@ fun DashboardScreen(
                             Text(
                                 text = "CardioLens",
                                 style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
                             )
                             Text(
                                 text = DateUtils.formatForDisplay(selectedDate),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = OnSurface.copy(alpha = 0.7f)
+                                color = Color.Black.copy(alpha = 0.7f)
                             )
                         }
                     },
                     actions = {
                         IconButton(onClick = { viewModel.changeDate(-1) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Précédent")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Précédent", tint = Color.Black)
                         }
                         IconButton(onClick = { viewModel.changeDate(1) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Suivant")
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Suivant", tint = Color.Black)
                         }
                         IconButton(onClick = { viewModel.loadAllData(forceRefresh = true) }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = OnSurface)
+                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = Color.Black)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Surface,
-                        titleContentColor = OnSurface
+                        containerColor = Color(0xFFF5F5F5),
+                        titleContentColor = Color.Black,
+                        actionIconContentColor = Color.Black
                     )
                 )
             },
             containerColor = androidx.compose.ui.graphics.Color.White
         ) { paddingValues ->
-            when (val state = uiState) {
-                is DashboardUiState.Loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = Primary)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .nestedScroll(pullRefreshState.nestedScrollConnection)
+            ) {
+                when (val state = uiState) {
+                    is DashboardUiState.Loading -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Primary)
+                        }
                     }
-                }
-                is DashboardUiState.Error -> {
+                    is DashboardUiState.Error -> {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -207,22 +230,22 @@ fun DashboardScreen(
                                                 color = MaterialTheme.colorScheme.primary
                                             )
                                             
-                                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                                 Column(horizontalAlignment = Alignment.End) {
                                                     Text(
-                                                        text = "${rhrNight ?: "--"} bpm",
+                                                        text = "${rhrNight ?: "--"} / ${rhrDay ?: "--"}",
                                                         style = MaterialTheme.typography.bodySmall,
                                                         fontWeight = FontWeight.Bold
                                                     )
-                                                    Text(text = "Repos (Nuit)", style = MaterialTheme.typography.labelSmall)
+                                                    Text(text = "Repos (N/J)", style = MaterialTheme.typography.labelSmall)
                                                 }
                                                 Column(horizontalAlignment = Alignment.End) {
                                                     Text(
-                                                        text = "${rhrDay ?: "--"} bpm",
+                                                        text = "${minHr ?: "--"} / ${maxHr ?: "--"}",
                                                         style = MaterialTheme.typography.bodySmall,
                                                         fontWeight = FontWeight.Bold
                                                     )
-                                                    Text(text = "Repos (Jour)", style = MaterialTheme.typography.labelSmall)
+                                                    Text(text = "Min / Max", style = MaterialTheme.typography.labelSmall)
                                                 }
                                                 Column(horizontalAlignment = Alignment.End) {
                                                     val totalSteps = activityData?.summary?.steps ?: 0
@@ -267,6 +290,12 @@ fun DashboardScreen(
                         }
                     }
                 }
+                }
+                
+                PullToRefreshContainer(
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
             }
         }
     }

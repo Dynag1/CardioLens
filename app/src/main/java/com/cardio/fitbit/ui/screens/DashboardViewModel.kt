@@ -57,6 +57,13 @@ class DashboardViewModel @Inject constructor(
     private val _aggregatedMinuteData = MutableStateFlow<List<MinuteData>>(emptyList())
     val aggregatedMinuteData = _aggregatedMinuteData.asStateFlow()
 
+    // Daily Min/Max HR
+    private val _minHr = MutableStateFlow<Int?>(null)
+    val minHr = _minHr.asStateFlow()
+
+    private val _maxHr = MutableStateFlow<Int?>(null)
+    val maxHr = _maxHr.asStateFlow()
+
     init {
         loadAllData()
     }
@@ -143,7 +150,6 @@ class DashboardViewModel @Inject constructor(
     private fun computeDerivedMetrics() {
         val intraday = _intradayData.value?.minuteData
         if (intraday == null) {
-            // Clear metrics if no intraday data is available for current date
             _rhrDay.value = null
             _rhrNight.value = null
             _aggregatedMinuteData.value = emptyList()
@@ -154,7 +160,7 @@ class DashboardViewModel @Inject constructor(
         val date = _selectedDate.value
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-             // Helper to parse HH:mm to timestamp for the selected date
+             // Helper: Parse HH:mm to timestamp
              fun getTimestamp(timeStr: String): Long {
                  val parts = timeStr.split(":")
                  val cal = java.util.Calendar.getInstance()
@@ -165,74 +171,119 @@ class DashboardViewModel @Inject constructor(
                  return cal.timeInMillis
              }
 
-             // Parse all minutes
-             val parsedMinutes = intraday.map { 
+             // Parse and Sort Intraday Data
+             val sortedMinutes = intraday.map { 
                  val ts = getTimestamp(it.time)
                  Triple(it, ts, it.heartRate)
-             }
+             }.sortedBy { it.second }
 
-             // 1. RHR Logic
-             // Sleep Logic: Range check for multiple sessions
+             // 1. Identify Activity & Sleep Ranges
              val sleepRanges = sleep.map { it.startTime.time..it.endTime.time }
-             
-             // Activity Ranges
              val activityRanges = activity?.activities?.map { 
                  it.startTime.time..(it.startTime.time + it.duration) 
              } ?: emptyList()
 
-             val nightRates = mutableListOf<Int>()
-             val dayRates = mutableListOf<Int>()
+             // 2. Mark Valid/Invalid Minutes
+             val validMinutesMask = BooleanArray(sortedMinutes.size) { false }
+             var cooldownUntil = 0L
+             val COOLDOWN_MS = 15 * 60 * 1000L
 
-             // Sort chronologically to handle cooldown
-             val sortedMinutes = parsedMinutes.sortedBy { it.second }
-             var lastActiveTimestamp = 0L
-             val cooldownMs = 5 * 60 * 1000L // 5 minutes buffer after activity
+             val nightHeartRates = mutableListOf<Int>()
 
-             sortedMinutes.filter { it.third > 0 }.forEach { (data, ts, hr) ->
+             sortedMinutes.forEachIndexed { index, (data, ts, hr) ->
+                 // A. Sleep Check
                  val isSleep = sleepRanges.any { range -> ts in range }
-                 
-                 // Mark active if steps > 0 or in specific activity range
-                 val isPhysicallyActive = (data.steps > 0) || activityRanges.any { range -> ts in range }
-                 
-                 if (isPhysicallyActive) {
-                     lastActiveTimestamp = ts
-                 }
-
                  if (isSleep) {
-                     nightRates.add(hr)
-                 } else {
-                     // Check Day conditions: Not active AND recovery period passed
-                     val inCooldown = (ts - lastActiveTimestamp) < cooldownMs
+                     if (hr > 0) nightHeartRates.add(hr) // Collect Night HR
+                     return@forEachIndexed // Exclude from Day RHR
+                 }
+
+                 // B. Activity Check (Logged Activity OR Steps > 0)
+                 val isLoggedActivity = activityRanges.any { range -> ts in range }
+                 val isStepActivity = data.steps > 0
+                 
+                 if (isLoggedActivity || isStepActivity) {
+                     // Trigger Cooldown
+                     cooldownUntil = ts + COOLDOWN_MS
+                     return@forEachIndexed
+                 }
+
+                 // C. Cooldown Check
+                 if (ts < cooldownUntil) {
+                     return@forEachIndexed
+                 }
+
+                 // D. Invalid Data Check (Noise/Device Off)
+                 // < 35 bpm considered physiological outlier/noise
+                 if (hr < 35) {
+                     return@forEachIndexed
+                 }
+
+                 // If passed all checks -> VALID Resting Minute
+                 validMinutesMask[index] = true
+             }
+
+             // 3. Calculate Night RHR (Median of Sleep HR)
+             _rhrNight.value = if (nightHeartRates.isNotEmpty()) {
+                 val sorted = nightHeartRates.sorted()
+                 val mid = sorted.size / 2
+                 if (sorted.size % 2 == 0) (sorted[mid-1] + sorted[mid]) / 2 else sorted[mid]
+             } else null
+
+             // 4. Calculate Day RHR (Sliding Window on Valid Minutes)
+             // Scientific Standard: Lowest stable 10-minute average
+             val windowAverages = mutableListOf<Double>()
+             val WINDOW_SIZE_MINUTES = 10
+             
+             // Iterate through minutes to find 10-min valid blocks
+             for (i in 0..sortedMinutes.size - WINDOW_SIZE_MINUTES) {
+                 // Optimization: Skip if start is invalid
+                 if (!validMinutesMask[i]) continue
+
+                 val startTs = sortedMinutes[i].second
+                 val endTsTarget = startTs + (WINDOW_SIZE_MINUTES * 60 * 1000L)
+                 
+                 var sampleCount = 0
+                 var sumHr = 0.0
+                 var isValidWindow = true
+                 
+                 // Scan forward 
+                 for (j in i until sortedMinutes.size) {
+                     val currTs = sortedMinutes[j].second
+                     if (currTs >= endTsTarget) break // Window full
                      
-                     if (!isPhysicallyActive && !inCooldown) {
-                         dayRates.add(hr)
+                     // Strict Contiguity: Any invalid minute taints the window
+                     if (!validMinutesMask[j]) {
+                         isValidWindow = false
+                         break
                      }
+                     
+                     sumHr += sortedMinutes[j].third
+                     sampleCount++
+                 }
+
+                 // Require density (at least 8 samples for a 10m window to allow very minor gaps/sync freq)
+                 if (isValidWindow && sampleCount >= 8) {
+                     windowAverages.add(sumHr / sampleCount)
                  }
              }
 
-             android.util.Log.d("DashboardVM", "RHR Stats Raw: Night avg=${if(nightRates.isNotEmpty()) nightRates.average() else 0}, Day avg=${if(dayRates.isNotEmpty()) dayRates.average() else 0}")
-             
-             _rhrNight.value = if (nightRates.isNotEmpty()) nightRates.average().toInt() else null
-             
-             // For Day RHR, use the MEDIAN of resting values.
-             // Median is scientifically more robust than simple average (sensitive to stress spikes)
-             // and less aggressive than lowest 20% (which mimics Sleeping HR).
-             // Ideally reflects "Awake, Still, and Calm" state.
-             _rhrDay.value = if (dayRates.isNotEmpty()) {
-                 val sortedDay = dayRates.sorted()
-                 val size = sortedDay.size
-                 if (size % 2 == 0) {
-                     ((sortedDay[size / 2 - 1] + sortedDay[size / 2]) / 2.0).toInt()
-                 } else {
-                     sortedDay[size / 2]
-                 }
-             } else {
-                 null
-             }
+             // 5. Select Average Baseline (Average of ALL Valid Windows)
+             _rhrDay.value = if (windowAverages.isNotEmpty()) {
+                 windowAverages.average().toInt()
+             } else null
 
-              // 2. Aggregation Logic (Now Pass-through Minute-by-Minute)
+              // Aggregation & Min/Max
               _aggregatedMinuteData.value = intraday.sortedBy { it.time }
-         }
+              val allHrValues = intraday.map { it.heartRate }.filter { it > 0 }
+              if (allHrValues.isNotEmpty()) {
+                  _minHr.value = allHrValues.minOrNull()
+                  _maxHr.value = allHrValues.maxOrNull()
+              } else {
+                  _minHr.value = null
+                  _maxHr.value = null
+              }
+        }
     }
 
     private suspend fun loadHeartRate(date: java.util.Date) {

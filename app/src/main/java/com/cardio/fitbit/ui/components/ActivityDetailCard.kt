@@ -45,20 +45,31 @@ fun ActivityDetailCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            val activityMinutes = allMinuteData.filter { data ->
-                val cal = Calendar.getInstance()
-                cal.time = activity.startTime 
-                val parts = data.time.split(":")
-                if (parts.size < 2) return@filter false
-                cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-                cal.set(Calendar.MINUTE, parts[1].toInt())
-                cal.set(Calendar.SECOND, 0)
-                cal.set(Calendar.MILLISECOND, 0)
-                val ts = cal.timeInMillis
-                
-                val rangeStart = (activity.startTime.time / 60000) * 60000
-                val rangeEnd = ((activity.startTime.time + activity.duration + 59999) / 60000) * 60000
-                ts in rangeStart..rangeEnd
+            // Generate CONTINUOUS timeline
+            // 1. Map existing data for quick lookup
+            val dataMap = allMinuteData.associateBy { it.time }
+            
+            // 2. Determine start/end time
+            val cal = Calendar.getInstance()
+            cal.time = activity.startTime
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val startTimeMs = cal.timeInMillis
+            val durationMs = activity.duration
+            val endTimeMs = startTimeMs + durationMs
+
+            // 3. Generate full list of minutes
+            val continuousMinutes = mutableListOf<MinuteData>()
+            var currentMs = startTimeMs
+            val dateFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+
+            // Loop minute by minute
+            while (currentMs <= endTimeMs) {
+                val timeStr = dateFormat.format(Date(currentMs))
+                // Use existing data or empty default
+                val data = dataMap[timeStr] ?: MinuteData(timeStr, 0, 0)
+                continuousMinutes.add(data)
+                currentMs += 60000 // +1 minute
             }
 
             Row(
@@ -79,10 +90,11 @@ fun ActivityDetailCard(
                     )
                 }
                 
-                val avgHr = if (activity.averageHeartRate != null && activity.averageHeartRate > 0) {
+                // Calculate display average
+                 val avgHr = if (activity.averageHeartRate != null && activity.averageHeartRate > 0) {
                     activity.averageHeartRate
-                } else if (activityMinutes.isNotEmpty()) {
-                    val validMinutes = activityMinutes.filter { it.heartRate > 0 }
+                } else if (continuousMinutes.isNotEmpty()) {
+                    val validMinutes = continuousMinutes.filter { it.heartRate > 0 }
                     if (validMinutes.isNotEmpty()) validMinutes.map { it.heartRate }.average().toInt() else 0
                 } else 0
 
@@ -102,7 +114,7 @@ fun ActivityDetailCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val calculatedSteps = activityMinutes.sumOf { it.steps }
+            val calculatedSteps = continuousMinutes.sumOf { it.steps }
             val displaySteps = if (activity.steps != null && activity.steps > 0) activity.steps else calculatedSteps
 
             Row(
@@ -124,7 +136,7 @@ fun ActivityDetailCard(
                     .fillMaxWidth()
                     .height(150.dp)
             ) {
-                ActivityHeartRateChart(activity, activityMinutes)
+                ActivityHeartRateChart(continuousMinutes)
             }
         }
     }
@@ -139,10 +151,10 @@ fun StatItem(label: String, value: String) {
 }
 
 @Composable
-fun ActivityHeartRateChart(activity: Activity, activityMinutes: List<MinuteData>) {
+fun ActivityHeartRateChart(activityMinutes: List<MinuteData>) {
     if (activityMinutes.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Pas de données détaillées (${activity.activityName})", style = MaterialTheme.typography.labelSmall)
+            Text("Pas de données détaillées", style = MaterialTheme.typography.labelSmall)
         }
         return
     }
@@ -163,26 +175,10 @@ fun ActivityHeartRateChart(activity: Activity, activityMinutes: List<MinuteData>
                 setPinchZoom(true)
                 setDrawGridBackground(false)
 
-                // Interactivity: Finger following (scrubbing)
+                // Interactivity
                 setOnTouchListener { v, event ->
-                    when (event.action) {
-                        android.view.MotionEvent.ACTION_DOWN -> {
-                            v.parent.requestDisallowInterceptTouchEvent(true)
-                            isDragEnabled = false
-                            val h = getHighlightByTouchPoint(event.x, event.y)
-                            if (h != null) highlightValue(h, true)
-                        }
-                        android.view.MotionEvent.ACTION_MOVE -> {
-                            isDragEnabled = false
-                            val h = getHighlightByTouchPoint(event.x, event.y)
-                            if (h != null) highlightValue(h, true)
-                        }
-                        android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                            isDragEnabled = false
-                            v.parent.requestDisallowInterceptTouchEvent(false)
-                        }
-                    }
-                    false 
+                    v.parent.requestDisallowInterceptTouchEvent(true) // Always consume touch
+                    false
                 }
 
                 xAxis.apply {
@@ -190,7 +186,7 @@ fun ActivityHeartRateChart(activity: Activity, activityMinutes: List<MinuteData>
                     setDrawGridLines(false)
                     textColor = Color.GRAY
                     textSize = 10f
-                    labelCount = 4
+                    labelCount = 5
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
@@ -210,7 +206,14 @@ fun ActivityHeartRateChart(activity: Activity, activityMinutes: List<MinuteData>
                     axisMaximum = 200f
                 }
 
-                axisRight.isEnabled = false
+                // Right Axis for Steps (Hidden but scaled)
+                axisRight.apply {
+                    isEnabled = true
+                    setDrawLabels(false)
+                    setDrawGridLines(false)
+                    axisMinimum = 0f
+                    axisMaximum = 100f // Scale so steps aren't huge
+                }
                 
                 // Add marker
                 val mv = CustomMarkerView(context, R.layout.marker_view)
@@ -218,8 +221,8 @@ fun ActivityHeartRateChart(activity: Activity, activityMinutes: List<MinuteData>
                 marker = mv
 
                 drawOrder = arrayOf(
-                    CombinedChart.DrawOrder.BAR,
-                    CombinedChart.DrawOrder.LINE
+                    CombinedChart.DrawOrder.BAR, // Steps first
+                    CombinedChart.DrawOrder.LINE // HR on top
                 )
             }
         },
@@ -227,41 +230,44 @@ fun ActivityHeartRateChart(activity: Activity, activityMinutes: List<MinuteData>
             val combinedData = CombinedData()
 
             // 1. HR Line Data
-            val hrEntries = activityMinutes.mapIndexed { index, data ->
-                Entry(index.toFloat(), data.heartRate.toFloat(), data)
+            val hrEntries = activityMinutes.mapIndexedNotNull { index, data ->
+                if (data.heartRate > 0) {
+                    Entry(index.toFloat(), data.heartRate.toFloat(), data)
+                } else null 
             }
-            val hrDataSet = LineDataSet(hrEntries, "Heart Rate").apply {
-                setDrawCircles(false)
-                setDrawValues(false)
-                color = Color.parseColor("#EF5350")
-                lineWidth = 2f
-                mode = LineDataSet.Mode.CUBIC_BEZIER
-                setDrawFilled(true)
-                fillColor = Color.parseColor("#EF5350")
-                fillAlpha = 50
-                isHighlightEnabled = true
-                setDrawHorizontalHighlightIndicator(false)
-                highlightLineWidth = 1.5f
-                highLightColor = Color.GRAY
-            }
-            combinedData.setData(LineData(hrDataSet))
-
-            // 2. Steps Bar Data
-            val stepEntries = activityMinutes.mapIndexedNotNull { index, data ->
-                if (data.steps > 0) {
-                    BarEntry(index.toFloat(), data.steps.toFloat(), data) // REAL step magnitude
-                } else null
-            }
-            if (stepEntries.isNotEmpty()) {
-                val stepDataSet = BarDataSet(stepEntries, "Steps").apply {
-                    color = Color.parseColor("#4CAF50")
+            // Only draw line if we have data
+            if (hrEntries.isNotEmpty()) {
+                val hrDataSet = LineDataSet(hrEntries, "Heart Rate").apply {
+                    setDrawCircles(false)
                     setDrawValues(false)
-                    isHighlightEnabled = false
+                    color = Color.parseColor("#EF5350")
+                    lineWidth = 2f
+                    mode = LineDataSet.Mode.CUBIC_BEZIER
+                    setDrawFilled(true)
+                    fillColor = Color.parseColor("#EF5350")
+                    fillAlpha = 50
+                    isHighlightEnabled = true
+                    setDrawHorizontalHighlightIndicator(false)
+                    highlightLineWidth = 1.5f
+                    highLightColor = Color.GRAY
                 }
-                val barData = BarData(stepDataSet)
-                barData.barWidth = 0.6f
-                combinedData.setData(barData)
+                combinedData.setData(LineData(hrDataSet))
             }
+
+            // 2. Steps Bar Data (Show ALL minutes, even 0, to keep alignment)
+            val stepEntries = activityMinutes.mapIndexed { index, data ->
+               BarEntry(index.toFloat(), if(data.steps > 0) data.steps.toFloat() else 0f, data)
+            }
+            
+            val stepDataSet = BarDataSet(stepEntries, "Steps").apply {
+                color = Color.parseColor("#9C27B0") // Purple
+                setDrawValues(false)
+                axisDependency = YAxis.AxisDependency.RIGHT // Use Right Axis
+                isHighlightEnabled = false
+            }
+            val barData = BarData(stepDataSet)
+            barData.barWidth = 0.6f
+            combinedData.setData(barData)
 
             chart.data = combinedData
             chart.invalidate()

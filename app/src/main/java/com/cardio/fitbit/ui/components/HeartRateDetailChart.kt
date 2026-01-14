@@ -192,18 +192,17 @@ fun HeartRateDetailChart(
                 }
 
                 fun getHeartRateColor(bpm: Float): Int {
-                    val colorGrey = Color.parseColor("#94A3B8")
-                    val colorYellow = Color.parseColor("#FACC15")
-                    val colorOrange = Color.parseColor("#FB923C")
-                    val colorRed = Color.parseColor("#EF4444")
-                    val colorDeepRed = Color.parseColor("#B91C1C")
+                    val colorCyan = Color.parseColor("#06B6D4")   // < 60 (Rest / Sleep)
+                    val colorGreen = Color.parseColor("#10B981")  // 60-100 (Normal)
+                    val colorOrange = Color.parseColor("#F59E0B") // 100-140 (Moderate)
+                    val colorRed = Color.parseColor("#EF4444")    // > 140 (Intense)
+                    val colorDeepRed = Color.parseColor("#B91C1C") // Peak
 
                     return when {
-                        bpm < 60f -> colorGrey
-                        bpm < 100f -> interpolateColor(colorGrey, colorYellow, (bpm - 60f) / 40f)
-                        bpm < 140f -> interpolateColor(colorYellow, colorOrange, (bpm - 100f) / 40f)
-                        bpm < 180f -> interpolateColor(colorOrange, colorRed, (bpm - 140f) / 40f)
-                        else -> interpolateColor(colorRed, colorDeepRed, minOf(1f, (bpm - 180f) / 20f))
+                        bpm < 60f -> interpolateColor(colorCyan, colorGreen, bpm / 60f) // Fade from Cyan to Green
+                        bpm < 100f -> interpolateColor(colorGreen, colorOrange, (bpm - 60f) / 40f)
+                        bpm < 140f -> interpolateColor(colorOrange, colorRed, (bpm - 100f) / 40f)
+                        else -> interpolateColor(colorRed, colorDeepRed, minOf(1f, (bpm - 140f) / 40f))
                     }
                 }
                 
@@ -219,14 +218,14 @@ fun HeartRateDetailChart(
                 // Height is fixed to 10f if steps > 0 to be visible but not cover the whole bar
                 val stepEntries = activeList.mapNotNull { data ->
                     if (data.steps > 0) {
-                        BarEntry(timeToIndex(data.time), 10f, data)
+                        BarEntry(timeToIndex(data.time), 20f, data) // Taller bars (20f)
                     } else {
                         null
                     }
                 }
 
                 val stepDataSet = BarDataSet(stepEntries, "Steps").apply {
-                    color = Color.parseColor("#4CAF50") // Green
+                    color = Color.parseColor("#9C27B0") // Purple
                     setDrawValues(false)
                     axisDependency = YAxis.AxisDependency.RIGHT // Use Right Axis for Steps
                     isHighlightEnabled = false // Highlight HR dataset only
@@ -239,12 +238,12 @@ fun HeartRateDetailChart(
                     setDrawGridLines(false) // Hide grid
                     setDrawAxisLine(false) // Hide line
                     axisMinimum = 0f
-                    axisMaximum = 50f // 10f bars will take 20% of height
+                    axisMaximum = 50f // 20f bars will take 40% of height
                 }
 
                 // Combine both in BarData (Order: HR first, then Steps on top)
                 val barData = BarData(hrDataSet, stepDataSet)
-                barData.barWidth = 0.8f 
+                barData.barWidth = 0.9f // Slightly wider bars
 
                 // 3. Sleep Zone (Purple background)
                 val sleepLineData = LineData()

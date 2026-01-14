@@ -23,3 +23,17 @@
 
 # MPAndroidChart
 -keep class com.github.mikephil.charting.** { *; }
+
+# Suppress warnings from common libraries
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn org.checkerframework.**
+-dontwarn org.codehaus.mojo.animal_sniffer.**
+-dontwarn sun.misc.Unsafe
+-dontwarn java.lang.invoke.MethodHandle
+-dontwarn java.lang.invoke.MethodHandles$Lookup
+
+# Keep Hilt/Dagger
+-keep class dagger.hilt.** { *; }
+-keep interface dagger.hilt.** { *; }
+-dontwarn dagger.hilt.android.internal.**
