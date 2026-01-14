@@ -39,5 +39,12 @@ Builds:
     gradle:
       - yes
 
+  - versionName: 1.1.2
+    versionCode: 5
+    commit: v1.1.2
+    subdir: app
+    gradle:
+      - yes
+
 AntiFeatures:
   - NonFreeNet
