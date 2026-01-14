@@ -5,12 +5,21 @@ SourceCode: https://github.com/Dynag1/CardioLens
 IssueTracker: https://github.com/Dynag1/CardioLens/issues
 
 AutoName: CardioLens
-Summary: Visualize Fitbit health data
+Summary: Visualize health data from multiple sources
 Description: |-
-  CardioLens is a modern Android application that connects to Fitbit to retrieve and visualize your health data.
-  It supports OAuth 2.0 (BYOK), Heart Rate visualization, Sleep analysis, and more.
+  CardioLens is a modern Android application that connects to health data providers to retrieve and visualize your fitness information.
   
-  Note: This application requires a Fitbit account. To access intraday (minute-by-minute) data, you must use your own Fitbit Developer credentials (BYOK mode).
+  Features:
+  • Health Connect integration - Access Google Fit data locally
+  • Google Fit Cloud API support - Use your own OAuth credentials
+  • Fitbit integration - Full OAuth 2.0 (BYOK)
+  • Heart rate visualization with zones
+  • Sleep analysis and tracking
+  • Step counting and activity tracking
+  • Swipe navigation between days
+  • Background sync with customizable intervals
+  
+  Note: Requires a compatible health data source (Health Connect, Google Fit, or Fitbit account).
 
 RepoType: git
 Repo: https://github.com/Dynag1/CardioLens.git
@@ -19,6 +28,13 @@ Builds:
   - versionName: 1.1.0
     versionCode: 3
     commit: v1.1.0
+    subdir: app
+    gradle:
+      - yes
+
+  - versionName: 1.1.1
+    versionCode: 4
+    commit: v1.1.1
     subdir: app
     gradle:
       - yes
