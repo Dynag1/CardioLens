@@ -6,9 +6,16 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.cardio.fitbit.ui.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.CircularProgressIndicator
+import com.cardio.fitbit.ui.theme.CardioTheme
 import kotlinx.coroutines.launch
 
 /**
@@ -21,6 +28,18 @@ class AuthActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Show a loading UI while processing
+        setContent {
+            CardioTheme {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+        }
 
         // Handle the OAuth callback
         handleIntent(intent)
@@ -35,38 +54,63 @@ class AuthActivity : ComponentActivity() {
         val uri = intent?.data
         Log.d("CardioAuth", "handleIntent called with URI: $uri")
         
-        if (uri != null && uri.scheme == "cardioapp" && uri.host == "fitbit-auth") {
-            val code = uri.getQueryParameter("code")
-            val error = uri.getQueryParameter("error")
-            Log.d("CardioAuth", "Received code: ${code?.take(10)}..., error: $error")
+        if (uri != null && uri.scheme == "cardioapp") {
+            val host = uri.host
+            if (host == "fitbit-auth" || host == "google-auth") {
+                val code = uri.getQueryParameter("code")
+                val error = uri.getQueryParameter("error")
+                Log.d("CardioAuth", "Received code: ${code?.take(10)}..., error: $error")
 
-            when {
-                code != null -> {
-                    // Authorization successful, exchange code for token
-                    Log.d("CardioAuth", "Starting token exchange...")
-                    lifecycleScope.launch {
-                        try {
-                            val result = viewModel.handleAuthorizationCode(code)
-                            Log.d("CardioAuth", "Token exchange result: $result")
-                            navigateToMain()
-                        } catch (e: Exception) {
-                            Log.e("CardioAuth", "Token exchange failed", e)
-                            navigateToMain()
+                when {
+                    code != null -> {
+                        // Authorization successful, exchange code for token
+                        Log.d("CardioAuth", "Starting token exchange...")
+                        lifecycleScope.launch {
+                            try {
+                                val result = if (host == "google-auth") {
+                                    viewModel.handleGoogleAuthCode(code)
+                                } else {
+                                    viewModel.handleAuthorizationCode(code)
+                                }
+                                
+                                Log.d("CardioAuth", "Token exchange result: $result")
+                                navigateToMain()
+                            } catch (e: Exception) {
+                                Log.e("CardioAuth", "Token exchange failed", e)
+                                runOnUiThread {
+                                    android.widget.Toast.makeText(
+                                        this@AuthActivity, 
+                                        "Échec connexion: ${e.message}", 
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                navigateToMain()
+                            }
                         }
                     }
+                    error != null -> {
+                        // Authorization failed
+                        Log.e("CardioAuth", "OAuth error: $error")
+                         runOnUiThread {
+                            android.widget.Toast.makeText(
+                                this@AuthActivity, 
+                                "Erreur Google: $error", 
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        navigateToMain()
+                    }
+                    else -> {
+                        Log.w("CardioAuth", "No code or error in callback")
+                        navigateToMain()
+                    }
                 }
-                error != null -> {
-                    // Authorization failed
-                    Log.e("CardioAuth", "OAuth error: $error")
-                    navigateToMain()
-                }
-                else -> {
-                    Log.w("CardioAuth", "No code or error in callback")
-                    navigateToMain()
-                }
+            } else {
+                Log.w("CardioAuth", "Invalid/Unknown host: $host")
+                navigateToMain()
             }
         } else {
-            Log.w("CardioAuth", "Invalid URI scheme or host")
+            Log.w("CardioAuth", "Invalid URI scheme or null intent")
             navigateToMain()
         }
     }

@@ -1,5 +1,6 @@
 package com.cardio.fitbit.ui.screens
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -102,6 +104,10 @@ fun DashboardScreen(
                         showSettingsDialog = true
                     }
                 )
+                
+                // Push disconnect to bottom
+                Spacer(Modifier.weight(1f))
+                
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.ExitToApp, contentDescription = null) },
                     label = { Text("Déconnexion") },
@@ -112,6 +118,7 @@ fun DashboardScreen(
                         onLogout()
                     }
                 )
+                Spacer(Modifier.height(12.dp))
             }
         }
     ) {
@@ -199,10 +206,30 @@ fun DashboardScreen(
                     }
                 }
                 is DashboardUiState.Success -> {
+                    // Swipe detection state
+                    var swipeOffset by remember { mutableFloatStateOf(0f) }
+                    
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues),
+                            .padding(paddingValues)
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures(
+                                    onDragEnd = {
+                                        if (kotlin.math.abs(swipeOffset) > 100) {
+                                            if (swipeOffset > 0) {
+                                                viewModel.changeDate(-1) // Swipe right = previous
+                                            } else {
+                                                viewModel.changeDate(1)  // Swipe left = next
+                                            }
+                                        }
+                                        swipeOffset = 0f
+                                    },
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        swipeOffset += dragAmount
+                                    }
+                                )
+                            },
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {

@@ -1,0 +1,283 @@
+package com.cardio.fitbit.data.provider
+
+import com.cardio.fitbit.auth.FitbitAuthManager
+import com.cardio.fitbit.data.api.ApiClient
+import com.cardio.fitbit.data.models.*
+import com.cardio.fitbit.utils.DateUtils
+import java.util.Date
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class FitbitHealthProvider @Inject constructor(
+    private val apiClient: ApiClient,
+    private val authManager: FitbitAuthManager
+) : HealthDataProvider {
+
+    override val providerId = "FITBIT"
+
+    override suspend fun isAuthorized(): Boolean {
+        return authManager.isAuthenticated()
+    }
+
+    override suspend fun requestpermissions() {
+        // Handled by FitbitAuthManager startAuthorization
+        // This method might be unused for Fitbit as it uses a web flow
+    }
+
+    override suspend fun getHeartRateData(date: Date): Result<HeartRateData?> {
+        try {
+            val dateString = DateUtils.formatForApi(date)
+            // Fitbit API logic moved from Repository
+            val response = apiClient.fitbitApi.getHeartRate(dateString)
+            if (response.isSuccessful && response.body() != null) {
+                return Result.success(mapHeartRateResponse(response.body()!!))
+            }
+            return Result.failure(Exception("Fitbit HR Error: ${response.code()}"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getIntradayData(date: Date): Result<IntradayData?> {
+         try {
+            val dateString = DateUtils.formatForApi(date)
+            val hrResponse = apiClient.fitbitApi.getIntradayHeartRate(dateString)
+            val stepsResponse = apiClient.fitbitApi.getIntradaySteps(dateString)
+
+            if (!hrResponse.isSuccessful || !stepsResponse.isSuccessful) {
+                return Result.failure(Exception("Fitbit Intraday Error"))
+            }
+
+            val hrData = hrResponse.body()?.intradayData?.dataset ?: emptyList()
+            val stepsData = stepsResponse.body()?.intradayData?.dataset ?: emptyList()
+
+            val allTimes = (hrData.map { it.time } + stepsData.map { it.time }).distinct()
+            val hrMap = hrData.associateBy { it.time }
+            val stepsMap = stepsData.associateBy { it.time }
+
+            val minuteData = allTimes.map { time ->
+                MinuteData(
+                    time = time,
+                    heartRate = hrMap[time]?.value ?: 0,
+                    steps = stepsMap[time]?.value ?: 0
+                )
+            }.sortedBy { it.time }
+
+            return Result.success(IntradayData(date, minuteData))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getSleepData(date: Date): Result<List<SleepData>> {
+         try {
+            val dateString = DateUtils.formatForApi(date)
+            val response = apiClient.fitbitApi.getSleep(dateString)
+            if (response.isSuccessful && response.body() != null) {
+                return Result.success(mapSleepResponse(response.body()!!))
+            }
+            return Result.failure(Exception("Fitbit Sleep Error: ${response.code()}"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getStepsData(startDate: Date, endDate: Date): Result<List<StepsData>> {
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            val response = apiClient.fitbitApi.getSteps(startStr, endStr)
+            if (response.isSuccessful && response.body() != null) {
+                return Result.success(mapStepsResponse(response.body()!!))
+            }
+             return Result.failure(Exception("Fitbit Steps Error"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getActivityData(date: Date): Result<ActivityData?> {
+         try {
+            val dateString = DateUtils.formatForApi(date)
+            val summaryRes = apiClient.fitbitApi.getActivities(dateString)
+            
+            if (summaryRes.isSuccessful && summaryRes.body() != null) {
+                var finalActivities = summaryRes.body()!!.activities
+                
+                // Fetch detailed logs (optional but good for consistency with old repo)
+                try {
+                     val cal = java.util.Calendar.getInstance()
+                     cal.time = date
+                     cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                     val nextDayString = DateUtils.formatForApi(cal.time)
+                     
+                     val logsRes = apiClient.fitbitApi.getActivityLogs(beforeDate = nextDayString, limit = 50)
+                     if (logsRes.isSuccessful && logsRes.body() != null) {
+                         finalActivities = (finalActivities + logsRes.body()!!.activities).distinctBy { it.activityId }
+                     }
+                } catch (e: Exception) {
+                    // Ignore log fetch error
+                }
+
+                val syntheticResponse = ActivityResponse(
+                    activities = finalActivities,
+                    summary = summaryRes.body()!!.summary
+                )
+                return Result.success(mapActivityResponse(syntheticResponse, date))
+            }
+            return Result.failure(Exception("Fitbit Activity Error"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getUserProfile(): Result<UserProfile?> {
+        try {
+            val response = apiClient.fitbitApi.getUserProfile()
+            if (response.isSuccessful && response.body() != null) {
+                return Result.success(mapUserProfileResponse(response.body()!!))
+            }
+            return Result.failure(Exception("Fitbit Profile Error"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    // ================= MAPPING HELPER FUNCTIONS (Copied from HealthRepository) =================
+    
+    private fun mapHeartRateResponse(response: HeartRateResponse): HeartRateData? {
+        if (response.activitiesHeart.isEmpty()) return null
+        val heartRateDay = response.activitiesHeart[0]
+        val date = DateUtils.parseApiDate(heartRateDay.dateTime) ?: return null
+        
+        val zones = heartRateDay.value.heartRateZones.map { zone ->
+            HeartRateZone(
+                name = zone.name,
+                min = zone.min,
+                max = zone.max,
+                minutes = zone.minutes,
+                caloriesOut = zone.caloriesOut
+            )
+        }
+        
+        val intradayData = response.intradayData?.dataset?.map { point ->
+            IntradayHeartRate(time = point.time, value = point.value)
+        }
+        
+        return HeartRateData(
+            date = date,
+            restingHeartRate = heartRateDay.value.restingHeartRate,
+            heartRateZones = zones,
+            intradayData = intradayData
+        )
+    }
+
+    private fun mapSleepResponse(response: SleepResponse): List<SleepData> {
+        if (response.sleep.isEmpty()) return emptyList()
+        return response.sleep.mapNotNull { sleepLog ->
+            val date = DateUtils.parseApiDate(sleepLog.dateOfSleep) ?: return@mapNotNull null
+            val startTime = DateUtils.parseApiDateTime(sleepLog.startTime) ?: date
+            val endTime = DateUtils.parseApiDateTime(sleepLog.endTime) ?: date
+            
+            val stages = sleepLog.levels.summary?.let { summary ->
+                SleepStages(
+                    deep = summary.deep?.minutes ?: 0,
+                    light = summary.light?.minutes ?: 0,
+                    rem = summary.rem?.minutes ?: 0,
+                    wake = summary.wake?.minutes ?: 0
+                )
+            }
+            val levels = sleepLog.levels.data.mapNotNull { levelData ->
+                DateUtils.parseApiDateTime(levelData.dateTime)?.let { levelDate ->
+                    SleepLevel(dateTime = levelDate, level = levelData.level, seconds = levelData.seconds)
+                }
+            }
+            
+            SleepData(
+                date = date,
+                duration = sleepLog.duration,
+                efficiency = sleepLog.efficiency,
+                startTime = startTime,
+                endTime = endTime,
+                minutesAsleep = sleepLog.minutesAsleep,
+                minutesAwake = sleepLog.minutesAwake,
+                stages = stages,
+                levels = levels
+            )
+        }
+    }
+
+    private fun mapStepsResponse(response: StepsResponse): List<StepsData> {
+        return response.activitiesSteps.mapNotNull { stepsDay ->
+            DateUtils.parseApiDate(stepsDay.dateTime)?.let { date ->
+                StepsData(
+                    date = date,
+                    steps = stepsDay.value.toIntOrNull() ?: 0,
+                    distance = 0.0, floors = 0, caloriesOut = 0
+                )
+            }
+        }
+    }
+
+     private fun mapActivityResponse(response: ActivityResponse, date: java.util.Date): ActivityData {
+        val rawList = response.activities
+        val targetDateStr = DateUtils.formatForApi(date)
+        
+        val activities = rawList.mapNotNull { activityLog ->
+            val startTime = DateUtils.parseFitbitTimeOrDateTime(activityLog.startTime, date) ?: return@mapNotNull null
+            val activityDateStr = DateUtils.formatForApi(startTime)
+            
+            if (activityDateStr == targetDateStr) {
+                Activity(
+                    activityId = activityLog.logId ?: activityLog.activityId, 
+                    activityName = activityLog.activityName ?: activityLog.name ?: "Activité",
+                    startTime = startTime,
+                    duration = activityLog.duration,
+                    calories = activityLog.calories,
+                    distance = activityLog.distance ?: 0.0,
+                    steps = activityLog.steps ?: 0,
+                    averageHeartRate = activityLog.averageHeartRate ?: 0
+                )
+            } else null
+        }.sortedBy { it.startTime }
+
+        val distinctActivities = activities.fold(mutableListOf<Activity>()) { acc, activity ->
+            if (acc.isEmpty()) acc.add(activity)
+            else {
+                val last = acc.last()
+                val timeDiff = kotlin.math.abs(activity.startTime.time - last.startTime.time)
+                val isSameTime = timeDiff < 2 * 60 * 1000
+                val sameName = activity.activityName.contains(last.activityName, true) || last.activityName.contains(activity.activityName, true)
+                if (!isSameTime || !sameName) acc.add(activity)
+            }
+            acc
+        }
+        
+        val totalDistance = response.summary.distances.find { it.activity == "total" }?.distance ?: 0.0
+        val activeMinutes = response.summary.fairlyActiveMinutes + response.summary.lightlyActiveMinutes + response.summary.veryActiveMinutes
+        
+        val summary = ActivitySummary(
+            steps = response.summary.steps,
+            distance = totalDistance,
+            floors = response.summary.floors,
+            caloriesOut = response.summary.caloriesOut,
+            activeMinutes = activeMinutes,
+            sedentaryMinutes = response.summary.sedentaryMinutes
+        )
+
+        return ActivityData(date = date, activities = distinctActivities, summary = summary, debugInfo = "")
+    }
+
+    private fun mapUserProfileResponse(response: UserProfileResponse): UserProfile {
+        return UserProfile(
+            userId = response.user.encodedId,
+            displayName = response.user.displayName,
+            avatar = response.user.avatar,
+            age = response.user.age,
+            gender = response.user.gender,
+            height = response.user.height,
+            weight = response.user.weight
+        )
+    }
+}

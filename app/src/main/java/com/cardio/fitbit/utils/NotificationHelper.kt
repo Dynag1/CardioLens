@@ -47,7 +47,7 @@ class NotificationHelper @Inject constructor(
         val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_warning) // Using system icon as placeholder
+            .setSmallIcon(R.drawable.ic_launcher_icon) // Use vector icon
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

@@ -8,14 +8,14 @@ plugins {
 
 android {
     namespace = "com.cardio.fitbit"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.cardio.fitbit"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.1.0"
+        versionCode = 4
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -120,6 +120,9 @@ dependencies {
     // Chrome Custom Tabs (OAuth)
     implementation("androidx.browser:browser:1.7.0")
     
+    // Health Connect
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha10")
+    
     // MPAndroidChart (Charts)
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     
@@ -140,4 +143,6 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // Testing
 }

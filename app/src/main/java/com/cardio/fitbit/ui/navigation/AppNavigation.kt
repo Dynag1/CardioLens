@@ -13,9 +13,11 @@ import com.cardio.fitbit.ui.screens.DashboardScreen
 import com.cardio.fitbit.ui.screens.LoginScreen
 
 sealed class Screen(val route: String) {
+    object Welcome : Screen("welcome")
     object ApiSetup : Screen("api_setup")
     object Login : Screen("login")
     object Dashboard : Screen("dashboard")
+    object GoogleFitSetup : Screen("google_fit_setup")
 }
 
 @Composable
@@ -31,11 +33,38 @@ fun AppNavigation() {
         navController = navController,
         startDestination = startDestination
     ) {
+        composable(Screen.Welcome.route) {
+            com.cardio.fitbit.ui.screens.WelcomeScreen(
+                onNavigateToFitbitSetup = {
+                    navController.navigate(Screen.ApiSetup.route)
+                },
+                onNavigateToGoogleFitSetup = {
+                    navController.navigate(Screen.GoogleFitSetup.route)
+                },
+                onNavigateToDashboard = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        composable(Screen.GoogleFitSetup.route) {
+            com.cardio.fitbit.ui.screens.GoogleFitSetupScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDashboard = {
+                     navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(Screen.ApiSetup.route) {
             ApiSetupScreen(
                 onCredentialsSaved = {
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.ApiSetup.route) { inclusive = true }
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
                     }
                 }
             )
@@ -45,6 +74,11 @@ fun AppNavigation() {
             LoginScreen(
                 onLoginSuccess = {
                     navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                },
+                onNavigateToWelcome = {
+                    navController.navigate(Screen.Welcome.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }
