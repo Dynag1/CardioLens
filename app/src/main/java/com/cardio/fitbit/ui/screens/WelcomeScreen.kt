@@ -18,9 +18,7 @@ import com.cardio.fitbit.R
 
 @Composable
 fun WelcomeScreen(
-    onNavigateToFitbitSetup: () -> Unit,
-    onNavigateToGoogleFitSetup: () -> Unit,
-    onNavigateToDashboard: () -> Unit,
+    onNavigateToProviderSelection: () -> Unit,
     viewModel: WelcomeViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -34,10 +32,10 @@ fun WelcomeScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            painter = painterResource(id = R.drawable.ic_launcher_icon),
+            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
             contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary
+            modifier = Modifier.size(120.dp),
+            tint = Color.Unspecified
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -53,7 +51,7 @@ fun WelcomeScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Choisissez votre source de données pour commencer.",
+            text = "Connectez-vous pour visualiser vos données de santé",
             fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -61,68 +59,20 @@ fun WelcomeScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Health Connect Option (Recommended)
+        // Main Connect Button
         Button(
             onClick = {
-                viewModel.onHealthConnectSelected()
-                onNavigateToDashboard()
+                onNavigateToProviderSelection()
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF34A853)  // Green color for Health Connect
+                containerColor = MaterialTheme.colorScheme.primary
             ),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "Health Connect (Recommandé)", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text(text = "Données locales, toutes sources", fontSize = 12.sp)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Fitbit Option
-        Button(
-            onClick = {
-                viewModel.onFitbitSelected()
-                onNavigateToFitbitSetup()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF00B0B9)
-            ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "Connecter avec Fitbit", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text(text = "Clés API requises (Intraday)", fontSize = 12.sp)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Google Fit (Cloud) Option
-        Button(
-            onClick = {
-                viewModel.onGoogleFitSelected()
-                onNavigateToGoogleFitSetup()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF4285F4)
-            ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "Connecter avec Google Fit", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text(text = "Via Google Cloud API (Web)", fontSize = 12.sp)
-            }
+            Text(text = "Se connecter", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

@@ -18,6 +18,9 @@ class GoogleFitSetupViewModel @Inject constructor(
 
     fun onConnectClicked(context: Context, clientId: String, clientSecret: String) {
         viewModelScope.launch {
+            // 0. Ensure Health Connect priority is disabled
+            userPreferencesRepository.setUseHealthConnect(false)
+
             // 1. Save credentials
             userPreferencesRepository.setGoogleCredentials(clientId, clientSecret)
             

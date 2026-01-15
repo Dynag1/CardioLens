@@ -21,9 +21,8 @@ class WelcomeViewModel @Inject constructor(
 
     fun onGoogleFitSelected() {
         viewModelScope.launch {
-            // Reusing the boolean flag effectively now means "Use Google Fit (Cloud)"
-            // Ideally we should rename this preference later, but for now true = Google Fit (Cloud)
-            userPreferencesRepository.setUseHealthConnect(true)
+            // Ensure Health Connect preference is OFF so HealthRepository checks googleFitProvider.isAuthorized()
+            userPreferencesRepository.setUseHealthConnect(false)
         }
     }
     

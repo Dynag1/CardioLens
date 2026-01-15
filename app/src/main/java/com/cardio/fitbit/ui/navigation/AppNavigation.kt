@@ -18,6 +18,9 @@ sealed class Screen(val route: String) {
     object Login : Screen("login")
     object Dashboard : Screen("dashboard")
     object GoogleFitSetup : Screen("google_fit_setup")
+    object Trends : Screen("trends")
+    object HealthConnectPermissions : Screen("health_connect_permissions")
+    object ProviderSelection : Screen("provider_selection")
 }
 
 @Composable
@@ -35,14 +38,36 @@ fun AppNavigation() {
     ) {
         composable(Screen.Welcome.route) {
             com.cardio.fitbit.ui.screens.WelcomeScreen(
+                onNavigateToProviderSelection = {
+                    navController.navigate(Screen.ProviderSelection.route)
+                }
+            )
+        }
+
+        composable(Screen.ProviderSelection.route) {
+            com.cardio.fitbit.ui.screens.ProviderSelectionScreen(
                 onNavigateToFitbitSetup = {
                     navController.navigate(Screen.ApiSetup.route)
                 },
                 onNavigateToGoogleFitSetup = {
                     navController.navigate(Screen.GoogleFitSetup.route)
                 },
-                onNavigateToDashboard = {
+                onNavigateToHealthConnectPermissions = {
+                    navController.navigate(Screen.HealthConnectPermissions.route)
+                }
+            )
+        }
+        
+        composable(Screen.HealthConnectPermissions.route) {
+            com.cardio.fitbit.ui.screens.HealthConnectPermissionsScreen(
+                onPermissionsGranted = {
                     navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
+                },
+                onPermissionsDenied = {
+                    // Show error or go back? For now navigate dashboard anyway but it might show empty
+                     navController.navigate(Screen.Dashboard.route) {
                         popUpTo(Screen.Welcome.route) { inclusive = true }
                     }
                 }
@@ -93,6 +118,17 @@ fun AppNavigation() {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Dashboard.route) { inclusive = true }
                     }
+                },
+                onNavigateToTrends = {
+                    navController.navigate(Screen.Trends.route)
+                }
+            )
+        }
+        
+        composable(Screen.Trends.route) {
+            com.cardio.fitbit.ui.screens.TrendsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

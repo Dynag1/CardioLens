@@ -56,11 +56,14 @@ class FitbitHealthProvider @Inject constructor(
             val hrMap = hrData.associateBy { it.time }
             val stepsMap = stepsData.associateBy { it.time }
 
-            val minuteData = allTimes.map { time ->
+            val minuteData = allTimes.map { timeRaw ->
+                // Normalize time to HH:mm (Fitbit returns HH:mm:ss)
+                val time = if (timeRaw.length >= 5) timeRaw.substring(0, 5) else timeRaw
+                
                 MinuteData(
                     time = time,
-                    heartRate = hrMap[time]?.value ?: 0,
-                    steps = stepsMap[time]?.value ?: 0
+                    heartRate = hrMap[timeRaw]?.value ?: 0,
+                    steps = stepsMap[timeRaw]?.value ?: 0
                 )
             }.sortedBy { it.time }
 
@@ -139,6 +142,32 @@ class FitbitHealthProvider @Inject constructor(
                 return Result.success(mapUserProfileResponse(response.body()!!))
             }
             return Result.failure(Exception("Fitbit Profile Error"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getHeartRateSeries(startTime: Date, endTime: Date): Result<List<MinuteData>> {
+        try {
+            // Assume single day for now as per use case (22:00 to 23:59 on same day)
+            // If spans across midnight, logic in Repository handles calling it twice or caller handles it.
+            // DashboardVM calls it from 'earliestStart' to 'startOfDay' (midnight) -> Same day (Yesterday).
+            
+            val dateStr = DateUtils.formatForApi(startTime)
+            val startTimeStr = DateUtils.formatTimeForDisplay(startTime) // HH:mm
+            val endTimeStr = DateUtils.formatTimeForDisplay(endTime)     // HH:mm
+            
+            val response = apiClient.fitbitApi.getIntradayHeartRateRange(dateStr, startTimeStr, endTimeStr)
+            
+            if (response.isSuccessful && response.body() != null) {
+                // Map result
+                val intraday = response.body()!!.intradayData?.dataset ?: emptyList()
+                val mapped = intraday.map { 
+                    MinuteData(it.time, it.value, 0)
+                }
+                return Result.success(mapped)
+            }
+            return Result.failure(Exception("Fitbit HR Series Error: ${response.code()}"))
         } catch (e: Exception) {
             return Result.failure(e)
         }

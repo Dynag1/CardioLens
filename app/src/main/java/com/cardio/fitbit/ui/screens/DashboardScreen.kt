@@ -31,7 +31,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToTrends: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val sleepData by viewModel.sleepData.collectAsState()
@@ -114,6 +115,17 @@ fun DashboardScreen(
         drawerContent = {
             ModalDrawerSheet {
                 Spacer(Modifier.height(12.dp))
+                
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = null) },
+                    label = { Text("Tendances (7 Jours)") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToTrends()
+                    }
+                )
+                
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text("Paramètres") },
@@ -123,6 +135,8 @@ fun DashboardScreen(
                         showSettingsDialog = true
                     }
                 )
+                
+                // Push disconnect to bottom
                 
                 // Push disconnect to bottom
                 Spacer(Modifier.weight(1f))

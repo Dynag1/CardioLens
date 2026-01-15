@@ -32,6 +32,17 @@ interface FitbitApiService {
     suspend fun getIntradayHeartRate(@Path("date") date: String): Response<HeartRateResponse>
 
     /**
+     * Get intraday heart rate data for specific time range
+     * Format times as HH:mm
+     */
+    @GET("1/user/-/activities/heart/date/{date}/1d/1min/time/{startTime}/{endTime}.json")
+    suspend fun getIntradayHeartRateRange(
+        @Path("date") date: String,
+        @Path("startTime") startTime: String,
+        @Path("endTime") endTime: String
+    ): Response<HeartRateResponse>
+
+    /**
      * Get intraday steps data (minute-by-minute)
      */
     @GET("1/user/-/activities/steps/date/{date}/1d/1min.json")

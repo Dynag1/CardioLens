@@ -1,0 +1,4 @@
+Improvement: Simplified Welcome Screen V2 (New design with single connection button)
+Fix: Fitbit Activity Charts (Fixed time format mismatch)
+Improvement: Enhanced Night RHR calculation for Fitbit (Supports pre-midnight sleep data)
+Improvement: Updated App Logo in Welcome Screen

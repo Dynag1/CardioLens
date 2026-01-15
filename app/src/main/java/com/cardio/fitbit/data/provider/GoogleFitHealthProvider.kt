@@ -266,4 +266,8 @@ class GoogleFitHealthProvider @Inject constructor(
          // TODO: Implement
         return Result.success(null)
     }
+
+    override suspend fun getHeartRateSeries(startTime: Date, endTime: Date): Result<List<MinuteData>> {
+        return Result.success(emptyList())
+    }
 }

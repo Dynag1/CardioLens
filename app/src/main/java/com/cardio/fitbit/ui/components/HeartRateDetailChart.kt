@@ -240,7 +240,7 @@ fun HeartRateDetailChart(
                 val maxHr = activeList.maxOfOrNull { it.heartRate } ?: 100
                 val finalYMax = (maxHr + 10).toFloat().coerceAtLeast(110f) // Min 110 to ensure zones visible
                 chart.axisLeft.axisMaximum = finalYMax
-                val zoneHeight = 40f + (finalYMax - 40f) / 2f // Visual 50% height (taking offset 40f into account)
+                val zoneHeight = 40f + (finalYMax - 40f) * 0.75f // Cover 75% of height (taller)
 
                 // Helper function to convert time string to index (1-minute granularity)
                 fun timeToIndex(time: String): Float {
@@ -386,9 +386,9 @@ fun HeartRateDetailChart(
                             mode = LineDataSet.Mode.LINEAR 
                             setDrawFilled(true)
                             fillColor = Color.parseColor("#42A5F5") // Solid Blue for sleep
-                            color = Color.parseColor("#1565C0") // Dark solid border
-                            fillAlpha = 50 
-                            lineWidth = 2f
+                            color = Color.parseColor("#1565C0")
+                            fillAlpha = 60
+                            lineWidth = 0f
                             isHighlightEnabled = false
                         }
                         sleepLineData.addDataSet(sleepDataSet)
@@ -428,9 +428,9 @@ fun HeartRateDetailChart(
                             mode = LineDataSet.Mode.LINEAR
                             setDrawFilled(true)
                             fillColor = Color.parseColor("#AB47BC") // Lighter Purple
-                            color = Color.parseColor("#7B1FA2") // Dark solid border
-                            fillAlpha = 50
-                            lineWidth = 2f
+                            color = Color.parseColor("#7B1FA2")
+                            fillAlpha = 60
+                            lineWidth = 0f
                             isHighlightEnabled = false
                         }
                         sleepLineData.addDataSet(activityZoneDataSet)

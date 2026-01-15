@@ -35,4 +35,10 @@ interface HealthDataProvider {
     suspend fun getActivityData(date: Date): Result<ActivityData?>
     
     suspend fun getUserProfile(): Result<UserProfile?>
+    
+    /**
+     * Get raw heart rate series for a specific time range.
+     * Useful for fetching data across midnight (e.g. sleep logic).
+     */
+    suspend fun getHeartRateSeries(startTime: Date, endTime: Date): Result<List<MinuteData>>
 }

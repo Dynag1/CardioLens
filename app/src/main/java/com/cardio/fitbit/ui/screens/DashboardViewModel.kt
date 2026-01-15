@@ -230,6 +230,38 @@ class DashboardViewModel @Inject constructor(
              }
 
              // 3. Calculate Night RHR (Median of Sleep HR)
+             // Check if any sleep session started YESTERDAY/Before midnight?
+             val startOfDayTs = DateUtils.getStartOfDay(date).time
+             val preMidnightSessions = sleep.filter { it.startTime.time < startOfDayTs }
+             
+             if (preMidnightSessions.isNotEmpty()) {
+                 val earliestStart = preMidnightSessions.minOf { it.startTime }
+                 // Fetch extra data
+                 // Need to run this in a coroutine scope that can suspend, but computeDerivedMetrics is defined as normal fun in this context? 
+                 // Wait, computeDerivedMetrics launches a coroutine: viewModelScope.launch(Dispatchers.Default)
+                 // BUT launch is fire-and-forget. We are INSIDE that launch block.
+                 // We need to fetch data. HealthRepository calls are suspend.
+                 // To execute suspend calls here we need the block to be suspend or allow it.
+                 // The launch block IS a coroutine, so we CAN call suspend functions... 
+                 // EXCEPT: healthRepository is outside the local scope reference conveniently?
+                 // No, it's a class property.
+                 
+                 try {
+                      // Fetch generic series
+                      val result = healthRepository.getHeartRateSeries(earliestStart, java.util.Date(startOfDayTs))
+                      val extraData = result.getOrNull() ?: emptyList()
+                      
+                      extraData.forEach { point ->
+                          if (point.heartRate > 0) {
+                              nightHeartRates.add(point.heartRate)
+                          }
+                      }
+                      android.util.Log.d("DashboardVM", "Added ${extraData.size} pre-midnight HR points to Night RHR calculation")
+                 } catch (e: Exception) {
+                     android.util.Log.e("DashboardVM", "Failed to load pre-midnight HR", e)
+                 }
+             }
+
              _rhrNight.value = if (nightHeartRates.isNotEmpty()) {
                  val sorted = nightHeartRates.sorted()
                  val mid = sorted.size / 2
@@ -305,13 +337,47 @@ class DashboardViewModel @Inject constructor(
 
     private suspend fun loadSleep(date: java.util.Date, forceRefresh: Boolean = false) {
         android.util.Log.d("DashboardVM", "Loading sleep data for: ${DateUtils.formatForApi(date)}")
-        val result = healthRepository.getSleepData(date, forceRefresh)
-        result.onSuccess { data ->
-            android.util.Log.d("DashboardVM", "Sleep sessions loaded: ${data.size}")
-            _sleepData.value = data
+        
+        // 1. Fetch Today's Sleep (Standard)
+        val resultToday = healthRepository.getSleepData(date, forceRefresh)
+        
+        // 2. Fetch Tomorrow's Sleep (To catch sessions starting late today, e.g. 23:00, which Fitbit assigns to tomorrow)
+        val cal = java.util.Calendar.getInstance()
+        cal.time = date
+        cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        val nextDay = cal.time
+        
+        // Don't force refresh next day blindly to save calls/time, unless needed
+        val resultNextDay = healthRepository.getSleepData(nextDay, forceRefresh = false) // Usually cached or quick
+        
+        val combinedSleep = mutableListOf<SleepData>()
+        
+        if (resultToday.isSuccess) {
+            combinedSleep.addAll(resultToday.getOrNull() ?: emptyList())
         }
-        result.onFailure { e ->
-            android.util.Log.e("DashboardVM", "Failed to load sleep data", e)
+        
+        if (resultNextDay.isSuccess) {
+            val nextDaySleep = resultNextDay.getOrNull() ?: emptyList()
+            val startOfCurrentDay = DateUtils.getStartOfDay(date).time
+            val endOfCurrentDay = DateUtils.getEndOfDay(date).time
+            
+            // Filter: Starts within CURRENT DAY (e.g. 22:00 today)
+            val overlapping = nextDaySleep.filter { 
+                it.startTime.time in startOfCurrentDay..endOfCurrentDay 
+            }
+            combinedSleep.addAll(overlapping)
+        }
+
+        if (resultToday.isSuccess || resultNextDay.isSuccess) {
+             // Deduplicate just in case provider returns overlap (like Health Connect)
+            val uniqueSleep = combinedSleep.distinctBy { it.startTime.time }
+            android.util.Log.d("DashboardVM", "Sleep sessions loaded: ${uniqueSleep.size} (merged)")
+            _sleepData.value = uniqueSleep
+        } else {
+            // Only log failure if main request failed
+             if (resultToday.isFailure) {
+                 android.util.Log.e("DashboardVM", "Failed to load sleep data", resultToday.exceptionOrNull())
+             }
         }
     }
 

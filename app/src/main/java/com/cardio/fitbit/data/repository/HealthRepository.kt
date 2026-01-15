@@ -61,6 +61,10 @@ class HealthRepository @Inject constructor(
         return getProvider().getHeartRateData(date)
     }
 
+    suspend fun getHeartRateSeries(startTime: java.util.Date, endTime: java.util.Date): Result<List<MinuteData>> {
+        return getProvider().getHeartRateSeries(startTime, endTime)
+    }
+
     /**
      * Get sleep data for a specific date
      * Uses cache-first strategy with 24h TTL

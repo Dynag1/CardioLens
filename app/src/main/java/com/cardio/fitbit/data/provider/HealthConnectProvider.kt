@@ -283,7 +283,95 @@ class HealthConnectProvider @Inject constructor(
     }
 
     override suspend fun getActivityData(date: Date): Result<ActivityData?> {
-        return Result.success(null)
+        try {
+            val startOfDay = DateUtils.getStartOfDay(date)
+            val endOfDay = DateUtils.getEndOfDay(date)
+            
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    ExerciseSessionRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startOfDay.toInstant(),
+                        endOfDay.toInstant()
+                    )
+                )
+            )
+
+            if (response.records.isEmpty()) {
+                return Result.success(null)
+            }
+
+            val activities = response.records.map { record ->
+                val durationMs = record.endTime.toEpochMilli() - record.startTime.toEpochMilli()
+                
+                // Aggregate calories for this specific session time range
+                var calories = 0.0
+                try {
+                     val aggregateResponse = healthConnectClient.aggregate(
+                        androidx.health.connect.client.request.AggregateRequest(
+                            metrics = setOf(
+                                ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL,
+                                TotalCaloriesBurnedRecord.ENERGY_TOTAL
+                            ),
+                            timeRangeFilter = TimeRangeFilter.between(
+                                record.startTime,
+                                record.endTime
+                            )
+                        )
+                    )
+                    val active = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
+                    val total = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
+                    
+                    android.util.Log.d("HealthConnectProvider", "Activity: ${record.title} (${record.exerciseType}), Active: $active, Total: $total")
+                    
+                    // Prefer Active, fallback to Total if Active is 0 (some devices only write Total)
+                    calories = if (active > 0.1) active else total
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("HealthConnectProvider", "Failed to aggregate calories: ${e.message}")
+                }
+
+                // Get title or default
+                val title = record.title ?: when(record.exerciseType) {
+                    ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "Marche" 
+                    ExerciseSessionRecord.EXERCISE_TYPE_RUNNING -> "Course"
+                    ExerciseSessionRecord.EXERCISE_TYPE_BIKING -> "Vélo"
+                    else -> "Exercice"
+                }
+
+                Activity(
+                    activityId = record.startTime.toEpochMilli(),
+                    activityName = title,
+                    startTime = Date.from(record.startTime),
+                    duration = durationMs,
+                    calories = calories.toInt(),
+                    distance = null, // Could fetch if linked, but complex for now
+                    steps = null,
+                    averageHeartRate = null // Could fetch derived data later
+                )
+            }
+
+            // Calculate Summary
+            val totalCalories = activities.sumOf { it.calories }
+            val totalActiveMinutes = activities.sumOf { (it.duration / 60000).toInt() }
+
+            return Result.success(
+                ActivityData(
+                    date = date,
+                    activities = activities,
+                    summary = ActivitySummary(
+                        steps = 0, // Filled by getStepsData separately usually
+                        distance = 0.0,
+                        floors = 0,
+                        caloriesOut = totalCalories,
+                        activeMinutes = totalActiveMinutes,
+                        sedentaryMinutes = 0
+                    )
+                )
+            )
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
     }
 
     override suspend fun getUserProfile(): Result<UserProfile> {
@@ -309,6 +397,60 @@ class HealthConnectProvider @Inject constructor(
         // Permissions are requested via HealthConnectClient from UI
         // This is typically done from Activity context
         // No implementation needed here
+    }
+
+    override suspend fun getHeartRateSeries(startTime: Date, endTime: Date): Result<List<MinuteData>> {
+        try {
+            val allRecords = mutableListOf<HeartRateRecord>()
+            var pageToken: String? = null
+            
+            do {
+                val response = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        HeartRateRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(
+                            startTime.toInstant(),
+                            endTime.toInstant()
+                        ),
+                        pageSize = 5000,
+                        pageToken = pageToken
+                    )
+                )
+                allRecords.addAll(response.records)
+                pageToken = response.pageToken
+            } while (pageToken != null)
+
+            val minuteDataMap = mutableMapOf<String, MinuteData>()
+
+            allRecords.forEach { record ->
+                record.samples.forEach { sample ->
+                    val time = sample.time.atZone(ZoneId.systemDefault())
+                    // IMPORTANT: Include Date in key to handle multi-day fetching correctness if needed, 
+                    // but MinuteData usually only holds HH:mm.
+                    // For the purpose of RHR calculation in DashboardVM, we likely process raw samples or need 
+                    // a way to distinguish days if spanning midnight.
+                    // However, standard MinuteData allows HH:mm. 
+                    // Let's stick to standard map but be aware of overlaps effectively merging same times on different days?
+                    // "getHeartRateSeries" is generic.
+                    // For Night RHR logic, we specifically append PRE-midnight data to POST-midnight data.
+                    // So distinct HH:mm keys are fine as long as we know the context.
+                    // BUT: 23:59 from Day 1 and 00:01 from Day 2 are distinct.
+                    
+                    val timeKey = String.format("%02d:%02d", time.hour, time.minute)
+                    val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
+                    // If multiple samples in same minute, average or max? Health Connect usually has one record per series but samples can definitely be sub-minute.
+                    // Last-wins or simple average? Let's take the first or last for simplicity or max?
+                    // Let's use the last one encountered for now, or better: average if multiple?
+                    // Simply overwriting is the current behavior in getIntradayData.
+                    minuteDataMap[timeKey] = existing.copy(heartRate = sample.beatsPerMinute.toInt())
+                }
+            }
+            
+            return Result.success(minuteDataMap.values.sortedBy { it.time })
+
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
     }
 
     private fun Date.toInstant(): Instant = this.toInstant()
