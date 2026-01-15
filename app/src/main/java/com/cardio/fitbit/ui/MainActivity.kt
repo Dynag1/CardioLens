@@ -99,6 +99,13 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun scheduleSync(intervalMinutes: Int) {
+        // If interval is 0, disable periodic sync
+        if (intervalMinutes == 0) {
+            WorkManager.getInstance(applicationContext).cancelUniqueWork("CardioSyncWork")
+            android.util.Log.d("MainActivity", "Periodic sync disabled (interval set to 'Never')")
+            return
+        }
+        
         // WorkManager requires minimum 15 minutes for PeriodicWorkRequest
         val actualInterval = kotlin.math.max(intervalMinutes, 15)
         

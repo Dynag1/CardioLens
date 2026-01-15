@@ -26,7 +26,8 @@ import com.cardio.fitbit.ui.theme.*
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel = hiltViewModel(),
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: () -> Unit,
+    onNavigateToWelcome: () -> Unit
 ) {
     val context = LocalContext.current
     val authState by viewModel.authState.collectAsState()
@@ -110,7 +111,19 @@ fun LoginScreen(
                 Text(
                     text = stringResource(R.string.login_button),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Switch Provider Option
+            TextButton(
+                onClick = onNavigateToWelcome,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Options de connexion",
+                    color = Primary
                 )
             }
 

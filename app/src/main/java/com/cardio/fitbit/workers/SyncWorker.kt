@@ -59,7 +59,8 @@ class SyncWorker @AssistedInject constructor(
                             notificationHelper.showHeartRateAlert(
                                 highHrViolation.heartRate, 
                                 true, 
-                                highThreshold
+                                highThreshold,
+                                highHrViolation.time
                             )
                             prefs.edit().putLong("last_high_alert", currentTime).apply()
                             android.util.Log.w("SyncWorker", "High HR alert: ${highHrViolation.heartRate} BPM > $highThreshold BPM at ${highHrViolation.time}")
@@ -75,7 +76,8 @@ class SyncWorker @AssistedInject constructor(
                             notificationHelper.showHeartRateAlert(
                                 lowHrViolation.heartRate, 
                                 false, 
-                                lowThreshold
+                                lowThreshold,
+                                lowHrViolation.time
                             )
                             prefs.edit().putLong("last_low_alert", currentTime).apply()
                             android.util.Log.w("SyncWorker", "Low HR alert: ${lowHrViolation.heartRate} BPM < $lowThreshold BPM at ${lowHrViolation.time}")

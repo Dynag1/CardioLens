@@ -22,10 +22,12 @@ class MainViewModel @Inject constructor(
 
     val startDestination: StateFlow<String> = combine(
         authManager.authState,
-        userPreferencesRepository.areKeysSet
-    ) { authState, areKeysSet ->
+        userPreferencesRepository.areKeysSet,
+        userPreferencesRepository.useHealthConnect
+    ) { authState, areKeysSet, useHealthConnect ->
         when {
-            !areKeysSet -> Screen.ApiSetup.route
+            useHealthConnect -> Screen.Dashboard.route
+            !areKeysSet -> Screen.Welcome.route
             authState is AuthState.Authenticated -> Screen.Dashboard.route
             else -> Screen.Login.route
         }

@@ -27,6 +27,14 @@ class UserPreferencesRepository @Inject constructor(
         // BYOK Credentials
         val CLIENT_ID = androidx.datastore.preferences.core.stringPreferencesKey("client_id")
         val CLIENT_SECRET = androidx.datastore.preferences.core.stringPreferencesKey("client_secret")
+        
+        // Google Credentials
+        val GOOGLE_CLIENT_ID = androidx.datastore.preferences.core.stringPreferencesKey("google_client_id")
+        val GOOGLE_CLIENT_SECRET = androidx.datastore.preferences.core.stringPreferencesKey("google_client_secret")
+        val GOOGLE_ACCESS_TOKEN = androidx.datastore.preferences.core.stringPreferencesKey("google_access_token")
+        val GOOGLE_REFRESH_TOKEN = androidx.datastore.preferences.core.stringPreferencesKey("google_refresh_token")
+        
+        val USE_HEALTH_CONNECT = booleanPreferencesKey("use_health_connect")
     }
 
     val highHrThreshold: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -88,6 +96,50 @@ class UserPreferencesRepository @Inject constructor(
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.CLIENT_ID] = clientId
             preferences[PreferencesKeys.CLIENT_SECRET] = clientSecret
+        }
+    }
+    
+    // Google Flows
+    val googleClientId: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.GOOGLE_CLIENT_ID]
+    }
+
+    val googleClientSecret: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.GOOGLE_CLIENT_SECRET]
+    }
+    
+    suspend fun setGoogleCredentials(clientId: String, clientSecret: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GOOGLE_CLIENT_ID] = clientId
+            preferences[PreferencesKeys.GOOGLE_CLIENT_SECRET] = clientSecret
+        }
+    }
+
+    suspend fun saveGoogleTokens(accessToken: String, refreshToken: String?) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GOOGLE_ACCESS_TOKEN] = accessToken
+            if (refreshToken != null) {
+                preferences[PreferencesKeys.GOOGLE_REFRESH_TOKEN] = refreshToken
+            }
+        }
+    }
+    
+    val googleAccessToken: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.GOOGLE_ACCESS_TOKEN]
+    }
+
+    val googleRefreshToken: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.GOOGLE_REFRESH_TOKEN]
+    }
+
+    // Health Connect Preferences
+    val useHealthConnect: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.USE_HEALTH_CONNECT] ?: false
+    }
+
+    suspend fun setUseHealthConnect(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.USE_HEALTH_CONNECT] = enabled
         }
     }
 }

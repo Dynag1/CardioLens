@@ -1,5 +1,6 @@
 package com.cardio.fitbit.ui.screens
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -29,7 +31,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToTrends: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val sleepData by viewModel.sleepData.collectAsState()
@@ -49,6 +52,7 @@ fun DashboardScreen(
     val lowThreshold by viewModel.lowHrThreshold.collectAsState(initial = 50)
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsState(initial = true)
     val syncInterval by viewModel.syncIntervalMinutes.collectAsState(initial = 15)
+    val currentProviderId by viewModel.currentProviderId.collectAsState()
 
     var showSettingsDialog by remember { mutableStateOf(false) }
 
@@ -87,12 +91,41 @@ fun DashboardScreen(
         )
     }
 
+    // Helper function to get the appropriate icon based on provider
+    val getProviderIcon: @Composable () -> Unit = {
+        when (currentProviderId) {
+            "GOOGLE_FIT" -> Icon(
+                painter = androidx.compose.ui.res.painterResource(id = com.cardio.fitbit.R.drawable.ic_google_fit_logo),
+                contentDescription = "Google Fit"
+            )
+            "health_connect" -> Icon(
+                painter = androidx.compose.ui.res.painterResource(id = com.cardio.fitbit.R.drawable.ic_health_connect_logo),
+                contentDescription = "Health Connect"
+            )
+            else -> Icon(  // Fitbit
+                painter = androidx.compose.ui.res.painterResource(id = com.cardio.fitbit.R.drawable.ic_fitbit_logo),
+                contentDescription = "Fitbit"
+            )
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerGesturesEnabled,
         drawerContent = {
             ModalDrawerSheet {
                 Spacer(Modifier.height(12.dp))
+                
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = null) },
+                    label = { Text("Tendances (7 Jours)") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToTrends()
+                    }
+                )
+                
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text("Paramètres") },
@@ -102,8 +135,14 @@ fun DashboardScreen(
                         showSettingsDialog = true
                     }
                 )
+                
+                // Push disconnect to bottom
+                
+                // Push disconnect to bottom
+                Spacer(Modifier.weight(1f))
+                
                 NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.ExitToApp, contentDescription = null) },
+                    icon = { getProviderIcon() },
                     label = { Text("Déconnexion") },
                     selected = false,
                     onClick = {
@@ -112,6 +151,7 @@ fun DashboardScreen(
                         onLogout()
                     }
                 )
+                Spacer(Modifier.height(12.dp))
             }
         }
     ) {
@@ -199,10 +239,30 @@ fun DashboardScreen(
                     }
                 }
                 is DashboardUiState.Success -> {
+                    // Swipe detection state
+                    var swipeOffset by remember { mutableFloatStateOf(0f) }
+                    
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues),
+                            .padding(paddingValues)
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures(
+                                    onDragEnd = {
+                                        if (kotlin.math.abs(swipeOffset) > 100) {
+                                            if (swipeOffset > 0) {
+                                                viewModel.changeDate(-1) // Swipe right = previous
+                                            } else {
+                                                viewModel.changeDate(1)  // Swipe left = next
+                                            }
+                                        }
+                                        swipeOffset = 0f
+                                    },
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        swipeOffset += dragAmount
+                                    }
+                                )
+                            },
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {

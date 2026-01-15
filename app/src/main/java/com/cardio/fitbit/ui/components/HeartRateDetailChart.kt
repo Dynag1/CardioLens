@@ -196,9 +196,9 @@ fun HeartRateDetailChart(
                     marker = markerView
 
                     drawOrder = arrayOf(
-                        CombinedChart.DrawOrder.LINE, // Sleep zone first (background)
-                        CombinedChart.DrawOrder.BAR,  // HR bars
-                        CombinedChart.DrawOrder.SCATTER // Bubbles if any
+                        CombinedChart.DrawOrder.BAR,  // HR bars (Data first)
+                        CombinedChart.DrawOrder.LINE, // Zones on top (Foreground)
+                        CombinedChart.DrawOrder.SCATTER // Bubbles on very top
                     )
 
                     // X-Axis
@@ -240,7 +240,7 @@ fun HeartRateDetailChart(
                 val maxHr = activeList.maxOfOrNull { it.heartRate } ?: 100
                 val finalYMax = (maxHr + 10).toFloat().coerceAtLeast(110f) // Min 110 to ensure zones visible
                 chart.axisLeft.axisMaximum = finalYMax
-                val zoneHeight = 40f + (finalYMax - 40f) / 2f // Visual 50% height (taking offset 40f into account)
+                val zoneHeight = 40f + (finalYMax - 40f) * 0.75f // Cover 75% of height (taller)
 
                 // Helper function to convert time string to index (1-minute granularity)
                 fun timeToIndex(time: String): Float {
@@ -358,39 +358,35 @@ fun HeartRateDetailChart(
                 
                 if (sleepSessions.isNotEmpty()) {
                     val sleepEntries = mutableListOf<Entry>()
-                    // Begin with anchor at 0
                     sleepEntries.add(Entry(0f, 0f))
                     
-                    // Sort sessions to ensure monotonic X (required by Chart)
                     sleepSessions.sortedBy { it.startTime }.forEach { session ->
                         val range = getClampedRange(session.startTime.time, session.endTime.time)
                         if (range != null) {
                             val (start, end) = range
                             
-                            // To create a distinct block, we need to ensure we return to 0 before starting new block if there's a gap
-                            // But simplistic "Square Wave" add:
-                            // (Start, 0) -> (Start, 100) -> (End, 100) -> (End, 0)
-                            // We must ensure 'Start' > last entry's X to strictly increase, but 
-                            // coincident points (x, 0) and (x, 100) are allowed for vertical lines.
-
+                            // Visual "Rounding" using Trapezoid shape (Slanted edges)
+                            // Slant is 5 minutes or max 30% of duration to avoid crossing
+                            val duration = end - start
+                            val slant = minOf(5f, duration * 0.3f)
+                            
                             sleepEntries.add(Entry(start, 0f))
-                            sleepEntries.add(Entry(start, zoneHeight))
-                            sleepEntries.add(Entry(end, zoneHeight))
+                            sleepEntries.add(Entry(start + slant, zoneHeight)) // Slant up
+                            sleepEntries.add(Entry(end - slant, zoneHeight))   // Slant down
                             sleepEntries.add(Entry(end, 0f))
                         }
                     }
                     
-                    // Final anchor
                     sleepEntries.add(Entry(1440f, 0f))
                     
-                    if (sleepEntries.size > 2) { // Only add if we actually have data points
+                    if (sleepEntries.size > 2) {
                          val sleepDataSet = LineDataSet(sleepEntries, "Sommeil").apply {
                             setDrawCircles(false)
                             setDrawValues(false)
                             mode = LineDataSet.Mode.LINEAR 
                             setDrawFilled(true)
-                            fillColor = Color.parseColor("#BBDEFB") // Blue for sleep
-                            color = Color.TRANSPARENT
+                            fillColor = Color.parseColor("#42A5F5") // Solid Blue for sleep
+                            color = Color.parseColor("#1565C0")
                             fillAlpha = 60
                             lineWidth = 0f
                             isHighlightEnabled = false
@@ -411,9 +407,14 @@ fun HeartRateDetailChart(
                         val range = getClampedRange(startTs, endTs)
                         if (range != null) {
                             val (start, end) = range
+                            
+                            // Visual "Rounding" using Trapezoid shape
+                            val duration = end - start
+                            val slant = minOf(5f, duration * 0.3f)
+
                             activityEntries.add(Entry(start, 0f))
-                            activityEntries.add(Entry(start, zoneHeight))
-                            activityEntries.add(Entry(end, zoneHeight))
+                            activityEntries.add(Entry(start + slant, zoneHeight))
+                            activityEntries.add(Entry(end - slant, zoneHeight))
                             activityEntries.add(Entry(end, 0f))
                         }
                     }
@@ -426,8 +427,8 @@ fun HeartRateDetailChart(
                             setDrawValues(false)
                             mode = LineDataSet.Mode.LINEAR
                             setDrawFilled(true)
-                            fillColor = Color.parseColor("#8E24AA") // Darker Purple for activity
-                            color = Color.TRANSPARENT
+                            fillColor = Color.parseColor("#AB47BC") // Lighter Purple
+                            color = Color.parseColor("#7B1FA2")
                             fillAlpha = 60
                             lineWidth = 0f
                             isHighlightEnabled = false

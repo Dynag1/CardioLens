@@ -80,18 +80,50 @@ fun SettingsDialog(
                 
                 // Sync Interval
                 Column {
-                    Text("Intervalle de Synchro: $syncInterval min", style = MaterialTheme.typography.bodyMedium)
+                    val displayText = when (syncInterval) {
+                        0 -> "Jamais"
+                        in 1..59 -> "$syncInterval min"
+                        60 -> "1 h"
+                        360 -> "6 h"
+                        else -> "${syncInterval / 60} h"
+                    }
+                    Text("Intervalle de Synchro: $displayText", style = MaterialTheme.typography.bodyMedium)
+                    
+                    // First row: 15min, 30min, 1h
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        listOf(5, 10, 15, 30).forEach { mins ->
+                        listOf(
+                            15 to "15m",
+                            30 to "30m",
+                            60 to "1h"
+                        ).forEach { (mins, label) ->
                             FilterChip(
                                 selected = syncInterval == mins,
                                 onClick = { onSyncIntervalChange(mins) },
-                                label = { Text("${mins}m") }
+                                label = { Text(label) }
                             )
                         }
+                    }
+                    
+                    // Second row: 6h, Jamais
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        listOf(
+                            360 to "6h",
+                            0 to "Jamais"
+                        ).forEach { (mins, label) ->
+                            FilterChip(
+                                selected = syncInterval == mins,
+                                onClick = { onSyncIntervalChange(mins) },
+                                label = { Text(label) }
+                            )
+                        }
+                        // Empty spacer to balance the row
+                        Spacer(modifier = Modifier.width(80.dp))
                     }
                 }
             }

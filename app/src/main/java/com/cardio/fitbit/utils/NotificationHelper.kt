@@ -37,9 +37,9 @@ class NotificationHelper @Inject constructor(
         }
     }
 
-    fun showHeartRateAlert(bpm: Int, isHigh: Boolean, threshold: Int) {
+    fun showHeartRateAlert(bpm: Int, isHigh: Boolean, threshold: Int, time: String) {
         val title = if (isHigh) "Fréquence Cardiaque Élevée !" else "Fréquence Cardiaque Basse !"
-        val message = "Votre rythme cardiaque est de $bpm BPM (Seuil: $threshold)"
+        val message = "Votre rythme cardiaque est de $bpm BPM (Seuil: $threshold) à $time"
         
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -47,7 +47,7 @@ class NotificationHelper @Inject constructor(
         val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_warning) // Using system icon as placeholder
+            .setSmallIcon(R.drawable.ic_launcher_icon) // Use vector icon
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

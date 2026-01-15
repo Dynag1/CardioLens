@@ -61,7 +61,7 @@ fun ActivityDetailCard(
             // 3. Generate full list of minutes
             val continuousMinutes = mutableListOf<MinuteData>()
             var currentMs = startTimeMs
-            val dateFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+            val dateFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
 
             // Loop minute by minute
             while (currentMs <= endTimeMs) {

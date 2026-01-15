@@ -24,15 +24,9 @@ class ApiClient @Inject constructor(
     private val authInterceptor = Interceptor { chain ->
         val originalRequest = chain.request()
         
-        // Get access token
-        var accessToken = authManager.getAccessToken()
-        
-        // If token is null or expired, try to refresh
-        if (accessToken == null) {
-            runBlocking {
-                val result = authManager.refreshAccessToken()
-                accessToken = result.getOrNull()
-            }
+        // Get access token (with automatic refresh)
+        var accessToken = runBlocking {
+            authManager.getAccessToken()
         }
         
         // Add authorization header
@@ -46,11 +40,11 @@ class ApiClient @Inject constructor(
         
         val response = chain.proceed(newRequest)
         
-        // Handle 401 Unauthorized - token might be expired
+        // Handle 401 Unauthorized - token might still be invalid (edge case)
         if (response.code == 401 && accessToken != null) {
             response.close()
             
-            // Try to refresh token
+            // Force refresh even if token appeared valid
             runBlocking {
                 val result = authManager.refreshAccessToken()
                 accessToken = result.getOrNull()
@@ -91,4 +85,46 @@ class ApiClient @Inject constructor(
         .build()
 
     val fitbitApi: FitbitApiService = retrofit.create(FitbitApiService::class.java)
+
+    // --- Google Fit Client ---
+    @Inject
+    lateinit var googleFitAuthManager: com.cardio.fitbit.auth.GoogleFitAuthManager
+
+    private val googleBaseUrl = "https://www.googleapis.com/fitness/v1/"
+
+    private val googleAuthInterceptor = Interceptor { chain ->
+        var request = chain.request()
+        val accessToken = googleFitAuthManager.getAccessToken()
+        
+        // Simple auth for now, TODO: add refresh logic similar to fitbit
+        if (accessToken != null) {
+            request = request.newBuilder()
+                .addHeader("Authorization", "Bearer $accessToken")
+                .build()
+        }
+        
+        // TODO: Handle 401 refresh
+        
+        chain.proceed(request)
+    }
+
+    private val googleOkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor(googleAuthInterceptor)
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val googleRetrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(googleBaseUrl)
+            .client(googleOkHttpClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+    }
+
+    val googleFitApi: GoogleFitApiService by lazy { googleRetrofit.create(GoogleFitApiService::class.java) }
 }
