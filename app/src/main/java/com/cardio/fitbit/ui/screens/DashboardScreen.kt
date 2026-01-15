@@ -51,6 +51,7 @@ fun DashboardScreen(
     val lowThreshold by viewModel.lowHrThreshold.collectAsState(initial = 50)
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsState(initial = true)
     val syncInterval by viewModel.syncIntervalMinutes.collectAsState(initial = 15)
+    val currentProviderId by viewModel.currentProviderId.collectAsState()
 
     var showSettingsDialog by remember { mutableStateOf(false) }
 
@@ -89,6 +90,24 @@ fun DashboardScreen(
         )
     }
 
+    // Helper function to get the appropriate icon based on provider
+    val getProviderIcon: @Composable () -> Unit = {
+        when (currentProviderId) {
+            "GOOGLE_FIT" -> Icon(
+                painter = androidx.compose.ui.res.painterResource(id = com.cardio.fitbit.R.drawable.ic_google_fit_logo),
+                contentDescription = "Google Fit"
+            )
+            "health_connect" -> Icon(
+                painter = androidx.compose.ui.res.painterResource(id = com.cardio.fitbit.R.drawable.ic_health_connect_logo),
+                contentDescription = "Health Connect"
+            )
+            else -> Icon(  // Fitbit
+                painter = androidx.compose.ui.res.painterResource(id = com.cardio.fitbit.R.drawable.ic_fitbit_logo),
+                contentDescription = "Fitbit"
+            )
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerGesturesEnabled,
@@ -109,7 +128,7 @@ fun DashboardScreen(
                 Spacer(Modifier.weight(1f))
                 
                 NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.ExitToApp, contentDescription = null) },
+                    icon = { getProviderIcon() },
                     label = { Text("Déconnexion") },
                     selected = false,
                     onClick = {

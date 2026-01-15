@@ -37,22 +37,46 @@ class HealthConnectProvider @Inject constructor(
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
             
-            val response = healthConnectClient.readRecords(
-                ReadRecordsRequest(
-                    HeartRateRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(
-                        startOfDay.toInstant(),
-                        endOfDay.toInstant()
+            android.util.Log.d("HealthConnectProvider", "=== Loading Heart Rate for ${DateUtils.formatForApi(date)} ===")
+            
+            // Paginate to get all records
+            val allRecords = mutableListOf<HeartRateRecord>()
+            var pageToken: String? = null
+            var pageCount = 0
+            
+            do {
+                pageCount++
+                val response = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        HeartRateRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(
+                            startOfDay.toInstant(),
+                            endOfDay.toInstant()
+                        ),
+                        pageSize = 5000,
+                        pageToken = pageToken
                     )
                 )
-            )
+                
+                allRecords.addAll(response.records)
+                pageToken = response.pageToken
+            } while (pageToken != null)
+            
+            android.util.Log.d("HealthConnectProvider", "Total pages: $pageCount, Total records: ${allRecords.size}")
 
-            if (response.records.isEmpty()) {
+            if (allRecords.isEmpty()) {
                 return Result.success(null)
             }
 
+            // Collect all heart rate samples
+            val allSamples = allRecords.flatMap { record ->
+                record.samples.map { sample ->
+                    Pair(sample.time, sample.beatsPerMinute.toLong())
+                }
+            }.sortedBy { it.first }
+
             // Calculate zones and resting HR
-            val heartRates = response.records.flatMap { it.samples }.map { it.beatsPerMinute }
+            val heartRates = allSamples.map { it.second }
             val restingHr = heartRates.minOrNull()?.toInt()
 
             // Simple zone calculation
@@ -79,12 +103,22 @@ class HealthConnectProvider @Inject constructor(
                 HeartRateZone("Peak", 170, 220, zonesMap["Peak"] ?: 0, 0.0)
             )
 
+            // Convert samples to IntradayHeartRate with HH:mm format
+            val intradayData = allSamples.map { (instant, bpm) ->
+                val zonedTime = instant.atZone(ZoneId.systemDefault())
+                val timeStr = String.format("%02d:%02d", 
+                    zonedTime.hour, 
+                    zonedTime.minute
+                )
+                IntradayHeartRate(time = timeStr, value = bpm.toInt())
+            }
+
             return Result.success(
                 HeartRateData(
                     date = date,
                     restingHeartRate = restingHr,
                     heartRateZones = zones,
-                    intradayData = null
+                    intradayData = intradayData
                 )
             )
         } catch (e: Exception) {
@@ -97,29 +131,52 @@ class HealthConnectProvider @Inject constructor(
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
             
-            val hrResponse = healthConnectClient.readRecords(
-                ReadRecordsRequest(
-                    HeartRateRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(
-                        startOfDay.toInstant(),
-                        endOfDay.toInstant()
+            // Paginate Heart Rate Records
+            val allHrRecords = mutableListOf<HeartRateRecord>()
+            var hrPageToken: String? = null
+            var pgCount = 0
+            do {
+                pgCount++
+                val response = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        HeartRateRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(
+                            startOfDay.toInstant(),
+                            endOfDay.toInstant()
+                        ),
+                        pageSize = 5000,
+                        pageToken = hrPageToken
                     )
                 )
-            )
+                allHrRecords.addAll(response.records)
+                android.util.Log.d("HealthConnectProvider", "Intraday HR Page $pgCount: ${response.records.size} records")
+                hrPageToken = response.pageToken
+            } while (hrPageToken != null)
+            android.util.Log.d("HealthConnectProvider", "Intraday HR Total: ${allHrRecords.size} records")
 
-            val stepsResponse = healthConnectClient.readRecords(
-                ReadRecordsRequest(
-                    StepsRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(
-                        startOfDay.toInstant(),
-                        endOfDay.toInstant()
+            // Paginate Steps Records
+            val allStepsRecords = mutableListOf<StepsRecord>()
+            var stepsPageToken: String? = null
+            do {
+                val response = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        StepsRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(
+                            startOfDay.toInstant(),
+                            endOfDay.toInstant()
+                        ),
+                        pageSize = 5000,
+                        pageToken = stepsPageToken
                     )
                 )
-            )
+                allStepsRecords.addAll(response.records)
+                stepsPageToken = response.pageToken
+            } while (stepsPageToken != null)
+
 
             val minuteDataMap = mutableMapOf<String, MinuteData>()
 
-            hrResponse.records.forEach { record ->
+            allHrRecords.forEach { record ->
                 record.samples.forEach { sample ->
                     val time = sample.time.atZone(ZoneId.systemDefault())
                     val timeKey = String.format("%02d:%02d", time.hour, time.minute)
@@ -128,7 +185,7 @@ class HealthConnectProvider @Inject constructor(
                 }
             }
 
-            stepsResponse.records.forEach { record ->
+            allStepsRecords.forEach { record ->
                 val time = record.startTime.atZone(ZoneId.systemDefault())
                 val timeKey = String.format("%02d:%02d", time.hour, time.minute)
                 val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
@@ -173,21 +230,39 @@ class HealthConnectProvider @Inject constructor(
 
     override suspend fun getSleepData(date: Date): Result<List<SleepData>> {
         try {
+            // Sleep sessions often span midnight (e.g., 23:00 -> 07:00)
+            // So we need to search from previous day evening to current day end
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
+            
+            // Search from 12 hours before the day starts (to catch evening sleep)
+            val searchStart = Date(startOfDay.time - (12 * 60 * 60 * 1000))
+            
+            android.util.Log.d("HealthConnectProvider", "Searching sleep from ${DateUtils.formatForApi(searchStart)} to ${DateUtils.formatForApi(endOfDay)}")
             
             val response = healthConnectClient.readRecords(
                 ReadRecordsRequest(
                     SleepSessionRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
-                        startOfDay.toInstant(),
+                        searchStart.toInstant(),
                         endOfDay.toInstant()
                     )
                 )
             )
+            
+            // Filter to only include sessions that overlap with the target date
+            val filteredRecords = response.records.filter { record ->
+                val sessionStart = record.startTime.toEpochMilli()
+                val sessionEnd = record.endTime.toEpochMilli()
+                val dayStart = startOfDay.time
+                val dayEnd = endOfDay.time
+                
+                // Include if session overlaps with target day
+                sessionEnd > dayStart && sessionStart < dayEnd
+            }
 
             return Result.success(
-                response.records.map { record ->
+                filteredRecords.map { record ->
                     val durationMs = record.endTime.toEpochMilli() - record.startTime.toEpochMilli()
                     SleepData(
                         date = date,

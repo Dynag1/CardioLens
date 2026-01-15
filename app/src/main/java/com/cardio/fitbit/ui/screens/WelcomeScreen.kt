@@ -61,6 +61,28 @@ fun WelcomeScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
+        // Health Connect Option (Recommended)
+        Button(
+            onClick = {
+                viewModel.onHealthConnectSelected()
+                onNavigateToDashboard()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF34A853)  // Green color for Health Connect
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "Health Connect (Recommandé)", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = "Données locales, toutes sources", fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Fitbit Option
         Button(
             onClick = {

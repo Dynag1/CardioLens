@@ -44,7 +44,18 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private fun scheduleSync(context: Context, intervalMinutes: Int) {
+        // If interval is 0, don't schedule sync
+        if (intervalMinutes == 0) {
+            android.util.Log.d("BootReceiver", "Sync disabled (interval set to 'Never'), skipping scheduling")
+            return
+        }
+        
+        // WorkManager requires minimum 15 minutes
         val actualInterval = kotlin.math.max(intervalMinutes, 15)
+        
+        if (intervalMinutes < 15) {
+            android.util.Log.w("BootReceiver", "Sync interval set to $intervalMinutes min, but minimum is 15 min. Using 15 min.")
+        }
         
         val constraints = androidx.work.Constraints.Builder()
             .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
@@ -65,6 +76,6 @@ class BootReceiver : BroadcastReceiver() {
             workRequest
         )
         
-        android.util.Log.d("BootReceiver", "Sync rescheduled for every $actualInterval minutes")
+        android.util.Log.d("BootReceiver", "Periodic sync scheduled on boot: every $actualInterval minutes")
     }
 }

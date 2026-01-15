@@ -37,9 +37,9 @@ class NotificationHelper @Inject constructor(
         }
     }
 
-    fun showHeartRateAlert(bpm: Int, isHigh: Boolean, threshold: Int) {
+    fun showHeartRateAlert(bpm: Int, isHigh: Boolean, threshold: Int, time: String) {
         val title = if (isHigh) "Fréquence Cardiaque Élevée !" else "Fréquence Cardiaque Basse !"
-        val message = "Votre rythme cardiaque est de $bpm BPM (Seuil: $threshold)"
+        val message = "Votre rythme cardiaque est de $bpm BPM (Seuil: $threshold) à $time"
         
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

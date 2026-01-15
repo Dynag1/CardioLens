@@ -26,4 +26,10 @@ class WelcomeViewModel @Inject constructor(
             userPreferencesRepository.setUseHealthConnect(true)
         }
     }
+    
+    fun onHealthConnectSelected() {
+        viewModelScope.launch {
+            userPreferencesRepository.setUseHealthConnect(true)
+        }
+    }
 }

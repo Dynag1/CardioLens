@@ -40,6 +40,13 @@ class HealthRepository @Inject constructor(
     }
 
     /**
+     * Get current provider ID (FITBIT, GOOGLE_FIT, or health_connect)
+     */
+    suspend fun getCurrentProviderId(): String {
+        return getProvider().providerId
+    }
+
+    /**
      * Get heart rate data for a specific date
      */
     suspend fun getHeartRateData(date: java.util.Date): Result<HeartRateData?> {

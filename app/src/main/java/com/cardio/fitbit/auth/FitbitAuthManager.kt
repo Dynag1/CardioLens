@@ -53,8 +53,8 @@ class FitbitAuthManager @Inject constructor(
     private var codeVerifier: String? = null
 
     init {
-        // Check if already authenticated
-        val accessToken = getAccessToken()
+        // Check if already authenticated (using synchronous check)
+        val accessToken = getAccessTokenOrNull()
         if (accessToken != null) {
             _authState.value = AuthState.Authenticated(accessToken)
         }
@@ -233,9 +233,10 @@ class FitbitAuthManager @Inject constructor(
     }
 
     /**
-     * Get current access token
+     * Get current access token (synchronous - no auto-refresh)
+     * Returns null if token is expired or doesn't exist
      */
-    fun getAccessToken(): String? {
+    fun getAccessTokenOrNull(): String? {
         val token = encryptedPrefs.getString(KEY_ACCESS_TOKEN, null)
         val expiresAt = encryptedPrefs.getLong(KEY_EXPIRES_AT, 0)
         
@@ -248,6 +249,38 @@ class FitbitAuthManager @Inject constructor(
     }
 
     /**
+     * Get current access token with automatic refresh
+     * If token is expired but refresh token exists, will automatically refresh
+     */
+    suspend fun getAccessToken(): String? {
+        val token = encryptedPrefs.getString(KEY_ACCESS_TOKEN, null)
+        val expiresAt = encryptedPrefs.getLong(KEY_EXPIRES_AT, 0)
+        
+        // Token is valid and not expired
+        if (token != null && System.currentTimeMillis() < expiresAt) {
+            return token
+        }
+        
+        // Token expired or doesn't exist - try to refresh
+        val refreshToken = getRefreshToken()
+        if (refreshToken != null) {
+            android.util.Log.d("FitbitAuth", "Access token expired, attempting automatic refresh...")
+            val result = refreshAccessToken()
+            if (result.isSuccess) {
+                android.util.Log.d("FitbitAuth", "Token refreshed successfully")
+                return result.getOrNull()
+            } else {
+                android.util.Log.e("FitbitAuth", "Token refresh failed: ${result.exceptionOrNull()?.message}")
+            }
+        } else {
+            android.util.Log.w("FitbitAuth", "No refresh token available, user must re-authenticate")
+        }
+        
+        // No refresh token or refresh failed
+        return null
+    }
+
+    /**
      * Get refresh token
      */
     private fun getRefreshToken(): String? {
@@ -255,9 +288,9 @@ class FitbitAuthManager @Inject constructor(
     }
 
     /**
-     * Check if user is authenticated
+     * Check if user is authenticated (with automatic token refresh)
      */
-    fun isAuthenticated(): Boolean {
+    suspend fun isAuthenticated(): Boolean {
         return getAccessToken() != null
     }
 

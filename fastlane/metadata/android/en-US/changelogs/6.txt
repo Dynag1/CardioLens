@@ -1,0 +1,4 @@
+Fix: Heart rate chart displaying after data gaps
+Improvement: Better UI for sleep and activity zones (rounded corners and solid borders)
+Improvement: Re-enabled Health Connect selection in Welcome Screen
+Fix: Data pagination for Intraday Heart Rate data

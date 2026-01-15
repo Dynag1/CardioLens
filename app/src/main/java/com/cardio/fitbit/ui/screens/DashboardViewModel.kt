@@ -65,8 +65,13 @@ class DashboardViewModel @Inject constructor(
     private val _maxHr = MutableStateFlow<Int?>(null)
     val maxHr = _maxHr.asStateFlow()
 
+    // Current Provider ID (for showing the appropriate icon on logout button)
+    private val _currentProviderId = MutableStateFlow<String>("FITBIT")
+    val currentProviderId = _currentProviderId.asStateFlow()
+
     init {
         loadAllData()
+        loadCurrentProvider()
     }
 
     fun changeDate(daysOffset: Int) {
@@ -131,7 +136,7 @@ class DashboardViewModel @Inject constructor(
 
                 // Load all data in parallel
                 val jobs = listOf(
-                    launch { loadHeartRate(today) },
+                    launch { loadHeartRate(selectedDate) },
                     launch { loadSleep(selectedDate, forceRefresh) },
                     launch { loadSteps(sevenDaysAgo, today) },
                     launch { loadActivity(selectedDate, forceRefresh = true) }, 
@@ -366,6 +371,18 @@ class DashboardViewModel @Inject constructor(
                 userPreferencesRepository.setUseHealthConnect(false)
             } else {
                 authManager.logout()
+            }
+        }
+    }
+
+    private fun loadCurrentProvider() {
+        viewModelScope.launch {
+            try {
+                val providerId = healthRepository.getCurrentProviderId()
+                _currentProviderId.value = providerId
+                android.util.Log.d("DashboardVM", "Current provider: $providerId")
+            } catch (e: Exception) {
+                android.util.Log.e("DashboardVM", "Error loading current provider", e)
             }
         }
     }

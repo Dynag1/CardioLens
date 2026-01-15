@@ -24,15 +24,9 @@ class ApiClient @Inject constructor(
     private val authInterceptor = Interceptor { chain ->
         val originalRequest = chain.request()
         
-        // Get access token
-        var accessToken = authManager.getAccessToken()
-        
-        // If token is null or expired, try to refresh
-        if (accessToken == null) {
-            runBlocking {
-                val result = authManager.refreshAccessToken()
-                accessToken = result.getOrNull()
-            }
+        // Get access token (with automatic refresh)
+        var accessToken = runBlocking {
+            authManager.getAccessToken()
         }
         
         // Add authorization header
@@ -46,11 +40,11 @@ class ApiClient @Inject constructor(
         
         val response = chain.proceed(newRequest)
         
-        // Handle 401 Unauthorized - token might be expired
+        // Handle 401 Unauthorized - token might still be invalid (edge case)
         if (response.code == 401 && accessToken != null) {
             response.close()
             
-            // Try to refresh token
+            // Force refresh even if token appeared valid
             runBlocking {
                 val result = authManager.refreshAccessToken()
                 accessToken = result.getOrNull()
