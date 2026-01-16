@@ -25,7 +25,7 @@ data class TrendPoint(
 
 sealed class TrendsUiState {
     object Loading : TrendsUiState()
-    data class Success(val data: List<TrendPoint>) : TrendsUiState()
+    data class Success(val data: List<TrendPoint>, val selectedDays: Int) : TrendsUiState()
     data class Error(val message: String) : TrendsUiState()
 }
 
@@ -38,19 +38,19 @@ class TrendsViewModel @Inject constructor(
     val uiState: StateFlow<TrendsUiState> = _uiState.asStateFlow()
 
     init {
-        loadTrends()
+        loadTrends(7)
     }
 
-    fun loadTrends() {
+    fun loadTrends(days: Int = 7) {
         viewModelScope.launch {
             _uiState.value = TrendsUiState.Loading
             try {
                 val calendar = Calendar.getInstance()
-                // Start from today and go back 6 days (total 7 days)
+                // Start from today and go back 'days - 1' days (total 'days')
                 val trendPoints = mutableListOf<TrendPoint>()
                 
-                // Iterate 0 to 6 (7 days)
-                for (i in 0 until 7) {
+                // Iterate 0 to days-1
+                for (i in 0 until days) {
                     val targetDate = calendar.time
                     
                     // Fetch data for this day
@@ -62,7 +62,7 @@ class TrendsViewModel @Inject constructor(
                 }
                 
                 // Sort by date ascending (oldest to newest)
-                _uiState.value = TrendsUiState.Success(trendPoints.sortedBy { it.date })
+                _uiState.value = TrendsUiState.Success(trendPoints.sortedBy { it.date }, days)
                 
             } catch (e: Exception) {
                 _uiState.value = TrendsUiState.Error(e.message ?: "Unknown error")

@@ -1,7 +1,7 @@
 package com.cardio.fitbit.ui
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -10,12 +10,17 @@ import androidx.compose.ui.Modifier
 import com.cardio.fitbit.ui.navigation.AppNavigation
 import com.cardio.fitbit.ui.theme.CardioTheme
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import java.util.Locale
 
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import android.graphics.Color
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
@@ -28,7 +33,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var userPreferencesRepository: UserPreferencesRepository
@@ -44,8 +49,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Fix Status Bar - Explicitly set to Indigo
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.statusBarColor = Color.parseColor("#6366F1")
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
+
         checkNotificationPermission()
         setupPeriodicSync()
+        observeAppLanguage()
 
         setContent {
             CardioTheme {
@@ -133,5 +144,25 @@ class MainActivity : ComponentActivity() {
         )
         
         android.util.Log.d("MainActivity", "Periodic sync scheduled every $actualInterval minutes with network constraint")
+        android.util.Log.d("MainActivity", "Periodic sync scheduled every $actualInterval minutes with network constraint")
+    }
+
+    private fun observeAppLanguage() {
+        MainScope().launch {
+            userPreferencesRepository.appLanguage.collect { languageCode ->
+                val localeList = if (languageCode == "system") {
+                    LocaleListCompat.getEmptyLocaleList()
+                } else {
+                    LocaleListCompat.forLanguageTags(languageCode)
+                }
+                
+                // Only act if different to avoid loops/recreation if flow emits same
+                val current = AppCompatDelegate.getApplicationLocales()
+                if (current != localeList) {
+                   android.util.Log.d("MainActivity", "Changing locale to: $languageCode")
+                   AppCompatDelegate.setApplicationLocales(localeList)
+                }
+            }
+        }
     }
 }

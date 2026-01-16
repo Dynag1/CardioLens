@@ -26,9 +26,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("release-key.jks")
-            storePassword = "cardio2024"
-            keyAlias = "cardio-alias"
-            keyPassword = "cardio2024"
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "cardio2024"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "cardio-alias"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "cardio2024"
         }
     }
 
@@ -75,6 +75,7 @@ android {
 dependencies {
     // Core Android
     implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
     

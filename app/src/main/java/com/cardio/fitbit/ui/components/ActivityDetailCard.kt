@@ -16,6 +16,7 @@ import com.cardio.fitbit.utils.DateUtils
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.components.YAxis
+import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -43,11 +44,13 @@ fun ActivityDetailCard(
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
             // Generate CONTINUOUS timeline
-            // 1. Map existing data for quick lookup
-            val dataMap = allMinuteData.associateBy { it.time }
+            // 1. Map existing data for quick lookup (Normalize time to HH:mm)
+            val dataMap = allMinuteData.associateBy { 
+                if (it.time.length >= 5) it.time.substring(0, 5) else it.time 
+            }
             
             // 2. Determine start/end time
             val cal = Calendar.getInstance()
@@ -56,7 +59,9 @@ fun ActivityDetailCard(
             cal.set(Calendar.MILLISECOND, 0)
             val startTimeMs = cal.timeInMillis
             val durationMs = activity.duration
-            val endTimeMs = startTimeMs + durationMs
+            val originalEndTimeMs = startTimeMs + durationMs
+            // Extend by 10 minutes for recovery
+            val endTimeMs = originalEndTimeMs + (10 * 60 * 1000)
 
             // 3. Generate full list of minutes
             val continuousMinutes = mutableListOf<MinuteData>()
@@ -71,6 +76,9 @@ fun ActivityDetailCard(
                 continuousMinutes.add(data)
                 currentMs += 60000 // +1 minute
             }
+
+            // Calculate cutoff index for the separator
+            val durationMinutes = (durationMs / 60000).toInt() + 1 // +1 to ensure it covers the last minute of activity
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -112,8 +120,8 @@ fun ActivityDetailCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
+            // Spacer removed
+            
             val calculatedSteps = continuousMinutes.sumOf { it.steps }
             val displaySteps = if (activity.steps != null && activity.steps > 0) activity.steps else calculatedSteps
 
@@ -128,15 +136,13 @@ fun ActivityDetailCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
             // Chart area
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp)
             ) {
-                ActivityHeartRateChart(continuousMinutes)
+                ActivityHeartRateChart(continuousMinutes, durationMinutes)
             }
         }
     }
@@ -151,7 +157,7 @@ fun StatItem(label: String, value: String) {
 }
 
 @Composable
-fun ActivityHeartRateChart(activityMinutes: List<MinuteData>) {
+fun ActivityHeartRateChart(activityMinutes: List<MinuteData>, cutoffIndex: Int) {
     if (activityMinutes.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Pas de données détaillées", style = MaterialTheme.typography.labelSmall)
@@ -170,6 +176,8 @@ fun ActivityHeartRateChart(activityMinutes: List<MinuteData>) {
                 description.isEnabled = false
                 legend.isEnabled = false
                 setTouchEnabled(true)
+                setExtraOffsets(0f, 0f, 0f, 0f)
+                minOffset = 0f
                 isDragEnabled = true
                 setScaleEnabled(true)
                 setPinchZoom(true)
@@ -187,6 +195,18 @@ fun ActivityHeartRateChart(activityMinutes: List<MinuteData>) {
                     textColor = Color.GRAY
                     textSize = 10f
                     labelCount = 5
+                    
+                    // Add LimitLine for Activity End
+                    removeAllLimitLines()
+                    val limitLine = LimitLine(cutoffIndex.toFloat(), "Fin").apply {
+                        lineWidth = 1f
+                        lineColor = Color.DKGRAY
+                        enableDashedLine(10f, 10f, 0f)
+                        labelPosition = LimitLine.LimitLabelPosition.RIGHT_TOP
+                        textSize = 10f
+                    }
+                    addLimitLine(limitLine)
+                    
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
@@ -203,7 +223,11 @@ fun ActivityHeartRateChart(activityMinutes: List<MinuteData>) {
                     textColor = Color.GRAY
                     textSize = 10f
                     axisMinimum = 40f
-                    axisMaximum = 200f
+                    
+                    // Dynamic Y-Axis Max
+                    val maxHrInGraph = activityMinutes.maxOfOrNull { it.heartRate } ?: 150
+                    val targetMax = (maxHrInGraph + 10).toFloat()
+                    axisMaximum = targetMax.coerceAtLeast(100f)
                 }
 
                 // Right Axis for Steps (Hidden but scaled)

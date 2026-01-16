@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CardioLens</string>
+    
+    <!-- UI Strings -->
+    <string name="login_title">Bienvenue sur CardioLens</string>
+    <string name="login_subtitle">Connectez-vous à Fitbit pour visualiser vos données de santé</string>
+    <string name="login_button">Se connecter avec Fitbit</string>
+    <string name="logout_button">Se déconnecter</string>
+    
+    <string name="dashboard_title">Tableau de bord</string>
+    <string name="heart_rate_title">Rythme cardiaque</string>
+    <string name="sleep_title">Sommeil</string>
+    <string name="steps_title">Pas</string>
+    <string name="activity_title">Activités</string>
+    
+    <string name="loading">Chargement…</string>
+    <string name="error_network">Erreur réseau. Vérifiez votre connexion.</string>
+    <string name="error_auth">Erreur d\'authentification. Veuillez vous reconnecter.</string>
+    <string name="error_generic">Une erreur est survenue.</string>
+    
+    <string name="sync_now">Synchroniser</string>
+    <string name="last_sync">Dernière synchro: %s</string>
+    <string name="no_data">Aucune donnée disponible</string>
+    
+    <!-- Chart Labels -->
+    <string name="chart_heart_rate">Rythme cardiaque (bpm)</string>
+    <string name="chart_sleep_hours">Heures de sommeil</string>
+    <string name="chart_steps_count">Nombre de pas</string>
+    <string name="chart_calories">Calories brûlées</string>
+    
+    <!-- Stats -->
+    <string name="stat_avg">Moyenne</string>
+    <string name="stat_min">Min</string>
+    <string name="stat_max">Max</string>
+    <string name="stat_resting">Au repos</string>
+    <string name="stat_total">Total</string>
+    
+    <!-- Time periods -->
+    <string name="period_today">Aujourd\'hui</string>
+    <string name="period_week">7 jours</string>
+    <string name="period_month">30 jours</string>
+    
+    <!-- Sleep stages -->
+    <string name="sleep_deep">Profond</string>
+    <string name="sleep_light">Léger</string>
+    <string name="sleep_rem">REM</string>
+    <string name="sleep_awake">Éveillé</string>
+
+    <!-- NEW EXTRACTED STRINGS -->
+    <!-- Content from DashboardScreen -->
+    <string name="menu_trends">Tendances</string>
+    <string name="menu_settings">Paramètres</string>
+    <string name="menu_about">À propos</string>
+    <string name="menu_logout">Déconnexion</string>
+    <string name="version_unknown">Inconnue</string>
+    <string name="provider_fitbit">Fitbit</string>
+    <string name="provider_google_fit">Google Fit</string>
+    <string name="provider_health_connect">Health Connect</string>
+    <string name="about_title">À propos</string>
+    <string name="about_app_label">Application : </string>
+    <string name="about_version_label">Version : </string>
+    <string name="about_account_label">Compte : </string>
+    <string name="about_readme">Voir le README</string>
+    <string name="about_release_notes">Notes de version</string>
+    <string name="close">Fermer</string>
+    <string name="error_prefix">Erreur: %s</string>
+    <string name="retry">Réessayer</string>
+    <string name="label_resting_hr">Repos (N/J)</string>
+    <string name="label_min_max">Min / Max</string>
+    <string name="label_steps">Pas</string>
+    
+    <!-- Content from SettingsScreen -->
+    <string name="settings_title">Paramètres</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_high_threshold">Seuil FC Élevé: %d BPM</string>
+    <string name="settings_low_threshold">Seuil FC Bas: %d BPM</string>
+    <string name="settings_sync_interval">Intervalle de Synchro: %s</string>
+    <string name="interval_never">Jamais</string>
+    <string name="unit_minutes_short">min</string>
+    <string name="unit_hours_short">h</string>
+    <string name="ok_button">OK</string>
+    <string name="settings_language">Langue</string>
+    <string name="language_system">Par défaut (Système)</string>
+    <string name="language_english">Anglais</string>
+    <string name="language_french">Français</string>
+
+    <!-- Content from WelcomeScreen -->
+    <string name="welcome_title">Bienvenue sur CardioLens</string>
+    <string name="welcome_subtitle">Connectez-vous pour visualiser vos données de santé</string>
+    <string name="welcome_login_button">Se connecter</string>
+
+    <!-- Content from LoginScreen -->
+    <string name="login_options">Options de connexion</string>
+    <string name="feature_heart_rate">Suivi du rythme cardiaque en temps réel</string>
+    <string name="feature_sleep">Analyse détaillée de votre sommeil</string>
+    <string name="feature_activity">Comptage de pas et activités</string>
+    <string name="feature_charts">Graphiques interactifs et statistiques</string>
+</resources>

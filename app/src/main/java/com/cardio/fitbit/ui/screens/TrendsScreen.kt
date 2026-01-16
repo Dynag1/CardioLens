@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -30,7 +31,14 @@ fun TrendsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Tendances (7 Jours)") },
+                title = { 
+                    val titleSuffix = if (uiState is TrendsUiState.Success) {
+                        "(${(uiState as TrendsUiState.Success).selectedDays} Jours)"
+                    } else {
+                        "(7 Jours)"
+                    }
+                    Text("Tendances $titleSuffix") 
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
@@ -78,6 +86,38 @@ fun TrendsScreen(
                             .verticalScroll(androidx.compose.foundation.rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        // Filter Chips
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val selectedDays = state.selectedDays
+                            FilterChip(
+                                selected = selectedDays == 7,
+                                onClick = { viewModel.loadTrends(7) },
+                                label = { Text("7 Jours") },
+                                leadingIcon = if (selectedDays == 7) {
+                                    { Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                                } else null
+                            )
+                            FilterChip(
+                                selected = selectedDays == 15,
+                                onClick = { viewModel.loadTrends(15) },
+                                label = { Text("15 Jours") },
+                                leadingIcon = if (selectedDays == 15) {
+                                    { Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                                } else null
+                            )
+                            FilterChip(
+                                selected = selectedDays == 30,
+                                onClick = { viewModel.loadTrends(30) },
+                                label = { Text("30 Jours") },
+                                leadingIcon = if (selectedDays == 30) {
+                                    { Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                                } else null
+                            )
+                        }
+
                         // Card 1: Night RHR
                         Card(
                             modifier = Modifier.fillMaxWidth().height(300.dp),
