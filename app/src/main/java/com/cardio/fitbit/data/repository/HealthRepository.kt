@@ -76,7 +76,7 @@ class HealthRepository @Inject constructor(
             // Check cache first (unless forceRefresh)
             if (!forceRefresh) {
                 val cached = sleepDataDao.getByDate(dateString)
-                if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MS) {
+                if (cached != null) {
                     val type = object : com.google.gson.reflect.TypeToken<List<SleepData>>() {}.type
                     val data = com.google.gson.Gson().fromJson<List<SleepData>>(cached.data, type)
                     return@withContext Result.success(data)
@@ -126,7 +126,7 @@ class HealthRepository @Inject constructor(
             // Check cache first (unless forceRefresh)
             if (!forceRefresh) {
                 val cached = activityDataDao.getByDate(dateString)
-                if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MS) {
+                if (cached != null) {
                     val data = com.google.gson.Gson().fromJson(cached.data, ActivityData::class.java)
                     return@withContext Result.success(data)
                 }
@@ -175,7 +175,7 @@ class HealthRepository @Inject constructor(
             // Check cache first (unless forceRefresh)
             if (!forceRefresh) {
                 val cached = intradayDataDao.getByDate(dateString)
-                if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MS) {
+                if (cached != null) {
                     val data = com.google.gson.Gson().fromJson(cached.data, IntradayData::class.java)
                     return@withContext Result.success(data)
                 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.res.stringResource
 import com.cardio.fitbit.R
 
 @Composable
@@ -41,7 +42,7 @@ fun WelcomeScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "Bienvenue sur CardioLens",
+            text = stringResource(R.string.welcome_title),
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
@@ -51,7 +52,7 @@ fun WelcomeScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Connectez-vous pour visualiser vos données de santé",
+            text = stringResource(R.string.welcome_subtitle),
             fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -72,7 +73,7 @@ fun WelcomeScreen(
             ),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Text(text = "Se connecter", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = stringResource(R.string.welcome_login_button), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

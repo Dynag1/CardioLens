@@ -33,6 +33,10 @@ class FitbitHealthProvider @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 return Result.success(mapHeartRateResponse(response.body()!!))
             }
+            if (response.code() == 429) {
+                val retryAfter = response.headers()["Start-Retry-After"]?.toIntOrNull() ?: 3600
+                return Result.failure(com.cardio.fitbit.data.api.RateLimitException("Limite d'API Fitbit atteinte.", retryAfter))
+            }
             return Result.failure(Exception("Fitbit HR Error: ${response.code()}"))
         } catch (e: Exception) {
             return Result.failure(e)
@@ -45,10 +49,15 @@ class FitbitHealthProvider @Inject constructor(
             val hrResponse = apiClient.fitbitApi.getIntradayHeartRate(dateString)
             val stepsResponse = apiClient.fitbitApi.getIntradaySteps(dateString)
 
-            if (!hrResponse.isSuccessful || !stepsResponse.isSuccessful) {
-                return Result.failure(Exception("Fitbit Intraday Error"))
+            if (!hrResponse.isSuccessful) {
+                if (hrResponse.code() == 429) {
+                     return Result.failure(com.cardio.fitbit.data.api.RateLimitException("Limite d'API Fitbit atteinte.", 3600))
+                }
+                return Result.failure(Exception("Fitbit Intraday HR Error"))
             }
 
+            // Steps parsing is less critical but check success
+            
             val hrData = hrResponse.body()?.intradayData?.dataset ?: emptyList()
             val stepsData = stepsResponse.body()?.intradayData?.dataset ?: emptyList()
 
@@ -155,7 +164,14 @@ class FitbitHealthProvider @Inject constructor(
             
             val dateStr = DateUtils.formatForApi(startTime)
             val startTimeStr = DateUtils.formatTimeForDisplay(startTime) // HH:mm
-            val endTimeStr = DateUtils.formatTimeForDisplay(endTime)     // HH:mm
+            var endTimeStr = DateUtils.formatTimeForDisplay(endTime)     // HH:mm
+            
+            // Fix: If endTime is 00:00 (midnight of next day) and startTime is NOT 00:00,
+            // Fitbit interprets 00:00 as start of the SAME day, causing "start > end" error.
+            // We clamp it to 23:59 of the requested day.
+            if (endTimeStr == "00:00" && startTimeStr != "00:00") {
+                endTimeStr = "23:59"
+            }
             
             val response = apiClient.fitbitApi.getIntradayHeartRateRange(dateStr, startTimeStr, endTimeStr)
             

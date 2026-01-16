@@ -17,47 +17,97 @@
     <string name="fitbit_scopes">activity heartrate sleep profile</string>
     
     <!-- UI Strings -->
-    <string name="login_title">Bienvenue sur CardioLens</string>
-    <string name="login_subtitle">Connectez-vous à Fitbit pour visualiser vos données de santé</string>
-    <string name="login_button">Se connecter avec Fitbit</string>
-    <string name="logout_button">Se déconnecter</string>
+    <string name="login_title">Welcome to CardioLens</string>
+    <string name="login_subtitle">Log in to Fitbit to view your health data</string>
+    <string name="login_button">Log in with Fitbit</string>
+    <string name="logout_button">Log out</string>
     
-    <string name="dashboard_title">Tableau de bord</string>
-    <string name="heart_rate_title">Rythme cardiaque</string>
-    <string name="sleep_title">Sommeil</string>
-    <string name="steps_title">Pas</string>
-    <string name="activity_title">Activités</string>
+    <string name="dashboard_title">Dashboard</string>
+    <string name="heart_rate_title">Heart Rate</string>
+    <string name="sleep_title">Sleep</string>
+    <string name="steps_title">Steps</string>
+    <string name="activity_title">Activities</string>
     
-    <string name="loading">Chargement…</string>
-    <string name="error_network">Erreur réseau. Vérifiez votre connexion.</string>
-    <string name="error_auth">Erreur d\'authentification. Veuillez vous reconnecter.</string>
-    <string name="error_generic">Une erreur est survenue.</string>
+    <string name="loading">Loading…</string>
+    <string name="error_network">Network error. Check your connection.</string>
+    <string name="error_auth">Authentication error. Please log in again.</string>
+    <string name="error_generic">An error occurred.</string>
     
-    <string name="sync_now">Synchroniser</string>
-    <string name="last_sync">Dernière synchro: %s</string>
-    <string name="no_data">Aucune donnée disponible</string>
+    <string name="sync_now">Sync</string>
+    <string name="last_sync">Last sync: %s</string>
+    <string name="no_data">No data available</string>
     
     <!-- Chart Labels -->
-    <string name="chart_heart_rate">Rythme cardiaque (bpm)</string>
-    <string name="chart_sleep_hours">Heures de sommeil</string>
-    <string name="chart_steps_count">Nombre de pas</string>
-    <string name="chart_calories">Calories brûlées</string>
+    <string name="chart_heart_rate">Heart Rate (bpm)</string>
+    <string name="chart_sleep_hours">Sleep Hours</string>
+    <string name="chart_steps_count">Step Count</string>
+    <string name="chart_calories">Calories Burned</string>
     
     <!-- Stats -->
-    <string name="stat_avg">Moyenne</string>
+    <string name="stat_avg">Avg</string>
     <string name="stat_min">Min</string>
     <string name="stat_max">Max</string>
-    <string name="stat_resting">Au repos</string>
+    <string name="stat_resting">Resting</string>
     <string name="stat_total">Total</string>
     
     <!-- Time periods -->
-    <string name="period_today">Aujourd\'hui</string>
-    <string name="period_week">7 jours</string>
-    <string name="period_month">30 jours</string>
+    <string name="period_today">Today</string>
+    <string name="period_week">7 days</string>
+    <string name="period_month">30 days</string>
     
     <!-- Sleep stages -->
-    <string name="sleep_deep">Profond</string>
-    <string name="sleep_light">Léger</string>
+    <string name="sleep_deep">Deep</string>
+    <string name="sleep_light">Light</string>
     <string name="sleep_rem">REM</string>
-    <string name="sleep_awake">Éveillé</string>
+    <string name="sleep_awake">Awake</string>
+
+    <!-- NEW EXTRACTED STRINGS -->
+    <!-- Content from DashboardScreen -->
+    <string name="menu_trends">Trends</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_about">About</string>
+    <string name="menu_logout">Log out</string>
+    <string name="version_unknown">Unknown</string>
+    <string name="provider_fitbit">Fitbit</string>
+    <string name="provider_google_fit">Google Fit</string>
+    <string name="provider_health_connect">Health Connect</string>
+    <string name="about_title">About</string>
+    <string name="about_app_label">Application: </string>
+    <string name="about_version_label">Version: </string>
+    <string name="about_account_label">Account: </string>
+    <string name="about_readme">View README</string>
+    <string name="about_release_notes">Release Notes</string>
+    <string name="close">Close</string>
+    <string name="error_prefix">Error: %s</string>
+    <string name="retry">Retry</string>
+    <string name="label_resting_hr">Resting (N/D)</string>
+    <string name="label_min_max">Min / Max</string>
+    <string name="label_steps">Steps</string>
+    
+    <!-- Content from SettingsScreen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_high_threshold">High HR Threshold: %d BPM</string>
+    <string name="settings_low_threshold">Low HR Threshold: %d BPM</string>
+    <string name="settings_sync_interval">Sync Interval: %s</string>
+    <string name="interval_never">Never</string>
+    <string name="unit_minutes_short">min</string>
+    <string name="unit_hours_short">h</string>
+    <string name="ok_button">OK</string>
+    <string name="settings_language">Language</string>
+    <string name="language_system">System Default</string>
+    <string name="language_english">English</string>
+    <string name="language_french">French</string>
+
+    <!-- Content from WelcomeScreen -->
+    <string name="welcome_title">Welcome to CardioLens</string>
+    <string name="welcome_subtitle">Log in to view your health data</string>
+    <string name="welcome_login_button">Log in</string>
+
+    <!-- Content from LoginScreen -->
+    <string name="login_options">Login Options</string>
+    <string name="feature_heart_rate">Real-time heart rate tracking</string>
+    <string name="feature_sleep">Detailed sleep analysis</string>
+    <string name="feature_activity">Step counting and activities</string>
+    <string name="feature_charts">Interactive charts and statistics</string>
 </resources>

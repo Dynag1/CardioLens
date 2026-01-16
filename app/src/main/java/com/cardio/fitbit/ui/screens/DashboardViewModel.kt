@@ -47,6 +47,7 @@ class DashboardViewModel @Inject constructor(
     val lowHrThreshold = userPreferencesRepository.lowHrThreshold
     val notificationsEnabled = userPreferencesRepository.notificationsEnabled
     val syncIntervalMinutes = userPreferencesRepository.syncIntervalMinutes
+    val appLanguage = userPreferencesRepository.appLanguage
 
     // Derived Metrics
     private val _rhrDay = MutableStateFlow<Int?>(null)
@@ -68,6 +69,9 @@ class DashboardViewModel @Inject constructor(
     // Current Provider ID (for showing the appropriate icon on logout button)
     private val _currentProviderId = MutableStateFlow<String>("FITBIT")
     val currentProviderId = _currentProviderId.asStateFlow()
+
+    // Last Sync Time
+    val lastSyncTimestamp = userPreferencesRepository.lastSyncTimestamp
 
     init {
         loadAllData()
@@ -125,6 +129,7 @@ class DashboardViewModel @Inject constructor(
                 val selectedDate = _selectedDate.value
 
                 android.util.Log.d("DashboardVM", "loadAllData called with forceRefresh=$forceRefresh")
+                android.util.Log.d("DashboardVM", "Selected Date for fetch: ${DateUtils.formatForApi(selectedDate)} (System Today: ${DateUtils.formatForApi(today)})")
 
                 // Reset state to prevent stales from other days or previous failed loads
                 _sleepData.value = emptyList()
@@ -146,7 +151,13 @@ class DashboardViewModel @Inject constructor(
                 
                 computeDerivedMetrics()
 
+                computeDerivedMetrics()
+
                 _uiState.value = DashboardUiState.Success
+                
+                // Update Last Sync Time (only if we actually refreshed or loaded successfully)
+                // We consider a successful loadAllData as a sync point
+                userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
             } catch (e: Exception) {
                 _uiState.value = DashboardUiState.Error(e.message ?: "Unknown error")
             }
@@ -404,6 +415,9 @@ class DashboardViewModel @Inject constructor(
         }
         result.onFailure { e ->
             android.util.Log.e("DashboardVM", "Failed to load intraday data", e)
+            if (e is com.cardio.fitbit.data.api.RateLimitException) {
+                _uiState.value = DashboardUiState.Error("Trop de requêtes. Réessayez dans 1h.")
+            }
         }
     }
 
@@ -428,6 +442,12 @@ class DashboardViewModel @Inject constructor(
     fun updateSyncInterval(minutes: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setSyncIntervalMinutes(minutes)
+        }
+    }
+
+    fun updateAppLanguage(languageCode: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAppLanguage(languageCode)
         }
     }
 

@@ -10,23 +10,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.res.stringResource
+import com.cardio.fitbit.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(
     onDismiss: () -> Unit,
-    highThreshold: Int,
-    lowThreshold: Int,
     notificationsEnabled: Boolean,
-    syncInterval: Int,
-    onHighThresholdChange: (Int) -> Unit,
-    onLowThresholdChange: (Int) -> Unit,
     onNotificationsChange: (Boolean) -> Unit,
-    onSyncIntervalChange: (Int) -> Unit
+    highThreshold: Int,
+    onHighThresholdChange: (Int) -> Unit,
+    lowThreshold: Int,
+    onLowThresholdChange: (Int) -> Unit,
+    syncInterval: Int,
+    onSyncIntervalChange: (Int) -> Unit,
+    currentLanguage: String,
+    onLanguageChange: (String) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Paramètres") },
+        title = { Text(stringResource(R.string.settings_title)) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -38,7 +42,7 @@ fun SettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Notifications")
+                    Text(stringResource(R.string.settings_notifications))
                     Switch(
                         checked = notificationsEnabled,
                         onCheckedChange = onNotificationsChange,
@@ -56,7 +60,7 @@ fun SettingsDialog(
 
                 // High Threshold Slider
                 Column {
-                    Text("Seuil FC Élevé: $highThreshold BPM", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.settings_high_threshold, highThreshold), style = MaterialTheme.typography.bodyMedium)
                     Slider(
                         value = highThreshold.toFloat(),
                         onValueChange = { onHighThresholdChange(it.toInt()) },
@@ -67,7 +71,7 @@ fun SettingsDialog(
 
                 // Low Threshold Slider
                 Column {
-                    Text("Seuil FC Bas: $lowThreshold BPM", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.settings_low_threshold, lowThreshold), style = MaterialTheme.typography.bodyMedium)
                     Slider(
                         value = lowThreshold.toFloat(),
                         onValueChange = { onLowThresholdChange(it.toInt()) },
@@ -81,13 +85,11 @@ fun SettingsDialog(
                 // Sync Interval
                 Column {
                     val displayText = when (syncInterval) {
-                        0 -> "Jamais"
-                        in 1..59 -> "$syncInterval min"
-                        60 -> "1 h"
-                        360 -> "6 h"
-                        else -> "${syncInterval / 60} h"
+                        0 -> stringResource(R.string.interval_never)
+                        in 1..59 -> "$syncInterval ${stringResource(R.string.unit_minutes_short)}"
+                        else -> "${syncInterval / 60} ${stringResource(R.string.unit_hours_short)}"
                     }
-                    Text("Intervalle de Synchro: $displayText", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.settings_sync_interval, displayText), style = MaterialTheme.typography.bodyMedium)
                     
                     // First row: 15min, 30min, 1h
                     Row(
@@ -95,9 +97,9 @@ fun SettingsDialog(
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         listOf(
-                            15 to "15m",
-                            30 to "30m",
-                            60 to "1h"
+                            15 to "15${stringResource(R.string.unit_minutes_short)}",
+                            30 to "30${stringResource(R.string.unit_minutes_short)}",
+                            60 to "1${stringResource(R.string.unit_hours_short)}"
                         ).forEach { (mins, label) ->
                             FilterChip(
                                 selected = syncInterval == mins,
@@ -113,8 +115,8 @@ fun SettingsDialog(
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         listOf(
-                            360 to "6h",
-                            0 to "Jamais"
+                            360 to "6${stringResource(R.string.unit_hours_short)}",
+                            0 to stringResource(R.string.interval_never)
                         ).forEach { (mins, label) ->
                             FilterChip(
                                 selected = syncInterval == mins,
@@ -126,11 +128,38 @@ fun SettingsDialog(
                         Spacer(modifier = Modifier.width(80.dp))
                     }
                 }
+                
+                Divider()
+                
+                // Language Selector
+                Column {
+                    Text(stringResource(R.string.settings_language), style = MaterialTheme.typography.bodyMedium)
+                    
+                    val languages = listOf(
+                        "system" to stringResource(R.string.language_system),
+                        "en" to stringResource(R.string.language_english),
+                        "fr" to stringResource(R.string.language_french)
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        languages.forEach { (code, label) ->
+                             FilterChip(
+                                selected = currentLanguage == code,
+                                onClick = { onLanguageChange(code) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("OK")
+                Text(stringResource(R.string.ok_button))
             }
         }
     )

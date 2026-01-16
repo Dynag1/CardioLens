@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
@@ -26,6 +27,8 @@ import com.cardio.fitbit.ui.components.*
 import com.cardio.fitbit.ui.theme.*
 import com.cardio.fitbit.utils.DateUtils
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.cardio.fitbit.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,8 +56,11 @@ fun DashboardScreen(
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsState(initial = true)
     val syncInterval by viewModel.syncIntervalMinutes.collectAsState(initial = 15)
     val currentProviderId by viewModel.currentProviderId.collectAsState()
+    val appLanguage by viewModel.appLanguage.collectAsState(initial = "system")
+
 
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -87,7 +93,82 @@ fun DashboardScreen(
             onHighThresholdChange = viewModel::updateHighHrThreshold,
             onLowThresholdChange = viewModel::updateLowHrThreshold,
             onNotificationsChange = viewModel::toggleNotifications,
-            onSyncIntervalChange = viewModel::updateSyncInterval
+            onSyncIntervalChange = viewModel::updateSyncInterval,
+            currentLanguage = appLanguage,
+            onLanguageChange = viewModel::updateAppLanguage
+        )
+    }
+
+    if (showAboutDialog) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val packageInfo = try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+        } catch (e: Exception) {
+            null
+        }
+        val versionName = packageInfo?.versionName ?: stringResource(R.string.version_unknown)
+        
+        val providerName = when (currentProviderId) {
+            "GOOGLE_FIT" -> stringResource(R.string.provider_google_fit)
+            "health_connect" -> stringResource(R.string.provider_health_connect)
+            else -> stringResource(R.string.provider_fitbit)
+        }
+        
+
+
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = { Text(stringResource(R.string.about_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.about_app_label), fontWeight = FontWeight.Bold)
+                        Text("CardioLens")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.about_version_label), fontWeight = FontWeight.Bold)
+                        Text(versionName)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.about_account_label), fontWeight = FontWeight.Bold)
+                        Text(providerName)
+                    }
+
+                    HorizontalDivider()
+
+                    // GitHub Links
+                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                    TextButton(
+                        onClick = { uriHandler.openUri("https://github.com/Dynag1/CardioLens/blob/master/README.md") },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_help), contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.about_readme))
+                        }
+                    }
+                    TextButton(
+                        onClick = { uriHandler.openUri("https://github.com/Dynag1/CardioLens/releases") },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details), contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.about_release_notes))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutDialog = false }) {
+                    Text(stringResource(R.string.close))
+                }
+            }
         )
     }
 
@@ -118,7 +199,7 @@ fun DashboardScreen(
                 
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.TrendingUp, contentDescription = null) },
-                    label = { Text("Tendances (7 Jours)") },
+                    label = { Text(stringResource(R.string.menu_trends)) },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -128,7 +209,7 @@ fun DashboardScreen(
                 
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Paramètres") },
+                    label = { Text(stringResource(R.string.menu_settings)) },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -138,12 +219,24 @@ fun DashboardScreen(
                 
                 // Push disconnect to bottom
                 
+                
                 // Push disconnect to bottom
                 Spacer(Modifier.weight(1f))
                 
+                // About
+                 NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    label = { Text(stringResource(R.string.menu_about)) },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        showAboutDialog = true
+                    }
+                )
+                
                 NavigationDrawerItem(
                     icon = { getProviderIcon() },
-                    label = { Text("Déconnexion") },
+                    label = { Text(stringResource(R.string.menu_logout)) },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -228,12 +321,12 @@ fun DashboardScreen(
                                 modifier = Modifier.size(64.dp)
                             )
                             Text(
-                                text = "Erreur: ${state.message}",
+                                text = stringResource(R.string.error_prefix, state.message),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = OnSurface
                             )
                             Button(onClick = { viewModel.loadAllData() }) {
-                                Text("Réessayer")
+                                Text(stringResource(R.string.retry))
                             }
                         }
                     }
@@ -245,7 +338,6 @@ fun DashboardScreen(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues)
                             .pointerInput(Unit) {
                                 detectHorizontalDragGestures(
                                     onDragEnd = {
@@ -263,7 +355,7 @@ fun DashboardScreen(
                                     }
                                 )
                             },
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // Chart Section
@@ -292,7 +384,7 @@ fun DashboardScreen(
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
                                                 Text(
-                                                    text = "Repos (N/J)",
+                                                    text = stringResource(R.string.label_resting_hr),
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -307,7 +399,7 @@ fun DashboardScreen(
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
                                                 Text(
-                                                    text = "Min / Max",
+                                                    text = stringResource(R.string.label_min_max),
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -323,7 +415,7 @@ fun DashboardScreen(
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
                                                 Text(
-                                                    text = "Pas",
+                                                    text = stringResource(R.string.label_steps),
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )

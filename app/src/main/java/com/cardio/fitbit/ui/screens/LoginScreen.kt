@@ -122,7 +122,7 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "Options de connexion",
+                    text = stringResource(R.string.login_options),
                     color = Primary
                 )
             }
@@ -147,19 +147,19 @@ fun LoginScreen(
             ) {
                 FeatureItem(
                     icon = "❤️",
-                    text = "Suivi du rythme cardiaque en temps réel"
+                    text = stringResource(R.string.feature_heart_rate)
                 )
                 FeatureItem(
                     icon = "😴",
-                    text = "Analyse détaillée de votre sommeil"
+                    text = stringResource(R.string.feature_sleep)
                 )
                 FeatureItem(
                     icon = "👟",
-                    text = "Comptage de pas et activités"
+                    text = stringResource(R.string.feature_activity)
                 )
                 FeatureItem(
                     icon = "📊",
-                    text = "Graphiques interactifs et statistiques"
+                    text = stringResource(R.string.feature_charts)
                 )
             }
         }
