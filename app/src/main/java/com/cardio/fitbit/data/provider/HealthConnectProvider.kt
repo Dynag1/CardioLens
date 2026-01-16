@@ -297,9 +297,8 @@ class HealthConnectProvider @Inject constructor(
                 )
             )
 
-            if (response.records.isEmpty()) {
-                return Result.success(null)
-            }
+            // Removed early return if records.isEmpty()
+            // We want to calculate daily summary (Steps, Calories) even if no specific "Exercise Session" exists.
 
             val activities = response.records.map { record ->
                 val durationMs = record.endTime.toEpochMilli() - record.startTime.toEpochMilli()
@@ -351,19 +350,66 @@ class HealthConnectProvider @Inject constructor(
                 )
             }
 
-            // Calculate Summary
-            val totalCalories = activities.sumOf { it.calories }
+            // Calculate Summary from Sessions
+            val totalCaloriesFromSessions = activities.sumOf { it.calories }
             val totalActiveMinutes = activities.sumOf { (it.duration / 60000).toInt() }
+
+            // NEW: Fetch Total Steps & Calories for the ENTIRE DAY to populate summary
+            // This is independent of having specific Exercise Sessions
+            var totalDailySteps = 0L
+            var totalDailyCalories = 0.0
+            
+            try {
+                val aggregateResponse = healthConnectClient.aggregate(
+                    androidx.health.connect.client.request.AggregateRequest(
+                        metrics = setOf(
+                            StepsRecord.COUNT_TOTAL,
+                            TotalCaloriesBurnedRecord.ENERGY_TOTAL,
+                            ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL
+                        ),
+                        timeRangeFilter = TimeRangeFilter.between(
+                            startOfDay.toInstant(),
+                            endOfDay.toInstant()
+                        )
+                    )
+                )
+                totalDailySteps = aggregateResponse[StepsRecord.COUNT_TOTAL] ?: 0L
+                val totalCals = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
+                val activeCals = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
+                totalDailyCalories = if (totalCals > 0) totalCals else activeCals
+                
+                android.util.Log.d("HealthConnectProvider", "Total Daily: Steps=$totalDailySteps, Cals=$totalDailyCalories")
+                
+                // Fallback for Steps if aggregation returns 0
+                if (totalDailySteps == 0L) {
+                     val fallbackResponse = healthConnectClient.readRecords(
+                        ReadRecordsRequest(
+                            StepsRecord::class,
+                            timeRangeFilter = TimeRangeFilter.between(
+                                startOfDay.toInstant(),
+                                endOfDay.toInstant()
+                            )
+                        )
+                    )
+                    totalDailySteps = fallbackResponse.records.sumOf { it.count }
+                    android.util.Log.d("HealthConnectProvider", "Total Daily Steps (Fallback): $totalDailySteps")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("HealthConnectProvider", "Failed to aggregate daily totals", e)
+            }
+            
+            // If totalDailyCalories is still 0 (agg failed), fallback to sum of sessions or 0
+            if (totalDailyCalories <= 0.1) totalDailyCalories = totalCaloriesFromSessions.toDouble()
 
             return Result.success(
                 ActivityData(
                     date = date,
                     activities = activities,
                     summary = ActivitySummary(
-                        steps = 0, // Filled by getStepsData separately usually
+                        steps = totalDailySteps.toInt(),
                         distance = 0.0,
                         floors = 0,
-                        caloriesOut = totalCalories,
+                        caloriesOut = totalDailyCalories.toInt(),
                         activeMinutes = totalActiveMinutes,
                         sedentaryMinutes = 0
                     )

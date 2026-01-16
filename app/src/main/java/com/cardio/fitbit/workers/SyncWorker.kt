@@ -11,6 +11,9 @@ import com.cardio.fitbit.utils.NotificationHelper
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
+import android.content.pm.ServiceInfo
+import android.os.Build
+import androidx.work.ForegroundInfo
 
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
@@ -21,8 +24,28 @@ class SyncWorker @AssistedInject constructor(
     private val notificationHelper: NotificationHelper
 ) : CoroutineWorker(appContext, workerParams) {
 
+
+// ...
+
     override suspend fun doWork(): Result {
         return try {
+            // Set Foreground Service to show "Syncing" notification
+            // This satisfies the FOREGROUND_SERVICE_DATA_SYNC requirement
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val notification = notificationHelper.getSyncNotification()
+                    val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    } else {
+                        0 
+                    }
+                    // Use a unique ID for the sync notification
+                    setForeground(ForegroundInfo(NotificationHelper.SYNC_NOTIFICATION_ID, notification, type))
+                }
+            } catch (e: Exception) {
+               android.util.Log.e("SyncWorker", "Failed to set foreground mode", e)
+            }
+
             android.util.Log.d("SyncWorker", "Starting background sync...")
             
             // 1. Fetch latest data (today) - FORCE REFRESH to bypass 24h cache in background

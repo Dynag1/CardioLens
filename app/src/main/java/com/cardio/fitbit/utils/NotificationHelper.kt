@@ -20,21 +20,50 @@ class NotificationHelper @Inject constructor(
 ) {
     companion object {
         const val CHANNEL_ID = "cardio_alerts"
+        const val SYNC_CHANNEL_ID = "cardio_sync"
         const val NOTIFICATION_ID = 1001
+        const val SYNC_NOTIFICATION_ID = 1002
     }
 
     fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Alert Channel
             val name = "Alertes Cardio"
             val descriptionText = "Notifications pour fréquence cardiaque élevée ou basse"
             val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
             }
+            
+            // Sync Channel (Low Importance)
+            val syncName = "Synchronisation"
+            val syncDesc = "Notifications de synchronisation des données en arrière-plan"
+            val syncImportance = NotificationManager.IMPORTANCE_LOW
+            val syncChannel = NotificationChannel(SYNC_CHANNEL_ID, syncName, syncImportance).apply {
+                description = syncDesc
+            }
+            
             val notificationManager: NotificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(syncChannel)
         }
+    }
+
+    fun getSyncNotification(): android.app.Notification {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+
+        return NotificationCompat.Builder(context, SYNC_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_icon)
+            .setContentTitle("Synchronisation en cours")
+            .setContentText("Mise à jour de vos données santé...")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .build()
     }
 
     fun showHeartRateAlert(bpm: Int, isHigh: Boolean, threshold: Int, time: String) {

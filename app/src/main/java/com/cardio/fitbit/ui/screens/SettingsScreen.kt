@@ -1,6 +1,7 @@
 package com.cardio.fitbit.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
@@ -141,19 +142,32 @@ fun SettingsDialog(
                         "fr" to stringResource(R.string.language_french)
                     )
                     
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         languages.forEach { (code, label) ->
-                             FilterChip(
-                                selected = currentLanguage == code,
-                                onClick = { onLanguageChange(code) },
-                                label = { Text(label) }
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clickable { onLanguageChange(code) }, // Make the whole row clickable
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = currentLanguage == code,
+                                    onClick = { onLanguageChange(code) } // RadioButton already handles click, butRow click is better UX
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
+                }
+
                 }
             }
         },
