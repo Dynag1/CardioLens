@@ -20,7 +20,7 @@ class NotificationHelper @Inject constructor(
 ) {
     companion object {
         const val CHANNEL_ID = "cardio_alerts"
-        const val SYNC_CHANNEL_ID = "cardio_sync"
+        const val SYNC_CHANNEL_ID = "cardio_sync_v2"
         const val NOTIFICATION_ID = 1001
         const val SYNC_NOTIFICATION_ID = 1002
     }
@@ -35,10 +35,10 @@ class NotificationHelper @Inject constructor(
                 description = descriptionText
             }
             
-            // Sync Channel (Low Importance)
+            // Sync Channel (High Importance for Demo)
             val syncName = "Synchronisation"
             val syncDesc = "Notifications de synchronisation des données en arrière-plan"
-            val syncImportance = NotificationManager.IMPORTANCE_LOW
+            val syncImportance = NotificationManager.IMPORTANCE_HIGH
             val syncChannel = NotificationChannel(SYNC_CHANNEL_ID, syncName, syncImportance).apply {
                 description = syncDesc
             }
@@ -57,7 +57,7 @@ class NotificationHelper @Inject constructor(
         val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         return NotificationCompat.Builder(context, SYNC_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_icon)
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("Synchronisation en cours")
             .setContentText("Mise à jour de vos données santé...")
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -76,7 +76,7 @@ class NotificationHelper @Inject constructor(
         val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_icon) // Use vector icon
+            .setSmallIcon(android.R.drawable.star_on) // Use vector icon
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

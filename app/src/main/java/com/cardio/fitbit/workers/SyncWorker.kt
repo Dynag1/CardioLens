@@ -48,6 +48,8 @@ class SyncWorker @AssistedInject constructor(
 
             android.util.Log.d("SyncWorker", "Starting background sync...")
             
+
+            
             // 1. Fetch latest data (today) - FORCE REFRESH to bypass 24h cache in background
             val today = DateUtils.getToday()
             android.util.Log.d("SyncWorker", "Fetching fresh intraday data for $today")
@@ -127,6 +129,19 @@ class SyncWorker @AssistedInject constructor(
         } catch (e: Exception) {
             android.util.Log.e("SyncWorker", "Sync exception", e)
             Result.failure()
+        }
+    }
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notification = notificationHelper.getSyncNotification()
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else {
+                0
+            }
+            return ForegroundInfo(NotificationHelper.SYNC_NOTIFICATION_ID, notification, type)
+        } else {
+             throw IllegalStateException("Foreground Service not supported on this API level")
         }
     }
 }
