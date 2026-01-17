@@ -4,7 +4,6 @@ on:
   release:
     types: [published]
   push:
-    branches: [ "beta" ]
     tags: [ "v*" ]
   workflow_dispatch:
 
