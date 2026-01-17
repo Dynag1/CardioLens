@@ -1,8 +1,6 @@
 name: Deploy to Play Store
 
 on:
-  release:
-    types: [published]
   push:
     tags: [ "v*" ]
   workflow_dispatch:
