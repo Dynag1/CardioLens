@@ -98,12 +98,23 @@ class DashboardViewModel @Inject constructor(
     // Last Sync Time
     val lastSyncTimestamp = userPreferencesRepository.lastSyncTimestamp
 
+    private val _dailyMood = MutableStateFlow<Int?>(null)
+    val dailyMood = _dailyMood.asStateFlow()
+
     private val _isAuthorized = MutableStateFlow(true)
     val isAuthorized = _isAuthorized.asStateFlow()
 
     init {
         loadAllData()
         loadCurrentProvider()
+    }
+
+    fun saveMood(rating: Int) {
+        viewModelScope.launch {
+            val date = _selectedDate.value
+            healthRepository.saveMood(date, rating)
+            _dailyMood.value = rating
+        }
     }
 
     fun changeDate(daysOffset: Int) {
@@ -125,6 +136,7 @@ class DashboardViewModel @Inject constructor(
         _rhrNight.value = null
         _hrvData.value = emptyList()
         _hrvDailyAverage.value = null
+        _dailyMood.value = null
 
         // Only reload date-dependent data
         viewModelScope.launch {
@@ -135,9 +147,9 @@ class DashboardViewModel @Inject constructor(
                     launch { loadHeartRate(newDate) },
                     launch { loadSleep(newDate, forceRefresh = false) },
                     launch { loadActivity(newDate, forceRefresh = false) }, 
-                    launch { loadActivity(newDate, forceRefresh = false) }, 
                     launch { loadIntradayData(newDate, forceRefresh = false) },
-                    launch { loadHrvData(newDate, forceRefresh = false) }
+                    launch { loadHrvData(newDate, forceRefresh = false) },
+                    launch { loadMood(newDate) }
                 )
                 jobs.forEach { it.join() } // Wait for all data
                 computeDerivedMetrics()
@@ -184,7 +196,8 @@ class DashboardViewModel @Inject constructor(
                     launch { loadActivity(selectedDate, forceRefresh) }, 
                     launch { loadActivity(selectedDate, forceRefresh) }, 
                     launch { loadIntradayData(selectedDate, forceRefresh) },
-                    launch { loadHrvData(selectedDate, forceRefresh) }
+                    launch { loadHrvData(selectedDate, forceRefresh) },
+                    launch { loadMood(selectedDate) }
                 )
                 jobs.forEach { it.join() }
                 
@@ -469,6 +482,10 @@ class DashboardViewModel @Inject constructor(
                 _hrvDailyAverage.value = null
             }
         }
+    }
+
+    private suspend fun loadMood(date: java.util.Date) {
+        _dailyMood.value = healthRepository.getMood(date)
     }
 
     fun updateHighHrThreshold(value: Int) {

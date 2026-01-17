@@ -60,4 +60,9 @@ object DatabaseModule {
     fun provideStepsDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.StepsDao {
         return database.stepsDao()
     }
+
+    @Provides
+    fun provideMoodDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.MoodDao {
+        return database.moodDao()
+    }
 }

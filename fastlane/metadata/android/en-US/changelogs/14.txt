@@ -1,0 +1,5 @@
+✨ Nouveautés :
+- Suivi de l'humeur : Notez votre humeur chaque jour avec des émojis !
+- Synchronisation : L'heure de la dernière synchronisation est affichée en haut.
+- Améliorations : Calcul de la fréquence cardiaque au repos plus stable et scientifique.
+- Corrections de bugs et améliorations de l'interface.
