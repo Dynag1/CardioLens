@@ -92,9 +92,9 @@ class MainActivity : AppCompatActivity() {
                         data = android.net.Uri.parse("package:$packageName")
                     }
                     startActivity(intent)
-                    android.util.Log.d("MainActivity", "Requesting battery optimization exemption")
+
                 } catch (e: Exception) {
-                    android.util.Log.e("MainActivity", "Failed to request battery optimization exemption", e)
+
                 }
             }
         }
@@ -113,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         // If interval is 0, disable periodic sync
         if (intervalMinutes == 0) {
             WorkManager.getInstance(applicationContext).cancelUniqueWork("CardioSyncWork")
-            android.util.Log.d("MainActivity", "Periodic sync disabled (interval set to 'Never')")
+
             return
         }
         
@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
         val actualInterval = kotlin.math.max(intervalMinutes, 15)
         
         if (intervalMinutes < 15) {
-            android.util.Log.w("MainActivity", "Sync interval set to $intervalMinutes min, but minimum is 15 min. Using 15 min.")
+
         }
         
         val constraints = androidx.work.Constraints.Builder()
@@ -143,8 +143,8 @@ class MainActivity : AppCompatActivity() {
             workRequest
         )
         
-        android.util.Log.d("MainActivity", "Periodic sync scheduled every $actualInterval minutes with network constraint")
-        android.util.Log.d("MainActivity", "Periodic sync scheduled every $actualInterval minutes with network constraint")
+
+
     }
 
     private fun observeAppLanguage() {
@@ -159,7 +159,7 @@ class MainActivity : AppCompatActivity() {
                 // Only act if different to avoid loops/recreation if flow emits same
                 val current = AppCompatDelegate.getApplicationLocales()
                 if (current != localeList) {
-                   android.util.Log.d("MainActivity", "Changing locale to: $languageCode")
+
                    AppCompatDelegate.setApplicationLocales(localeList)
                 }
             }

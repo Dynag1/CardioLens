@@ -15,12 +15,12 @@ class AuthViewModel @Inject constructor(
 
     suspend fun handleAuthorizationCode(code: String): Result<Unit> {
         // Legacy/Default to Fitbit if not specified (though AuthActivity usually handles this)
-        android.util.Log.d("CardioAuth", "AuthViewModel: calling fitbitAuthManager.handleAuthorizationCallback")
+
         return fitbitAuthManager.handleAuthorizationCallback(code)
     }
     
     suspend fun handleGoogleAuthCode(code: String): Result<Unit> {
-        android.util.Log.d("CardioAuth", "AuthViewModel: calling googleFitAuthManager.handleAuthorizationCallback")
+
         // Retrieve client secret from prefs?
         // Actually, GoogleFitAuthManager.handleAuthorizationCallback needs clientSecret passed to it 
         // OR checks its own internal prefs. 

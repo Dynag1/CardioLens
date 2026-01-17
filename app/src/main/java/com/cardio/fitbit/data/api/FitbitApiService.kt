@@ -109,4 +109,21 @@ interface FitbitApiService {
         @Query("offset") offset: Int = 0,
         @Query("limit") limit: Int = 20
     ): Response<ActivityListResponse>
+
+    /**
+     * Get HRV data for a specific date
+     */
+    @GET("1/user/-/hrv/date/{date}.json")
+    suspend fun getHrv(
+        @Path("date") date: String
+    ): Response<HrvResponse>
+
+    /**
+     * Get HRV data for a date range
+     */
+    @GET("1/user/-/hrv/date/{startDate}/{endDate}.json")
+    suspend fun getHrvRange(
+        @Path("startDate") startDate: String,
+        @Path("endDate") endDate: String
+    ): Response<HrvResponse>
 }

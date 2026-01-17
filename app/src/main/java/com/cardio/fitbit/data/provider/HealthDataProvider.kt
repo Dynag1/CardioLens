@@ -41,4 +41,7 @@ interface HealthDataProvider {
      * Useful for fetching data across midnight (e.g. sleep logic).
      */
     suspend fun getHeartRateSeries(startTime: Date, endTime: Date): Result<List<MinuteData>>
+    
+    suspend fun getHrvData(date: Date): Result<List<HrvRecord>> // Single day details (intraday if available)
+    suspend fun getHrvHistory(startDate: Date, endDate: Date): Result<List<HrvRecord>> // Daily summaries over range
 }

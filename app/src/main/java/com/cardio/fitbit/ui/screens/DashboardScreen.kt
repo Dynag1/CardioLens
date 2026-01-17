@@ -29,6 +29,8 @@ import com.cardio.fitbit.utils.DateUtils
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.cardio.fitbit.R
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +51,8 @@ fun DashboardScreen(
     val aggregatedMinuteData by viewModel.aggregatedMinuteData.collectAsState()
     val minHr by viewModel.minHr.collectAsState()
     val maxHr by viewModel.maxHr.collectAsState()
+    val hrvData by viewModel.hrvData.collectAsState()
+    val hrvAverage by viewModel.hrvDailyAverage.collectAsState()
 
     // Settings States
     val highThreshold by viewModel.highHrThreshold.collectAsState(initial = 120)
@@ -57,6 +61,8 @@ fun DashboardScreen(
     val syncInterval by viewModel.syncIntervalMinutes.collectAsState(initial = 15)
     val currentProviderId by viewModel.currentProviderId.collectAsState()
     val appLanguage by viewModel.appLanguage.collectAsState(initial = "system")
+    val dateOfBirth by viewModel.dateOfBirth.collectAsState(initial = null)
+    val userMaxHr by viewModel.userMaxHr.collectAsState(initial = 220)
 
 
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -83,6 +89,19 @@ fun DashboardScreen(
         }
     }
 
+    val isAuthorized by viewModel.isAuthorized.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Permission Launcher
+    val healthConnectPermissions = com.cardio.fitbit.data.provider.HealthConnectProvider.PERMISSIONS
+    val requestPermissions = rememberLauncherForActivityResult(
+        androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
+    ) { granted: Set<String> ->
+        if (granted.containsAll(healthConnectPermissions)) {
+            viewModel.loadAllData(forceRefresh = true)
+        }
+    }
+
     if (showSettingsDialog) {
         SettingsDialog(
             onDismiss = { showSettingsDialog = false },
@@ -94,8 +113,11 @@ fun DashboardScreen(
             onLowThresholdChange = viewModel::updateLowHrThreshold,
             onNotificationsChange = viewModel::toggleNotifications,
             onSyncIntervalChange = viewModel::updateSyncInterval,
+
             currentLanguage = appLanguage,
-            onLanguageChange = viewModel::updateAppLanguage
+            onLanguageChange = viewModel::updateAppLanguage,
+            dateOfBirthState = dateOfBirth,
+            onDateOfBirthChange = viewModel::setDateOfBirth
         )
     }
 
@@ -360,6 +382,61 @@ fun DashboardScreen(
                     ) {
                         // Chart Section
                         intradayData?.let { data ->
+                        
+                            // Permission Request Card (if needed)
+                            if (!isAuthorized && currentProviderId == "health_connect") {
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.errorContainer
+                                        ),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Text(
+                                                text = "Permissions Manquantes",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "De nouvelles permissions (HRV) sont requises pour afficher toutes les données.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Button(
+                                                onClick = {
+                                                    val availability = androidx.health.connect.client.HealthConnectClient.getSdkStatus(context)
+                                                    if (availability == androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE) {
+                                                        try {
+                                                            requestPermissions.launch(healthConnectPermissions)
+                                                        } catch (e: Exception) {
+                                                            android.widget.Toast.makeText(context, "Erreur lors du lancement : ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+
+                                                        }
+                                                    } else {
+                                                        val message = when(availability) {
+                                                            androidx.health.connect.client.HealthConnectClient.SDK_UNAVAILABLE -> "Health Connect n'est pas installé."
+                                                            androidx.health.connect.client.HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> "Mise à jour requise pour Health Connect."
+                                                            else -> "Health Connect indisponible: $availability"
+                                                        }
+                                                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = MaterialTheme.colorScheme.error
+                                                )
+                                            ) {
+                                                Text("Accorder les permissions", color = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
                             item {
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
@@ -428,6 +505,7 @@ fun DashboardScreen(
                                             sleepSessions = sleepData,
                                             activityData = activityData,
                                             restingHeartRate = rhrDay,
+                                            userMaxHr = userMaxHr,
                                             selectedDate = selectedDate,
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -449,6 +527,60 @@ fun DashboardScreen(
                                     allMinuteData = intradayData?.minuteData ?: emptyList(),
                                     selectedDate = selectedDate
                                 )
+                            }
+                        }
+
+                        // HRV Card (New)
+                        if (hrvData.isNotEmpty() || hrvAverage != null) {
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) // Consistent style
+                                    ),
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.2f))
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                             Column {
+                                                 Text(
+                                                     text = stringResource(R.string.chart_hrv),
+                                                     style = MaterialTheme.typography.titleMedium,
+                                                     fontWeight = FontWeight.Bold,
+                                                     color = MaterialTheme.colorScheme.onSurface
+                                                 )
+                                                 Text(
+                                                     text = "${hrvAverage ?: "--"} ms", // Display Daily Average
+                                                     style = MaterialTheme.typography.headlineSmall,
+                                                     fontWeight = FontWeight.Bold,
+                                                     color = MaterialTheme.colorScheme.primary
+                                                 )
+                                                 Text(
+                                                     text = stringResource(R.string.label_hrv_rmssd),
+                                                     style = MaterialTheme.typography.bodySmall,
+                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                 )
+                                             }
+                                        }
+                                        
+
+                                        if (hrvData.size > 1) {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            
+                                            HrvChart(
+                                                hrvRecords = hrvData,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(150.dp) // Smaller than main chart
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

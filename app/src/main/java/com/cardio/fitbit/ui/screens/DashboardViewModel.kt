@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -42,12 +43,35 @@ class DashboardViewModel @Inject constructor(
     private val _selectedDate = MutableStateFlow(DateUtils.getToday())
     val selectedDate: StateFlow<java.util.Date> = _selectedDate.asStateFlow()
 
+    private val _hrvData = MutableStateFlow<List<HrvRecord>>(emptyList())
+    val hrvData: StateFlow<List<HrvRecord>> = _hrvData.asStateFlow()
+    
+    // Daily HRV Average (derived from hrvData)
+    private val _hrvDailyAverage = MutableStateFlow<Int?>(null)
+    val hrvDailyAverage: StateFlow<Int?> = _hrvDailyAverage.asStateFlow()
+
     // Settings
     val highHrThreshold = userPreferencesRepository.highHrThreshold
     val lowHrThreshold = userPreferencesRepository.lowHrThreshold
     val notificationsEnabled = userPreferencesRepository.notificationsEnabled
     val syncIntervalMinutes = userPreferencesRepository.syncIntervalMinutes
     val appLanguage = userPreferencesRepository.appLanguage
+    
+    // Dynamic HR Zones
+    val dateOfBirth = userPreferencesRepository.dateOfBirth
+    
+    // Calculate Age and MaxHR
+    // We combine the dateOfBirth flow to map it to MaxHR
+    val userMaxHr: kotlinx.coroutines.flow.Flow<Int> = dateOfBirth.map { dob: Long? ->
+        if (dob == null || dob == 0L) {
+            220 // Default if unknown
+        } else {
+            val birthDate = java.util.Date(dob)
+            val today = java.util.Date()
+            val age = DateUtils.getAge(birthDate, today)
+            220 - age
+        }
+    }
 
     // Derived Metrics
     private val _rhrDay = MutableStateFlow<Int?>(null)
@@ -71,7 +95,11 @@ class DashboardViewModel @Inject constructor(
     val currentProviderId = _currentProviderId.asStateFlow()
 
     // Last Sync Time
+    // Last Sync Time
     val lastSyncTimestamp = userPreferencesRepository.lastSyncTimestamp
+
+    private val _isAuthorized = MutableStateFlow(true)
+    val isAuthorized = _isAuthorized.asStateFlow()
 
     init {
         loadAllData()
@@ -85,7 +113,7 @@ class DashboardViewModel @Inject constructor(
         val newDate = calendar.time
         _selectedDate.value = newDate
         
-        android.util.Log.d("DashboardVM", "Changing date to: ${DateUtils.formatForApi(newDate)}")
+
 
         // Reset state & Set UI to Loading to provide feedback
         _uiState.value = DashboardUiState.Loading
@@ -95,6 +123,8 @@ class DashboardViewModel @Inject constructor(
         _aggregatedMinuteData.value = emptyList()
         _rhrDay.value = null
         _rhrNight.value = null
+        _hrvData.value = emptyList()
+        _hrvDailyAverage.value = null
 
         // Only reload date-dependent data
         viewModelScope.launch {
@@ -105,7 +135,9 @@ class DashboardViewModel @Inject constructor(
                     launch { loadHeartRate(newDate) },
                     launch { loadSleep(newDate, forceRefresh = false) },
                     launch { loadActivity(newDate, forceRefresh = false) }, 
-                    launch { loadIntradayData(newDate, forceRefresh = false) }
+                    launch { loadActivity(newDate, forceRefresh = false) }, 
+                    launch { loadIntradayData(newDate, forceRefresh = false) },
+                    launch { loadHrvData(newDate, forceRefresh = false) }
                 )
                 jobs.forEach { it.join() } // Wait for all data
                 computeDerivedMetrics()
@@ -113,7 +145,7 @@ class DashboardViewModel @Inject constructor(
                 // Switch back to success
                 _uiState.value = DashboardUiState.Success
             } catch (e: Exception) {
-                android.util.Log.e("DashboardVM", "Error changing date", e)
+
                 _uiState.value = DashboardUiState.Error(e.message ?: "Erreur de navigation")
             }
         }
@@ -128,8 +160,11 @@ class DashboardViewModel @Inject constructor(
                 val sevenDaysAgo = DateUtils.getDaysAgo(7)
                 val selectedDate = _selectedDate.value
 
-                android.util.Log.d("DashboardVM", "loadAllData called with forceRefresh=$forceRefresh")
-                android.util.Log.d("DashboardVM", "Selected Date for fetch: ${DateUtils.formatForApi(selectedDate)} (System Today: ${DateUtils.formatForApi(today)})")
+
+
+
+                // Check authorization status (e.g. for new permissions)
+                _isAuthorized.value = healthRepository.isAuthorized()
 
                 // Reset state to prevent stales from other days or previous failed loads
                 _sleepData.value = emptyList()
@@ -138,14 +173,18 @@ class DashboardViewModel @Inject constructor(
                 _aggregatedMinuteData.value = emptyList()
                 _rhrDay.value = null
                 _rhrNight.value = null
+                _hrvData.value = emptyList()
+                _hrvDailyAverage.value = null
 
                 // Load all data in parallel
                 val jobs = listOf(
                     launch { loadHeartRate(selectedDate) },
                     launch { loadSleep(selectedDate, forceRefresh) },
                     launch { loadSteps(sevenDaysAgo, today) },
-                    launch { loadActivity(selectedDate, forceRefresh = true) }, 
-                    launch { loadIntradayData(selectedDate, forceRefresh) }
+                    launch { loadActivity(selectedDate, forceRefresh) }, 
+                    launch { loadActivity(selectedDate, forceRefresh) }, 
+                    launch { loadIntradayData(selectedDate, forceRefresh) },
+                    launch { loadHrvData(selectedDate, forceRefresh) }
                 )
                 jobs.forEach { it.join() }
                 
@@ -267,7 +306,7 @@ class DashboardViewModel @Inject constructor(
                               nightHeartRates.add(point.heartRate)
                           }
                       }
-                      android.util.Log.d("DashboardVM", "Added ${extraData.size} pre-midnight HR points to Night RHR calculation")
+
                  } catch (e: Exception) {
                      android.util.Log.e("DashboardVM", "Failed to load pre-midnight HR", e)
                  }
@@ -347,7 +386,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     private suspend fun loadSleep(date: java.util.Date, forceRefresh: Boolean = false) {
-        android.util.Log.d("DashboardVM", "Loading sleep data for: ${DateUtils.formatForApi(date)}")
+
         
         // 1. Fetch Today's Sleep (Standard)
         val resultToday = healthRepository.getSleepData(date, forceRefresh)
@@ -382,7 +421,7 @@ class DashboardViewModel @Inject constructor(
         if (resultToday.isSuccess || resultNextDay.isSuccess) {
              // Deduplicate just in case provider returns overlap (like Health Connect)
             val uniqueSleep = combinedSleep.distinctBy { it.startTime.time }
-            android.util.Log.d("DashboardVM", "Sleep sessions loaded: ${uniqueSleep.size} (merged)")
+
             _sleepData.value = uniqueSleep
         } else {
             // Only log failure if main request failed
@@ -407,16 +446,30 @@ class DashboardViewModel @Inject constructor(
     }
 
     private suspend fun loadIntradayData(date: java.util.Date, forceRefresh: Boolean = false) {
-        android.util.Log.d("DashboardVM", "Loading intraday data...")
+
         val result = healthRepository.getIntradayData(date, forceRefresh)
         result.onSuccess { data ->
-            android.util.Log.d("DashboardVM", "Intraday data loaded: ${data?.minuteData?.size ?: 0} points")
+
             _intradayData.value = data
         }
         result.onFailure { e ->
-            android.util.Log.e("DashboardVM", "Failed to load intraday data", e)
+
             if (e is com.cardio.fitbit.data.api.RateLimitException) {
                 _uiState.value = DashboardUiState.Error("Trop de requêtes. Réessayez dans 1h.")
+            }
+        }
+    }
+
+    private suspend fun loadHrvData(date: java.util.Date, forceRefresh: Boolean = false) {
+        val result = healthRepository.getHrvData(date, forceRefresh)
+        result.onSuccess { data ->
+            _hrvData.value = data
+            // Calculate daily average RMSSD
+            if (data.isNotEmpty()) {
+                val average = data.map { it.rmssd }.average()
+                _hrvDailyAverage.value = average.toInt()
+            } else {
+                _hrvDailyAverage.value = null
             }
         }
     }
@@ -450,6 +503,12 @@ class DashboardViewModel @Inject constructor(
             userPreferencesRepository.setAppLanguage(languageCode)
         }
     }
+    
+    fun setDateOfBirth(timestamp: Long) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDateOfBirth(timestamp)
+        }
+    }
 
     fun logout() {
         viewModelScope.launch {
@@ -466,9 +525,9 @@ class DashboardViewModel @Inject constructor(
             try {
                 val providerId = healthRepository.getCurrentProviderId()
                 _currentProviderId.value = providerId
-                android.util.Log.d("DashboardVM", "Current provider: $providerId")
+
             } catch (e: Exception) {
-                android.util.Log.e("DashboardVM", "Error loading current provider", e)
+
             }
         }
     }

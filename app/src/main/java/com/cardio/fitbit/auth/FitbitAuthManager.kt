@@ -153,11 +153,11 @@ class FitbitAuthManager @Inject constructor(
             val responseBody = response.body?.string()
                 ?: throw Exception("Réponse vide du serveur Fitbit")
 
-            android.util.Log.d("FitbitAuth", "Token response code: ${response.code}")
+
             // Don't log full response body in production if it contains tokens, but for debugging it's useful
             
             if (!response.isSuccessful) {
-                android.util.Log.e("FitbitAuth", "Auth Failed: Code=${response.code}, Body=$responseBody")
+
                 throw Exception("Échec (${response.code}): $responseBody")
             }
 
@@ -221,7 +221,7 @@ class FitbitAuthManager @Inject constructor(
      * Save tokens securely
      */
     private fun saveTokens(tokenResponse: TokenResponse) {
-        android.util.Log.d("FitbitAuth", "Saving tokens: accessToken=${tokenResponse.accessToken?.take(10)}..., refreshToken=${tokenResponse.refreshToken?.take(10)}..., expiresIn=${tokenResponse.expiresIn}, userId=${tokenResponse.userId}")
+
         encryptedPrefs.edit().apply {
             putString(KEY_ACCESS_TOKEN, tokenResponse.accessToken)
             putString(KEY_REFRESH_TOKEN, tokenResponse.refreshToken)
@@ -229,7 +229,7 @@ class FitbitAuthManager @Inject constructor(
             putString(KEY_USER_ID, tokenResponse.userId)
             apply()
         }
-        android.util.Log.d("FitbitAuth", "Tokens saved successfully")
+
     }
 
     /**
@@ -264,16 +264,16 @@ class FitbitAuthManager @Inject constructor(
         // Token expired or doesn't exist - try to refresh
         val refreshToken = getRefreshToken()
         if (refreshToken != null) {
-            android.util.Log.d("FitbitAuth", "Access token expired, attempting automatic refresh...")
+
             val result = refreshAccessToken()
             if (result.isSuccess) {
-                android.util.Log.d("FitbitAuth", "Token refreshed successfully")
+
                 return result.getOrNull()
             } else {
-                android.util.Log.e("FitbitAuth", "Token refresh failed: ${result.exceptionOrNull()?.message}")
+
             }
         } else {
-            android.util.Log.w("FitbitAuth", "No refresh token available, user must re-authenticate")
+
         }
         
         // No refresh token or refresh failed

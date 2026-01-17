@@ -26,3 +26,27 @@ data class ActivityDataEntity(
     val data: String, // JSON serialized ActivityData
     val timestamp: Long
 )
+
+@Entity(tableName = "hrv_data")
+data class HrvDataEntity(
+    @PrimaryKey
+    val date: String,
+    val data: String, // JSON serialized List<HrvRecord>
+    val timestamp: Long
+)
+
+@Entity(tableName = "heart_rate_data")
+data class HeartRateDataEntity(
+    @PrimaryKey
+    val date: String,
+    val data: String, // JSON serialized HeartRateData
+    val timestamp: Long
+)
+
+@Entity(tableName = "steps_data")
+data class StepsDataEntity(
+    @PrimaryKey
+    val date: String,
+    val data: String, // JSON serialized StepsData (Daily summary/list wrapper)
+    val timestamp: Long
+)

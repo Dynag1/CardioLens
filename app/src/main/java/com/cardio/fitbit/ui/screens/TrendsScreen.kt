@@ -183,6 +183,29 @@ fun TrendsScreen(
                                 )
                             }
                         }
+
+                        // Card 4: HRV Trends
+                        Card(
+                            modifier = Modifier.fillMaxWidth().height(300.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "Variabilité Cardiaque (HRV)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE91E63) // Pink title
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                TrendsChart(
+                                    data = state.data,
+                                    type = com.cardio.fitbit.ui.components.TrendsChartType.HRV,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+
                         
                         Spacer(Modifier.height(16.dp))
                     }

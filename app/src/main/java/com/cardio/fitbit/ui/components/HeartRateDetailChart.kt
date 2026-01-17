@@ -29,7 +29,9 @@ fun HeartRateDetailChart(
     aggregatedData: List<MinuteData>, // 5min buckets
     sleepSessions: List<SleepData> = emptyList(),
     activityData: ActivityData? = null,
+
     restingHeartRate: Int? = null,
+    userMaxHr: Int = 220,
     selectedDate: java.util.Date,
     modifier: Modifier = Modifier,
     onChartInteraction: (Boolean) -> Unit = {} // true = chart is being touched, false = touch released
@@ -232,7 +234,7 @@ fun HeartRateDetailChart(
                     else -> aggregatedData     // Normal view: use 5-minute aggregated data
                 }
                 
-                android.util.Log.d("HeartRateChart", "Zoom level: $scaleX, using ${if (activeList == minuteData) "minute" else "aggregated"} data (${activeList.size} points)")
+
                 
                 val combinedData = CombinedData()
 
@@ -269,17 +271,50 @@ fun HeartRateDetailChart(
                 }
 
                 fun getHeartRateColor(bpm: Float): Int {
-                    val colorCyan = Color.parseColor("#06B6D4")   // < 60 (Rest / Sleep)
-                    val colorGreen = Color.parseColor("#10B981")  // 60-100 (Normal)
-                    val colorOrange = Color.parseColor("#F59E0B") // 100-140 (Moderate)
-                    val colorRed = Color.parseColor("#EF4444")    // > 140 (Intense)
-                    val colorDeepRed = Color.parseColor("#B91C1C") // Peak
+                    // Zones based on Max HR (Aggressive Scaling for Visual Feedback)
+                    // We want visual variation even at lower heart rates.
+                    
+                    val maxHr = userMaxHr.toFloat()
+                    
+                    // Standard Zones are:
+                    // Zone 1: 50-60% (Warm Up)
+                    // Zone 2: 60-70% (Fat Burn)
+                    // Zone 3: 70-80% (Cardio)
+                    // Zone 4: 80-90% (Hard)
+                    // Zone 5: 90-100% (Peak)
+                    
+                    // Adjusted for Visuals (Gradient starts earlier):
+                    val zoneStart = maxHr * 0.30f // Start showing color changes from 30% (Blue -> Cyan)
+                    val zone1End = maxHr * 0.40f  // 40% (Cyan -> Green)
+                    val zone2End = maxHr * 0.50f  // 50% (Green -> Yellow) - "Active" starts here
+                    val zone3End = maxHr * 0.65f  // 65% (Yellow -> Orange)
+                    val zone4End = maxHr * 0.80f  // 80% (Orange -> Red) - "Intense" starts here
+
+                    val colorBlue = Color.parseColor("#42A5F5")   // < 30% (Deep sleep / heavy rest)
+                    val colorCyan = Color.parseColor("#06B6D4")   // 30-40% (Resting)
+                    val colorGreen = Color.parseColor("#10B981")  // 40-50% (Very Light)
+                    val colorYellow = Color.parseColor("#FFD600") // 50-65% (Light / Moderate)
+                    val colorOrange = Color.parseColor("#F59E0B") // 65-80% (Moderate / Hard)
+                    val colorRed = Color.parseColor("#EF4444")    // > 80% (Peak)
 
                     return when {
-                        bpm < 60f -> interpolateColor(colorCyan, colorGreen, bpm / 60f) // Fade from Cyan to Green
-                        bpm < 100f -> interpolateColor(colorGreen, colorOrange, (bpm - 60f) / 40f)
-                        bpm < 140f -> interpolateColor(colorOrange, colorRed, (bpm - 100f) / 40f)
-                        else -> interpolateColor(colorRed, colorDeepRed, minOf(1f, (bpm - 140f) / 40f))
+                        // Below Zone 1 (Resting / Sleeping)
+                        bpm < zoneStart -> colorBlue
+                        
+                        // Zone 0-1 Transition (Blue -> Cyan)
+                        bpm < zone1End -> interpolateColor(colorCyan, colorGreen, (bpm - zoneStart) / (zone1End - zoneStart))
+                        
+                        // Zone 1-2 Transition (Green -> Yellow)
+                        bpm < zone2End -> interpolateColor(colorGreen, colorYellow, (bpm - zone1End) / (zone2End - zone1End))
+                        
+                        // Zone 2-3 Transition (Yellow -> Orange)
+                        bpm < zone3End -> interpolateColor(colorYellow, colorOrange, (bpm - zone2End) / (zone3End - zone2End))
+                        
+                        // Zone 3-4 Transition (Orange -> Red)
+                        bpm < zone4End -> interpolateColor(colorOrange, colorRed, (bpm - zone3End) / (zone4End - zone3End))
+                        
+                        // Peak
+                        else -> colorRed
                     }
                 }
                 

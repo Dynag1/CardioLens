@@ -28,6 +28,8 @@
     <string name="chart_sleep_hours">Heures de sommeil</string>
     <string name="chart_steps_count">Nombre de pas</string>
     <string name="chart_calories">Calories brûlées</string>
+    <string name="marker_hr">FC</string>
+    <string name="marker_steps">Pas</string>
     
     <!-- Stats -->
     <string name="stat_avg">Moyenne</string>

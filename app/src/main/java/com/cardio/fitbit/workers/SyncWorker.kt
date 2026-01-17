@@ -11,6 +11,9 @@ import com.cardio.fitbit.utils.NotificationHelper
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
+import android.content.pm.ServiceInfo
+import android.os.Build
+import androidx.work.ForegroundInfo
 
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
@@ -21,13 +24,35 @@ class SyncWorker @AssistedInject constructor(
     private val notificationHelper: NotificationHelper
 ) : CoroutineWorker(appContext, workerParams) {
 
+
+// ...
+
     override suspend fun doWork(): Result {
         return try {
-            android.util.Log.d("SyncWorker", "Starting background sync...")
+            // Set Foreground Service to show "Syncing" notification
+            // This satisfies the FOREGROUND_SERVICE_DATA_SYNC requirement
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val notification = notificationHelper.getSyncNotification()
+                    val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    } else {
+                        0 
+                    }
+                    // Use a unique ID for the sync notification
+                    setForeground(ForegroundInfo(NotificationHelper.SYNC_NOTIFICATION_ID, notification, type))
+                }
+            } catch (e: Exception) {
+
+            }
+
+
+            
+
             
             // 1. Fetch latest data (today) - FORCE REFRESH to bypass 24h cache in background
             val today = DateUtils.getToday()
-            android.util.Log.d("SyncWorker", "Fetching fresh intraday data for $today")
+
             val result = healthRepository.getIntradayData(today, forceRefresh = true)
             
             if (result.isSuccess) {
@@ -38,13 +63,13 @@ class SyncWorker @AssistedInject constructor(
                     val lowThreshold = userPreferencesRepository.lowHrThreshold.first()
                     val notificationsEnabled = userPreferencesRepository.notificationsEnabled.first()
                     
-                    android.util.Log.d("SyncWorker", "Checking ${data.minuteData.size} measurements. Thresholds: low=$lowThreshold, high=$highThreshold")
+
                     
                     if (notificationsEnabled) {
                         // Check last 20 minutes for any violation (covers 15min sync + buffer)
                         val recentMeasurements = data.minuteData.takeLast(20)
                         
-                        android.util.Log.d("SyncWorker", "Analyzing ${recentMeasurements.size} recent measurements from last 20 minutes")
+
                         
                         // Get last alert timestamps to avoid duplicate notifications
                         val prefs = applicationContext.getSharedPreferences("cardio_alerts", Context.MODE_PRIVATE)
@@ -63,9 +88,9 @@ class SyncWorker @AssistedInject constructor(
                                 highHrViolation.time
                             )
                             prefs.edit().putLong("last_high_alert", currentTime).apply()
-                            android.util.Log.w("SyncWorker", "High HR alert: ${highHrViolation.heartRate} BPM > $highThreshold BPM at ${highHrViolation.time}")
+
                         } else if (highHrViolation != null) {
-                            android.util.Log.d("SyncWorker", "High HR detected but alert recently sent (cooldown active)")
+
                         }
                         
                         // Check for low HR (only if HR > 0, to avoid false alarms with missing data)
@@ -80,30 +105,43 @@ class SyncWorker @AssistedInject constructor(
                                 lowHrViolation.time
                             )
                             prefs.edit().putLong("last_low_alert", currentTime).apply()
-                            android.util.Log.w("SyncWorker", "Low HR alert: ${lowHrViolation.heartRate} BPM < $lowThreshold BPM at ${lowHrViolation.time}")
+
                         } else if (lowHrViolation != null) {
-                            android.util.Log.d("SyncWorker", "Low HR detected but alert recently sent (cooldown active)")
+
                         }
                         
                         if (highHrViolation == null && lowHrViolation == null) {
-                            android.util.Log.d("SyncWorker", "All measurements within normal range ($lowThreshold - $highThreshold BPM)")
+
                         }
                     } else {
-                        android.util.Log.d("SyncWorker", "Notifications disabled, skipping alert checks")
+
                     }
                 } else {
-                    android.util.Log.w("SyncWorker", "No intraday data available")
+
                 }
             } else {
-                android.util.Log.e("SyncWorker", "Sync failed: ${result.exceptionOrNull()?.message}")
+
                 return Result.retry()
             }
             
-            android.util.Log.d("SyncWorker", "Sync completed successfully")
+
             Result.success()
         } catch (e: Exception) {
-            android.util.Log.e("SyncWorker", "Sync exception", e)
+
             Result.failure()
+        }
+    }
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notification = notificationHelper.getSyncNotification()
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else {
+                0
+            }
+            return ForegroundInfo(NotificationHelper.SYNC_NOTIFICATION_ID, notification, type)
+        } else {
+             throw IllegalStateException("Foreground Service not supported on this API level")
         }
     }
 }

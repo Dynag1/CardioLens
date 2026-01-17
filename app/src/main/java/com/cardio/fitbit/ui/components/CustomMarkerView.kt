@@ -18,7 +18,7 @@ class CustomMarkerView(context: Context, layoutResource: Int) : MarkerView(conte
 
         if (e.data is MinuteData) {
             val data = e.data as MinuteData
-            tvContent.text = "${data.time}\nHR: ${data.heartRate} BPM\nSteps: ${data.steps}"
+            tvContent.text = "${data.time}\n${context.getString(R.string.marker_hr)}: ${data.heartRate} BPM\n${context.getString(R.string.marker_steps)}: ${data.steps}"
         } else {
              // Fallback if data is not attached (e.g. sleep bubble)
              val yVal = e.y.toInt()

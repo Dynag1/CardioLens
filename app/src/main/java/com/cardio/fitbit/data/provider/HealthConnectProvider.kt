@@ -28,7 +28,8 @@ class HealthConnectProvider @Inject constructor(
             HealthPermission.getReadPermission(SleepSessionRecord::class),
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
-            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
         )
     }
 
@@ -37,7 +38,7 @@ class HealthConnectProvider @Inject constructor(
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
             
-            android.util.Log.d("HealthConnectProvider", "=== Loading Heart Rate for ${DateUtils.formatForApi(date)} ===")
+
             
             // Paginate to get all records
             val allRecords = mutableListOf<HeartRateRecord>()
@@ -62,7 +63,7 @@ class HealthConnectProvider @Inject constructor(
                 pageToken = response.pageToken
             } while (pageToken != null)
             
-            android.util.Log.d("HealthConnectProvider", "Total pages: $pageCount, Total records: ${allRecords.size}")
+
 
             if (allRecords.isEmpty()) {
                 return Result.success(null)
@@ -149,10 +150,10 @@ class HealthConnectProvider @Inject constructor(
                     )
                 )
                 allHrRecords.addAll(response.records)
-                android.util.Log.d("HealthConnectProvider", "Intraday HR Page $pgCount: ${response.records.size} records")
+
                 hrPageToken = response.pageToken
             } while (hrPageToken != null)
-            android.util.Log.d("HealthConnectProvider", "Intraday HR Total: ${allHrRecords.size} records")
+
 
             // Paginate Steps Records
             val allStepsRecords = mutableListOf<StepsRecord>()
@@ -238,7 +239,7 @@ class HealthConnectProvider @Inject constructor(
             // Search from 12 hours before the day starts (to catch evening sleep)
             val searchStart = Date(startOfDay.time - (12 * 60 * 60 * 1000))
             
-            android.util.Log.d("HealthConnectProvider", "Searching sleep from ${DateUtils.formatForApi(searchStart)} to ${DateUtils.formatForApi(endOfDay)}")
+
             
             val response = healthConnectClient.readRecords(
                 ReadRecordsRequest(
@@ -297,9 +298,8 @@ class HealthConnectProvider @Inject constructor(
                 )
             )
 
-            if (response.records.isEmpty()) {
-                return Result.success(null)
-            }
+            // Removed early return if records.isEmpty()
+            // We want to calculate daily summary (Steps, Calories) even if no specific "Exercise Session" exists.
 
             val activities = response.records.map { record ->
                 val durationMs = record.endTime.toEpochMilli() - record.startTime.toEpochMilli()
@@ -322,13 +322,13 @@ class HealthConnectProvider @Inject constructor(
                     val active = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
                     val total = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
                     
-                    android.util.Log.d("HealthConnectProvider", "Activity: ${record.title} (${record.exerciseType}), Active: $active, Total: $total")
+
                     
                     // Prefer Active, fallback to Total if Active is 0 (some devices only write Total)
                     calories = if (active > 0.1) active else total
                     
                 } catch (e: Exception) {
-                    android.util.Log.e("HealthConnectProvider", "Failed to aggregate calories: ${e.message}")
+
                 }
 
                 // Get title or default
@@ -351,19 +351,66 @@ class HealthConnectProvider @Inject constructor(
                 )
             }
 
-            // Calculate Summary
-            val totalCalories = activities.sumOf { it.calories }
+            // Calculate Summary from Sessions
+            val totalCaloriesFromSessions = activities.sumOf { it.calories }
             val totalActiveMinutes = activities.sumOf { (it.duration / 60000).toInt() }
+
+            // NEW: Fetch Total Steps & Calories for the ENTIRE DAY to populate summary
+            // This is independent of having specific Exercise Sessions
+            var totalDailySteps = 0L
+            var totalDailyCalories = 0.0
+            
+            try {
+                val aggregateResponse = healthConnectClient.aggregate(
+                    androidx.health.connect.client.request.AggregateRequest(
+                        metrics = setOf(
+                            StepsRecord.COUNT_TOTAL,
+                            TotalCaloriesBurnedRecord.ENERGY_TOTAL,
+                            ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL
+                        ),
+                        timeRangeFilter = TimeRangeFilter.between(
+                            startOfDay.toInstant(),
+                            endOfDay.toInstant()
+                        )
+                    )
+                )
+                totalDailySteps = aggregateResponse[StepsRecord.COUNT_TOTAL] ?: 0L
+                val totalCals = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
+                val activeCals = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
+                totalDailyCalories = if (totalCals > 0) totalCals else activeCals
+                
+
+                
+                // Fallback for Steps if aggregation returns 0
+                if (totalDailySteps == 0L) {
+                     val fallbackResponse = healthConnectClient.readRecords(
+                        ReadRecordsRequest(
+                            StepsRecord::class,
+                            timeRangeFilter = TimeRangeFilter.between(
+                                startOfDay.toInstant(),
+                                endOfDay.toInstant()
+                            )
+                        )
+                    )
+                    totalDailySteps = fallbackResponse.records.sumOf { it.count }
+
+                }
+            } catch (e: Exception) {
+
+            }
+            
+            // If totalDailyCalories is still 0 (agg failed), fallback to sum of sessions or 0
+            if (totalDailyCalories <= 0.1) totalDailyCalories = totalCaloriesFromSessions.toDouble()
 
             return Result.success(
                 ActivityData(
                     date = date,
                     activities = activities,
                     summary = ActivitySummary(
-                        steps = 0, // Filled by getStepsData separately usually
+                        steps = totalDailySteps.toInt(),
                         distance = 0.0,
                         floors = 0,
-                        caloriesOut = totalCalories,
+                        caloriesOut = totalDailyCalories.toInt(),
                         activeMinutes = totalActiveMinutes,
                         sedentaryMinutes = 0
                     )
@@ -453,5 +500,61 @@ class HealthConnectProvider @Inject constructor(
         }
     }
 
+    override suspend fun getHrvData(date: Date): Result<List<HrvRecord>> {
+        try {
+            val startOfDay = DateUtils.getStartOfDay(date)
+            val endOfDay = DateUtils.getEndOfDay(date)
+
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    HeartRateVariabilityRmssdRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startOfDay.toInstant(),
+                        endOfDay.toInstant()
+                    )
+                )
+            )
+            
+            val hrvRecords = response.records.map { record ->
+                HrvRecord(
+                    time = Date.from(record.time),
+                    rmssd = record.heartRateVariabilityMillis
+                )
+            }.sortedBy { it.time }
+            
+            return Result.success(hrvRecords)
+
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
     private fun Date.toInstant(): Instant = this.toInstant()
+
+    override suspend fun getHrvHistory(startDate: Date, endDate: Date): Result<List<HrvRecord>> {
+        // Health Connect simply queries by range
+        try {
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    HeartRateVariabilityRmssdRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startDate.toInstant(),
+                        endDate.toInstant()
+                    )
+                )
+            )
+            
+            val hrvRecords = response.records.map { record ->
+                HrvRecord(
+                    time = Date.from(record.time),
+                    rmssd = record.heartRateVariabilityMillis
+                )
+            }.sortedBy { it.time }
+            
+            return Result.success(hrvRecords)
+
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
 }
