@@ -1,0 +1,2 @@
+Fix: Dynamic Heart Rate Chart Colors (Now more vivid at lower heart rates)
+Improvement: Removed debug logs for better performance
