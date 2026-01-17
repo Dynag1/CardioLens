@@ -189,6 +189,59 @@ class FitbitHealthProvider @Inject constructor(
         }
     }
 
+    override suspend fun getHrvData(date: Date): Result<List<HrvRecord>> {
+        try {
+            val dateString = DateUtils.formatForApi(date)
+            // Fitbit Web API usually only returns *Daily* HRV summary via this endpoint -> One point per day.
+            val response = apiClient.fitbitApi.getHrv(dateString)
+
+            if (response.isSuccessful && response.body() != null) {
+                val hrvData = response.body()!!.hrv
+                val records = hrvData.map { log ->
+                    // Set time to noon to represent the day, or start of day?
+                    // Users want a graph. If we only have ONE point, the graph will be a flat line or single dot.
+                    // But for "24h every 10 mins" request, Health Connect might provide it.
+                    // Fitbit will just provide 1 point here.
+                    val logDate = DateUtils.parseApiDate(log.dateTime) ?: date
+                    HrvRecord(logDate, log.value.dailyRmssd)
+                }
+                return Result.success(records)
+            }
+            // 404 or empty often means no HRV device
+            return Result.success(emptyList())
+
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getHrvHistory(startDate: Date, endDate: Date): Result<List<HrvRecord>> {
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            // Endpoint: /1/user/-/hrv/date/[date]/[date].json or /1/user/-/hrv/date/[start]/[end].json
+            // We need to add this to ApiService.
+            
+            // Wait, does ApiService have range support? 
+            // Previous edit showed: getHrv(date) -> /1/user/-/hrv/date/{date}/all.json
+            // We need: /1/user/-/hrv/date/{base-date}/{end-date}.json
+            
+            val response = apiClient.fitbitApi.getHrvRange(startStr, endStr) 
+            
+            if (response.isSuccessful && response.body() != null) {
+                val hrvData = response.body()!!.hrv
+                val records = hrvData.map { log ->
+                    val logDate = DateUtils.parseApiDate(log.dateTime) ?: startDate
+                    HrvRecord(logDate, log.value.dailyRmssd)
+                }.sortedBy { it.time }
+                return Result.success(records)
+            }
+             return Result.success(emptyList()) // Fail soft
+        } catch (e: Exception) {
+             return Result.failure(e)
+        }
+    }
+
     // ================= MAPPING HELPER FUNCTIONS (Copied from HealthRepository) =================
     
     private fun mapHeartRateResponse(response: HeartRateResponse): HeartRateData? {

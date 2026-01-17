@@ -259,3 +259,23 @@ data class TokenResponse(
     @SerializedName("user_id")
     val userId: String
 )
+
+// HRV API Response
+data class HrvResponse(
+    @SerializedName("hrv")
+    val hrv: List<HrvLog>
+)
+
+data class HrvLog(
+    @SerializedName("dateTime")
+    val dateTime: String,
+    @SerializedName("value")
+    val value: HrvValue
+)
+
+data class HrvValue(
+    @SerializedName("dailyRmssd")
+    val dailyRmssd: Double,
+    @SerializedName("deepRmssd")
+    val deepRmssd: Double?
+)

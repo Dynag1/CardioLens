@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.res.stringResource
 import com.cardio.fitbit.R
+import androidx.compose.material.icons.filled.CalendarToday
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,7 +28,10 @@ fun SettingsDialog(
     syncInterval: Int,
     onSyncIntervalChange: (Int) -> Unit,
     currentLanguage: String,
-    onLanguageChange: (String) -> Unit
+
+    onLanguageChange: (String) -> Unit,
+    dateOfBirthState: Long?,
+    onDateOfBirthChange: (Long) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -150,12 +154,12 @@ fun SettingsDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
-                                    .clickable { onLanguageChange(code) }, // Make the whole row clickable
+                                    .clickable { onLanguageChange(code) },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
                                     selected = currentLanguage == code,
-                                    onClick = { onLanguageChange(code) } // RadioButton already handles click, butRow click is better UX
+                                    onClick = { onLanguageChange(code) }
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -164,6 +168,60 @@ fun SettingsDialog(
                                     modifier = Modifier.weight(1f)
                                 )
                             }
+                        }
+                    }
+                }
+                
+                Divider()
+                
+                // Date of Birth Selector
+                Column {
+                    Text("Date de naissance", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    val dateOfBirth = dateOfBirthState // Renamed from parameter
+                    val displayText = if (dateOfBirth != null && dateOfBirth > 0) {
+                         com.cardio.fitbit.utils.DateUtils.formatForDisplay(java.util.Date(dateOfBirth))
+                    } else {
+                        "Non définie"
+                    }
+                    
+                    var showDatePicker by remember { mutableStateOf(false) }
+
+                    OutlinedButton(
+                        onClick = { showDatePicker = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(androidx.compose.material.icons.Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(displayText)
+                    }
+                    
+                    if (showDatePicker) {
+                        val datePickerState = rememberDatePickerState(
+                            initialSelectedDateMillis = if (dateOfBirth != null && dateOfBirth > 0) dateOfBirth else null,
+                            yearRange = 1900..java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                        )
+                        
+                        DatePickerDialog(
+                            onDismissRequest = { showDatePicker = false },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        datePickerState.selectedDateMillis?.let { onDateOfBirthChange(it) }
+                                        showDatePicker = false
+                                    }
+                                ) {
+                                    Text("OK")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showDatePicker = false }) {
+                                    Text("Annuler")
+                                }
+                            }
+                        ) {
+                            DatePicker(state = datePickerState)
                         }
                     }
                 }

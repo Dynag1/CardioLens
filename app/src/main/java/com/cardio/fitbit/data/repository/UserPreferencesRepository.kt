@@ -37,6 +37,7 @@ class UserPreferencesRepository @Inject constructor(
         
         val USE_HEALTH_CONNECT = booleanPreferencesKey("use_health_connect")
         val LAST_SYNC_TIMESTAMP = androidx.datastore.preferences.core.longPreferencesKey("last_sync_timestamp")
+        val DATE_OF_BIRTH = androidx.datastore.preferences.core.longPreferencesKey("date_of_birth")
     }
 
     val highHrThreshold: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -162,6 +163,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setLastSyncTimestamp(timestamp: Long) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.LAST_SYNC_TIMESTAMP] = timestamp
+        }
+    }
+
+    // Dynamic HR Zones Preferences
+    val dateOfBirth: Flow<Long?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.DATE_OF_BIRTH]
+    }
+
+    suspend fun setDateOfBirth(timestamp: Long) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DATE_OF_BIRTH] = timestamp
         }
     }
 }

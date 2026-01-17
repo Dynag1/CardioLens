@@ -131,6 +131,26 @@ fun TrendsChart(
                 }
             }
 
+            // 4. HRV (Red/Pink)
+            if (type == TrendsChartType.HRV || type == TrendsChartType.COMBINED) {
+                val hrvEntries = data.mapIndexedNotNull { index, point ->
+                    point.hrv?.let { Entry(index.toFloat(), it.toFloat()) }
+                }
+                if (hrvEntries.isNotEmpty()) {
+                    val hrvSet = LineDataSet(hrvEntries, "HRV (RMSSD)").apply {
+                        color = Color.parseColor("#E91E63") // Pink
+                        setCircleColor(Color.parseColor("#E91E63"))
+                        lineWidth = 2f
+                        circleRadius = 4f
+                        setDrawCircleHole(false)
+                        setDrawValues(true)
+                        valueTextSize = 10f
+                        mode = LineDataSet.Mode.CUBIC_BEZIER
+                    }
+                    lineData.addDataSet(hrvSet)
+                }
+            }
+
             chart.data = lineData
             
             // Adjust Y Axis to fit data comfortably
@@ -147,5 +167,5 @@ fun TrendsChart(
 }
 
 enum class TrendsChartType {
-    NIGHT, DAY, AVERAGE, COMBINED
+    NIGHT, DAY, AVERAGE, HRV, COMBINED
 }

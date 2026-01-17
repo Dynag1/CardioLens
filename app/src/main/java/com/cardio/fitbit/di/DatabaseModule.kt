@@ -45,4 +45,19 @@ object DatabaseModule {
     fun provideActivityDataDao(database: AppDatabase): ActivityDataDao {
         return database.activityDataDao()
     }
+
+    @Provides
+    fun provideHrvDataDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.HrvDataDao {
+        return database.hrvDataDao()
+    }
+
+    @Provides
+    fun provideHeartRateDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.HeartRateDao {
+        return database.heartRateDao()
+    }
+
+    @Provides
+    fun provideStepsDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.StepsDao {
+        return database.stepsDao()
+    }
 }

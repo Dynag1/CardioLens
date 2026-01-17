@@ -20,7 +20,8 @@ data class TrendPoint(
     val date: Date,
     val rhrNight: Int?,
     val rhrDay: Int?,
-    val rhrAvg: Int?
+    val rhrAvg: Int?,
+    val hrv: Int? // Daily RMSSD
 )
 
 sealed class TrendsUiState {
@@ -81,16 +82,7 @@ class TrendsViewModel @Inject constructor(
         var sleep = sleepResult.getOrNull() ?: emptyList()
         var activity = activityResult.getOrNull()
 
-        // 2. Auto-Recovery: If critical data (intraday) is missing, force refresh
-        if (intraday.isEmpty()) {
-            intradayResult = healthRepository.getIntradayData(date, forceRefresh = true)
-            sleepResult = healthRepository.getSleepData(date, forceRefresh = true)
-            activityResult = healthRepository.getActivityData(date, forceRefresh = true)
-            
-            intraday = intradayResult.getOrNull()?.minuteData ?: emptyList()
-            sleep = sleepResult.getOrNull() ?: emptyList()
-            activity = activityResult.getOrNull()
-        }
+
 
         // 2b. Merge "Next Day" sleep starting today (Fitbit fix for Day RHR exclusion)
         val cal = Calendar.getInstance()
@@ -105,7 +97,7 @@ class TrendsViewModel @Inject constructor(
         sleep = (sleep + extraSleep).distinctBy { it.startTime.time }
 
         if (intraday.isEmpty()) {
-            return TrendPoint(date, null, null, null)
+            return TrendPoint(date, null, null, null, null)
         }
 
         // --- CALCULATION LOGIC (Copied/Adapted from DashboardViewModel) ---
@@ -258,6 +250,18 @@ class TrendsViewModel @Inject constructor(
             else -> null
         }
 
-        return TrendPoint(date, rhrNight, rhrDay, rhrAvg)
+        // 7. Fetch HRV Data
+        var hrvValue: Int? = null
+        try {
+            val hrvResult = healthRepository.getHrvData(date)
+            val hrvRecords = hrvResult.getOrNull() ?: emptyList()
+            if (hrvRecords.isNotEmpty()) {
+                hrvValue = hrvRecords.map { it.rmssd }.average().toInt()
+            }
+        } catch (e: Exception) {
+            // Ignore failure
+        }
+
+        return TrendPoint(date, rhrNight, rhrDay, rhrAvg, hrvValue)
     }
 }

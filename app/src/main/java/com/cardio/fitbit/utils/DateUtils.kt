@@ -87,6 +87,16 @@ object DateUtils {
     }
 
     /**
+     * Get date N days ago from reference date
+     */
+    fun getDaysAgo(days: Int, refDate: Date): Date {
+        val calendar = Calendar.getInstance()
+        calendar.time = refDate
+        calendar.add(Calendar.DAY_OF_YEAR, -days)
+        return calendar.time
+    }
+
+    /**
      * Get start of day
      */
     fun getStartOfDay(date: Date): Date {
@@ -168,5 +178,20 @@ object DateUtils {
         }
         
         return null
+    }
+    fun getAge(birthDate: Date, currentDate: Date = Date()): Int {
+        val dobCal = Calendar.getInstance()
+        dobCal.time = birthDate
+        
+        val nowCal = Calendar.getInstance()
+        nowCal.time = currentDate
+        
+        var age = nowCal.get(Calendar.YEAR) - dobCal.get(Calendar.YEAR)
+        
+        if (nowCal.get(Calendar.DAY_OF_YEAR) < dobCal.get(Calendar.DAY_OF_YEAR)) {
+            age--
+        }
+        
+        return age.coerceAtLeast(0)
     }
 }

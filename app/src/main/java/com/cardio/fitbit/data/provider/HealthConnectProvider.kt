@@ -28,7 +28,8 @@ class HealthConnectProvider @Inject constructor(
             HealthPermission.getReadPermission(SleepSessionRecord::class),
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
-            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
         )
     }
 
@@ -499,5 +500,61 @@ class HealthConnectProvider @Inject constructor(
         }
     }
 
+    override suspend fun getHrvData(date: Date): Result<List<HrvRecord>> {
+        try {
+            val startOfDay = DateUtils.getStartOfDay(date)
+            val endOfDay = DateUtils.getEndOfDay(date)
+
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    HeartRateVariabilityRmssdRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startOfDay.toInstant(),
+                        endOfDay.toInstant()
+                    )
+                )
+            )
+            
+            val hrvRecords = response.records.map { record ->
+                HrvRecord(
+                    time = Date.from(record.time),
+                    rmssd = record.heartRateVariabilityMillis
+                )
+            }.sortedBy { it.time }
+            
+            return Result.success(hrvRecords)
+
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
     private fun Date.toInstant(): Instant = this.toInstant()
+
+    override suspend fun getHrvHistory(startDate: Date, endDate: Date): Result<List<HrvRecord>> {
+        // Health Connect simply queries by range
+        try {
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    HeartRateVariabilityRmssdRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startDate.toInstant(),
+                        endDate.toInstant()
+                    )
+                )
+            )
+            
+            val hrvRecords = response.records.map { record ->
+                HrvRecord(
+                    time = Date.from(record.time),
+                    rmssd = record.heartRateVariabilityMillis
+                )
+            }.sortedBy { it.time }
+            
+            return Result.success(hrvRecords)
+
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
 }
