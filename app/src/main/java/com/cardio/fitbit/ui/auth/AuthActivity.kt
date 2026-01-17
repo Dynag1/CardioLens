@@ -3,7 +3,7 @@ package com.cardio.fitbit.ui.auth
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
+
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
 import androidx.compose.ui.Modifier
@@ -52,19 +52,19 @@ class AuthActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         val uri = intent?.data
-        Log.d("CardioAuth", "handleIntent called with URI: $uri")
+
         
         if (uri != null && uri.scheme == "cardioapp") {
             val host = uri.host
             if (host == "fitbit-auth" || host == "google-auth") {
                 val code = uri.getQueryParameter("code")
                 val error = uri.getQueryParameter("error")
-                Log.d("CardioAuth", "Received code: ${code?.take(10)}..., error: $error")
+
 
                 when {
                     code != null -> {
                         // Authorization successful, exchange code for token
-                        Log.d("CardioAuth", "Starting token exchange...")
+
                         lifecycleScope.launch {
                             try {
                                 val result = if (host == "google-auth") {
@@ -73,10 +73,10 @@ class AuthActivity : ComponentActivity() {
                                     viewModel.handleAuthorizationCode(code)
                                 }
                                 
-                                Log.d("CardioAuth", "Token exchange result: $result")
+
                                 navigateToMain()
                             } catch (e: Exception) {
-                                Log.e("CardioAuth", "Token exchange failed", e)
+
                                 runOnUiThread {
                                     android.widget.Toast.makeText(
                                         this@AuthActivity, 
@@ -90,7 +90,7 @@ class AuthActivity : ComponentActivity() {
                     }
                     error != null -> {
                         // Authorization failed
-                        Log.e("CardioAuth", "OAuth error: $error")
+
                          runOnUiThread {
                             android.widget.Toast.makeText(
                                 this@AuthActivity, 
@@ -101,16 +101,16 @@ class AuthActivity : ComponentActivity() {
                         navigateToMain()
                     }
                     else -> {
-                        Log.w("CardioAuth", "No code or error in callback")
+
                         navigateToMain()
                     }
                 }
             } else {
-                Log.w("CardioAuth", "Invalid/Unknown host: $host")
+
                 navigateToMain()
             }
         } else {
-            Log.w("CardioAuth", "Invalid URI scheme or null intent")
+
             navigateToMain()
         }
     }

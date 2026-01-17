@@ -57,47 +57,6 @@ Si vous utilisez Health Connect (bêta) :
 - Assurez-vous d'avoir l'application Google Fit ou une autre source compatible installée.
 - Accordez les permissions de lecture dans les paramètres Android.
 
-## 🚀 Installation & Compilation
-
-### Cloner et Ouvrir
-Le projet est un projet Android Studio standard.
-```bash
-git clone <url-du-repo>
-```
-
-### Modes de Compilation
-Via Android Studio ou en ligne de commande :
-
-#### Debug
-```bash
-./gradlew installDebug
-```
-L'APK sera installé directement sur votre appareil connecté.
-
-#### Release
-```bash
-./gradlew assembleRelease
-```
-L'APK signé sera dans `app/build/outputs/apk/release/`.
-
-## 🏗️ Structure du Projet
-
-```
-app/src/main/java/com/cardio/fitbit/
-├── auth/          # Gestion OAuth Fitbit & PKCE
-├── data/
-│   ├── api/       # Enpoints Retrofit
-│   ├── local/     # Base de données Room (CacheEntities, DAOs)
-│   ├── models/    # Data Classes (HeartRate, Steps, Sleep...)
-│   ├── provider/  # Abstraction (FitbitProvider, HealthConnectProvider)
-│   └── repository/# HealthRepository (Single Source of Truth)
-├── di/            # Modules Hilt (AppModule, DatabaseModule)
-├── ui/
-│   ├── components/# Widgets UI (Charts, Cards, Headers)
-│   ├── screens/   # Dashboard, Trends, Login, Welcome
-│   └── theme/     # Couleurs, Typographie, Shapes
-└── utils/         # Extensions et Formatteurs de dates
-```
 
 ## 🔒 Sécurité & Vie Privée
 

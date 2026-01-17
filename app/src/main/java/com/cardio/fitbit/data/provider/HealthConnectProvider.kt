@@ -38,7 +38,7 @@ class HealthConnectProvider @Inject constructor(
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
             
-            android.util.Log.d("HealthConnectProvider", "=== Loading Heart Rate for ${DateUtils.formatForApi(date)} ===")
+
             
             // Paginate to get all records
             val allRecords = mutableListOf<HeartRateRecord>()
@@ -63,7 +63,7 @@ class HealthConnectProvider @Inject constructor(
                 pageToken = response.pageToken
             } while (pageToken != null)
             
-            android.util.Log.d("HealthConnectProvider", "Total pages: $pageCount, Total records: ${allRecords.size}")
+
 
             if (allRecords.isEmpty()) {
                 return Result.success(null)
@@ -150,10 +150,10 @@ class HealthConnectProvider @Inject constructor(
                     )
                 )
                 allHrRecords.addAll(response.records)
-                android.util.Log.d("HealthConnectProvider", "Intraday HR Page $pgCount: ${response.records.size} records")
+
                 hrPageToken = response.pageToken
             } while (hrPageToken != null)
-            android.util.Log.d("HealthConnectProvider", "Intraday HR Total: ${allHrRecords.size} records")
+
 
             // Paginate Steps Records
             val allStepsRecords = mutableListOf<StepsRecord>()
@@ -239,7 +239,7 @@ class HealthConnectProvider @Inject constructor(
             // Search from 12 hours before the day starts (to catch evening sleep)
             val searchStart = Date(startOfDay.time - (12 * 60 * 60 * 1000))
             
-            android.util.Log.d("HealthConnectProvider", "Searching sleep from ${DateUtils.formatForApi(searchStart)} to ${DateUtils.formatForApi(endOfDay)}")
+
             
             val response = healthConnectClient.readRecords(
                 ReadRecordsRequest(
@@ -322,13 +322,13 @@ class HealthConnectProvider @Inject constructor(
                     val active = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
                     val total = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
                     
-                    android.util.Log.d("HealthConnectProvider", "Activity: ${record.title} (${record.exerciseType}), Active: $active, Total: $total")
+
                     
                     // Prefer Active, fallback to Total if Active is 0 (some devices only write Total)
                     calories = if (active > 0.1) active else total
                     
                 } catch (e: Exception) {
-                    android.util.Log.e("HealthConnectProvider", "Failed to aggregate calories: ${e.message}")
+
                 }
 
                 // Get title or default
@@ -379,7 +379,7 @@ class HealthConnectProvider @Inject constructor(
                 val activeCals = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
                 totalDailyCalories = if (totalCals > 0) totalCals else activeCals
                 
-                android.util.Log.d("HealthConnectProvider", "Total Daily: Steps=$totalDailySteps, Cals=$totalDailyCalories")
+
                 
                 // Fallback for Steps if aggregation returns 0
                 if (totalDailySteps == 0L) {
@@ -393,10 +393,10 @@ class HealthConnectProvider @Inject constructor(
                         )
                     )
                     totalDailySteps = fallbackResponse.records.sumOf { it.count }
-                    android.util.Log.d("HealthConnectProvider", "Total Daily Steps (Fallback): $totalDailySteps")
+
                 }
             } catch (e: Exception) {
-                android.util.Log.e("HealthConnectProvider", "Failed to aggregate daily totals", e)
+
             }
             
             // If totalDailyCalories is still 0 (agg failed), fallback to sum of sessions or 0

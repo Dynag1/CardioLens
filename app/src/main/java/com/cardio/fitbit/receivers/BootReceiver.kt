@@ -24,7 +24,7 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            android.util.Log.d("BootReceiver", "Boot completed, rescheduling sync...")
+
             
             // GoAsync if needed, but for WorkManager enqueue it's usually fast enough.
             // However, we need to read DataStore which is suspend.
@@ -35,7 +35,7 @@ class BootReceiver : BroadcastReceiver() {
                     val intervalMinutes = userPreferencesRepository.syncIntervalMinutes.first()
                     scheduleSync(context, intervalMinutes)
                 } catch (e: Exception) {
-                    android.util.Log.e("BootReceiver", "Failed to reschedule sync on boot", e)
+
                 } finally {
                     pendingResult.finish()
                 }
@@ -46,7 +46,7 @@ class BootReceiver : BroadcastReceiver() {
     private fun scheduleSync(context: Context, intervalMinutes: Int) {
         // If interval is 0, don't schedule sync
         if (intervalMinutes == 0) {
-            android.util.Log.d("BootReceiver", "Sync disabled (interval set to 'Never'), skipping scheduling")
+
             return
         }
         
@@ -54,7 +54,7 @@ class BootReceiver : BroadcastReceiver() {
         val actualInterval = kotlin.math.max(intervalMinutes, 15)
         
         if (intervalMinutes < 15) {
-            android.util.Log.w("BootReceiver", "Sync interval set to $intervalMinutes min, but minimum is 15 min. Using 15 min.")
+
         }
         
         val constraints = androidx.work.Constraints.Builder()
@@ -76,6 +76,6 @@ class BootReceiver : BroadcastReceiver() {
             workRequest
         )
         
-        android.util.Log.d("BootReceiver", "Periodic sync scheduled on boot: every $actualInterval minutes")
+
     }
 }

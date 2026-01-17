@@ -415,7 +415,7 @@ fun DashboardScreen(
                                                             requestPermissions.launch(healthConnectPermissions)
                                                         } catch (e: Exception) {
                                                             android.widget.Toast.makeText(context, "Erreur lors du lancement : ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-                                                            android.util.Log.e("DashboardScreen", "Failed to launch permissions", e)
+
                                                         }
                                                     } else {
                                                         val message = when(availability) {

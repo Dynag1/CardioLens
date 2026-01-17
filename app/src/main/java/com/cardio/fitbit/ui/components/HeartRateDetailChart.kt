@@ -234,7 +234,7 @@ fun HeartRateDetailChart(
                     else -> aggregatedData     // Normal view: use 5-minute aggregated data
                 }
                 
-                android.util.Log.d("HeartRateChart", "Zoom level: $scaleX, using ${if (activeList == minuteData) "minute" else "aggregated"} data (${activeList.size} points)")
+
                 
                 val combinedData = CombinedData()
 
