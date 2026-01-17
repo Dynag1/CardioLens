@@ -11,6 +11,9 @@ interface MoodDao {
     @Query("SELECT * FROM mood_entries WHERE date = :date")
     suspend fun getByDate(date: String): MoodEntry?
 
+    @Query("SELECT * FROM mood_entries WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
+    suspend fun getBetweenDates(startDate: String, endDate: String): List<MoodEntry>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: MoodEntry)
 }

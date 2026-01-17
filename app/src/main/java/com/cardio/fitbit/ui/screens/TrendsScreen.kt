@@ -118,6 +118,50 @@ fun TrendsScreen(
                             )
                         }
 
+                        // Mood History
+                        if (state.data.any { it.moodRating != null }) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Humeur",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF4CAF50) // Green title
+                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        val dateFormat = java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault())
+                                        state.data.forEach { point ->
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                val emoji = when (point.moodRating) {
+                                                    1 -> "😫"
+                                                    2 -> "😞"
+                                                    3 -> "😐"
+                                                    4 -> "🙂"
+                                                    5 -> "😀"
+                                                    else -> "-"
+                                                }
+                                                Text(text = emoji, style = MaterialTheme.typography.titleLarge)
+                                                Spacer(Modifier.height(4.dp))
+                                                Text(
+                                                    text = dateFormat.format(point.date),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Color.Gray
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Card 1: Night RHR
                         Card(
                             modifier = Modifier.fillMaxWidth().height(300.dp),

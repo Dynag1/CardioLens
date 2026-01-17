@@ -64,10 +64,10 @@ fun MoodItem(
 
     Text(
         text = emoji,
-        fontSize = 24.sp,
+        fontSize = 15.sp,
         modifier = Modifier
             .clickable { onSelect(rating) }
-            .padding(4.dp)
+            .padding(8.dp)
             .graphicsLayer(
                 scaleX = scale,
                 scaleY = scale,
