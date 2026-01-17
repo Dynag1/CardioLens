@@ -224,9 +224,7 @@ class TrendsViewModel @Inject constructor(
         }
 
         val rhrNight = if (nightHeartRates.isNotEmpty()) {
-            val sorted = nightHeartRates.sorted()
-            val mid = sorted.size / 2
-            if (sorted.size % 2 == 0) (sorted[mid-1] + sorted[mid]) / 2 else sorted[mid]
+            nightHeartRates.average().toInt()
         } else null
 
         // 4. Calculate Day RHR (Sliding Window on Valid Minutes)
@@ -267,11 +265,11 @@ class TrendsViewModel @Inject constructor(
             }
         }
 
-        // 5. Select Resting Baseline (20th Percentile of Valid Windows)
+        // 5. Select Resting Baseline (Median of Valid Windows)
         val rhrDay = if (windowAverages.isNotEmpty()) {
             val sorted = windowAverages.sorted()
-            val percentile20Index = (sorted.size * 0.20).toInt().coerceAtLeast(0).coerceAtMost(sorted.size - 1)
-            sorted[percentile20Index].toInt()
+            val mid = sorted.size / 2
+            if (sorted.size % 2 == 0) ((sorted[mid-1] + sorted[mid]) / 2).toInt() else sorted[mid].toInt()
         } else null
         
         // 6. Calculate Average (Simple average of available metrics)
