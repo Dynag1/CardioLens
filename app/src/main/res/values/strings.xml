@@ -14,7 +14,7 @@
     <string name="fitbit_api_base_url">https://api.fitbit.com/</string>
     
     <!-- OAuth Scopes -->
-    <string name="fitbit_scopes">activity heartrate sleep profile</string>
+    <string name="fitbit_scopes">activity heartrate sleep profile hrv</string>
     
     <!-- UI Strings -->
     <string name="login_title">Welcome to CardioLens</string>

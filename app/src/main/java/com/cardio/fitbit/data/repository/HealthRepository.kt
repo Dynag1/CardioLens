@@ -368,6 +368,105 @@ class HealthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Get HRV history for a date range
+     */
+    suspend fun getHrvHistory(startDate: java.util.Date, endDate: java.util.Date, forceRefresh: Boolean = false): Result<List<com.cardio.fitbit.data.models.HrvRecord>> = withContext(Dispatchers.IO) {
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            
+            // 1. Check cache
+            val cachedList = if (!forceRefresh) hrvDataDao.getBetweenDates(startStr, endStr) else emptyList()
+            val cachedMap = cachedList.associateBy { it.date }
+            
+            // 2. Identify missing dates
+            val calendar = java.util.Calendar.getInstance()
+            calendar.time = startDate
+            val missingDates = mutableListOf<java.util.Date>()
+            
+            while (!calendar.time.after(endDate)) {
+                val dateStr = DateUtils.formatForApi(calendar.time)
+                if (cachedMap[dateStr] == null) {
+                    missingDates.add(calendar.time)
+                }
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            
+            // 3. Fetch Strategy
+            val fetchedData = mutableListOf<com.cardio.fitbit.data.models.HrvRecord>()
+            
+            if (missingDates.isNotEmpty()) {
+                val totalDays = ((endDate.time - startDate.time) / (1000 * 60 * 60 * 24)).toInt() + 1
+                
+                // Fetch full range if significant data missing, otherwise just missing range
+                val fetchStart: java.util.Date
+                val fetchEnd: java.util.Date
+                
+                if (missingDates.size > totalDays / 2) {
+                     fetchStart = startDate
+                     fetchEnd = endDate
+                } else {
+                     fetchStart = missingDates.minOrNull() ?: startDate
+                     fetchEnd = missingDates.maxOrNull() ?: endDate
+                }
+                
+                val result = getProvider().getHrvHistory(fetchStart, fetchEnd)
+                if (result.isSuccess) {
+                     val allRecords = result.getOrNull() ?: emptyList()
+                     fetchedData.addAll(allRecords)
+                     
+                     // Group by Date to Cache
+                     val recordsByDate = allRecords.groupBy { DateUtils.formatForApi(it.time) }
+                     
+                     // Also handle empty days (explicitly cache empty list if provider success but no data for a day?)
+                     // For now, caching what we got.
+                     
+                     val entities = recordsByDate.map { (dateStr, records) ->
+                         com.cardio.fitbit.data.local.entities.HrvDataEntity(
+                             date = dateStr,
+                             data = com.google.gson.Gson().toJson(records),
+                             timestamp = System.currentTimeMillis()
+                         )
+                     }
+                     if (entities.isNotEmpty()) {
+                        hrvDataDao.insertAll(entities)
+                     }
+                } else {
+                    // Soft fail: return partial
+                }
+            }
+            
+            // 4. Reconstruct: Prioritize FETCHED data over CACHED data
+            val finalRecords = mutableListOf<com.cardio.fitbit.data.models.HrvRecord>()
+            
+            // Add all fetched records first (Fresh data)
+            finalRecords.addAll(fetchedData)
+            
+            // Create a set of fetched dates for easy lookup
+            val fetchedDates = fetchedData.map { DateUtils.formatForApi(it.time) }.toSet()
+            
+            // Add cached records ONLY if their date was NOT fetched
+            cachedList.forEach { entity ->
+                 try {
+                     val type = object : com.google.gson.reflect.TypeToken<List<com.cardio.fitbit.data.models.HrvRecord>>() {}.type
+                     val records = com.google.gson.Gson().fromJson<List<com.cardio.fitbit.data.models.HrvRecord>>(entity.data, type)
+                     
+                     records.forEach { record ->
+                         if (!fetchedDates.contains(DateUtils.formatForApi(record.time))) {
+                             finalRecords.add(record)
+                         }
+                     }
+                 } catch (e: Exception) { /* ignore */ }
+            }
+            
+            Result.success(finalRecords.sortedBy { it.time })
+            
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // Keep old signature for compatibility/migration if needed, or remove it.
     // Let's rename the interface method or overload it.
 }

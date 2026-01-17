@@ -47,15 +47,49 @@ class TrendsViewModel @Inject constructor(
             _uiState.value = TrendsUiState.Loading
             try {
                 val calendar = Calendar.getInstance()
-                // Start from today and go back 'days - 1' days (total 'days')
+                val endDate = calendar.time
+                
+                // Calculate Start Date
+                val startCalendar = Calendar.getInstance()
+                startCalendar.add(Calendar.DAY_OF_YEAR, -(days - 1))
+                val startDate = startCalendar.time
+                
+                // Fetch HRV History for the whole range
+                val hrvResult = healthRepository.getHrvHistory(startDate, endDate)
+                val hrvMap = hrvResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.time) }?.toMutableMap() ?: mutableMapOf()
+
+                // HOTFIX: Explicitly fetch Today's HRV using single-day endpoint to ensure consistency with Dashboard
+                // (Range endpoint sometimes returns stale data for current day)
+                try {
+                    val today = Calendar.getInstance().time
+                    val todayStr = DateUtils.formatForApi(today)
+                    // We don't force refresh here to respect Dashboard's cache, but if missing it will fetch single
+                    val todayResult = healthRepository.getHrvData(today)
+                    val todayRecords = todayResult.getOrNull() ?: emptyList()
+                    
+                    if (todayRecords.isNotEmpty()) {
+                        // Aggregate if multiple records (match Dashboard logic)
+                        val avgRmssd = todayRecords.map { it.rmssd }.average()
+                        val syntheticRecord = com.cardio.fitbit.data.models.HrvRecord(
+                            time = todayRecords.first().time, // Use time from first record or just 'today'
+                            rmssd = avgRmssd
+                        )
+                        hrvMap[todayStr] = syntheticRecord
+                    }
+                } catch (e: Exception) {
+                    // Ignore
+                }
+
                 val trendPoints = mutableListOf<TrendPoint>()
                 
                 // Iterate 0 to days-1
                 for (i in 0 until days) {
                     val targetDate = calendar.time
+                    val dateStr = DateUtils.formatForApi(targetDate)
+                    val hrvValue = hrvMap[dateStr]?.rmssd?.toInt()
                     
-                    // Fetch data for this day
-                    val rhrValues = calculateDailyRHR(targetDate)
+                    // Fetch data for this day (passing HRV)
+                    val rhrValues = calculateDailyRHR(targetDate, hrvValue)
                     trendPoints.add(rhrValues)
                     
                     // Move back one day
@@ -71,7 +105,7 @@ class TrendsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun calculateDailyRHR(date: Date): TrendPoint {
+    private suspend fun calculateDailyRHR(date: Date, hrvValue: Int?): TrendPoint {
         // 1. Load Data
         // Initial attempt (uses cache if available)
         var intradayResult = healthRepository.getIntradayData(date) 
@@ -81,8 +115,6 @@ class TrendsViewModel @Inject constructor(
         var intraday = intradayResult.getOrNull()?.minuteData ?: emptyList()
         var sleep = sleepResult.getOrNull() ?: emptyList()
         var activity = activityResult.getOrNull()
-
-
 
         // 2b. Merge "Next Day" sleep starting today (Fitbit fix for Day RHR exclusion)
         val cal = Calendar.getInstance()
@@ -97,7 +129,7 @@ class TrendsViewModel @Inject constructor(
         sleep = (sleep + extraSleep).distinctBy { it.startTime.time }
 
         if (intraday.isEmpty()) {
-            return TrendPoint(date, null, null, null, null)
+            return TrendPoint(date, null, null, null, hrvValue)
         }
 
         // --- CALCULATION LOGIC (Copied/Adapted from DashboardViewModel) ---
@@ -248,18 +280,6 @@ class TrendsViewModel @Inject constructor(
             rhrNight != null -> rhrNight
             rhrDay != null -> rhrDay
             else -> null
-        }
-
-        // 7. Fetch HRV Data
-        var hrvValue: Int? = null
-        try {
-            val hrvResult = healthRepository.getHrvData(date)
-            val hrvRecords = hrvResult.getOrNull() ?: emptyList()
-            if (hrvRecords.isNotEmpty()) {
-                hrvValue = hrvRecords.map { it.rmssd }.average().toInt()
-            }
-        } catch (e: Exception) {
-            // Ignore failure
         }
 
         return TrendPoint(date, rhrNight, rhrDay, rhrAvg, hrvValue)
