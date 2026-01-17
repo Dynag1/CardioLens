@@ -1,0 +1,2 @@
+- Improved: Applied scientific RHR calculation (Day Median, Night Average) to Trends screen.
+- Fixed: Historical RHR trends now match the Dashboard's improved accuracy.

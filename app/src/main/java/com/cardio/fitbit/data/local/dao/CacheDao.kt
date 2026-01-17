@@ -49,8 +49,14 @@ interface HrvDataDao {
     @Query("SELECT * FROM hrv_data WHERE date = :date")
     suspend fun getByDate(date: String): com.cardio.fitbit.data.local.entities.HrvDataEntity?
     
+    @Query("SELECT * FROM hrv_data WHERE date BETWEEN :startDate AND :endDate")
+    suspend fun getBetweenDates(startDate: String, endDate: String): List<com.cardio.fitbit.data.local.entities.HrvDataEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: com.cardio.fitbit.data.local.entities.HrvDataEntity)
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(data: List<com.cardio.fitbit.data.local.entities.HrvDataEntity>)
     
     @Query("DELETE FROM hrv_data WHERE timestamp < :expiryTime")
     suspend fun deleteExpired(expiryTime: Long)

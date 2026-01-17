@@ -1,0 +1,4 @@
+- Fixed: "Invalid Scope" error during login by removing unsupported permissions.
+- Fixed: "Today" HRV value in Trends now matches Dashboard (average calculation).
+- New: Added Heart Rate Variability (HRV) historical trends.
+- Improved: Heart rate chart colors are now more dynamic.

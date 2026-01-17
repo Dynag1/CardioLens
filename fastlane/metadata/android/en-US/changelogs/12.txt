@@ -1,0 +1,4 @@
+- Improved: "Resting Heart Rate" calculation is now more scientific.
+  - Night: Uses average of sleep heart rate.
+  - Day: Uses Median of resting periods (less sensitive to outliers/naps).
+- Improved: F-Droid compatibility (License added).

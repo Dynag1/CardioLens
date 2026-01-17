@@ -313,9 +313,7 @@ class DashboardViewModel @Inject constructor(
              }
 
              _rhrNight.value = if (nightHeartRates.isNotEmpty()) {
-                 val sorted = nightHeartRates.sorted()
-                 val mid = sorted.size / 2
-                 if (sorted.size % 2 == 0) (sorted[mid-1] + sorted[mid]) / 2 else sorted[mid]
+                 nightHeartRates.average().toInt()
              } else null
 
              // 4. Calculate Day RHR (Sliding Window on Valid Minutes)
@@ -356,13 +354,12 @@ class DashboardViewModel @Inject constructor(
                  }
              }
 
-             // 5. Select Resting Baseline (20th Percentile of Valid Windows)
-             // Scientific Method: Lowest 20% represents true resting state
-             // Balanced approach between strict minimum and overall average
+             // 5. Select Resting Baseline (Median of Valid Windows)
+             // Scientific Method: Median represents typical resting state, filtering low outliers (naps)
              _rhrDay.value = if (windowAverages.isNotEmpty()) {
                  val sorted = windowAverages.sorted()
-                 val percentile20Index = (sorted.size * 0.20).toInt().coerceAtLeast(0).coerceAtMost(sorted.size - 1)
-                 sorted[percentile20Index].toInt()
+                 val mid = sorted.size / 2
+                 if (sorted.size % 2 == 0) ((sorted[mid-1] + sorted[mid]) / 2).toInt() else sorted[mid].toInt()
              } else null
 
               // Aggregation & Min/Max
