@@ -119,3 +119,14 @@ data class UserProfile(
     val height: Double?,
     val weight: Double?
 ) : Parcelable
+
+/**
+ * SpO2 Data Models
+ */
+@Parcelize
+data class SpO2Data(
+    val date: Date,
+    val avg: Double,
+    val min: Double,
+    val max: Double
+) : Parcelable

@@ -219,12 +219,6 @@ class FitbitHealthProvider @Inject constructor(
         try {
             val startStr = DateUtils.formatForApi(startDate)
             val endStr = DateUtils.formatForApi(endDate)
-            // Endpoint: /1/user/-/hrv/date/[date]/[date].json or /1/user/-/hrv/date/[start]/[end].json
-            // We need to add this to ApiService.
-            
-            // Wait, does ApiService have range support? 
-            // Previous edit showed: getHrv(date) -> /1/user/-/hrv/date/{date}/all.json
-            // We need: /1/user/-/hrv/date/{base-date}/{end-date}.json
             
             val response = apiClient.fitbitApi.getHrvRange(startStr, endStr) 
             
@@ -239,6 +233,61 @@ class FitbitHealthProvider @Inject constructor(
              return Result.success(emptyList()) // Fail soft
         } catch (e: Exception) {
              return Result.failure(e)
+        }
+    }
+
+    override suspend fun getSpO2Data(date: Date): Result<SpO2Data?> {
+        try {
+            val dateString = DateUtils.formatForApi(date)
+            // Fitbit SpO2 daily summary
+            val response = apiClient.fitbitApi.getSpO2(dateString)
+
+            if (response.isSuccessful && response.body() != null) {
+                // Usually returns a list, effectively one item per day if requesting single day
+                val logs = response.body()!!.spo2
+                val log = logs.find { it.dateTime == dateString } ?: logs.firstOrNull() ?: return Result.success(null)
+                
+                val spO2Data = SpO2Data(
+                    date = date,
+                    avg = log.value.avg,
+                    min = log.value.min,
+                    max = log.value.max
+                )
+                return Result.success(spO2Data)
+            }
+            if (response.code() == 429) {
+                 return Result.failure(com.cardio.fitbit.data.api.RateLimitException("Limite d'API Fitbit atteinte.", 3600))
+            }
+            return Result.success(null) // Soft fail if not found (e.g. device doesn't support it)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getSpO2History(startDate: Date, endDate: Date): Result<List<SpO2Data>> {
+         try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            
+            val response = apiClient.fitbitApi.getSpO2Range(startStr, endStr)
+            
+            if (response.isSuccessful && response.body() != null) {
+                val logs = response.body()!!.spo2
+                val data = logs.mapNotNull { log ->
+                     DateUtils.parseApiDate(log.dateTime)?.let { date ->
+                         SpO2Data(
+                             date = date,
+                             avg = log.value.avg,
+                             min = log.value.min,
+                             max = log.value.max
+                         )
+                     }
+                }.sortedBy { it.date }
+                return Result.success(data)
+            }
+            return Result.success(emptyList())
+        } catch (e: Exception) {
+            return Result.failure(e)
         }
     }
 

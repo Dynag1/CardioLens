@@ -194,4 +194,15 @@ object DateUtils {
         
         return age.coerceAtLeast(0)
     }
+
+    fun formatDate(date: Date): String {
+        return formatForDisplay(date)
+    }
+
+    fun toStartOfDay(calendar: Calendar) {
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+    }
 }

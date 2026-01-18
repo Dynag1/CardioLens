@@ -19,6 +19,27 @@ class CardioApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         notificationHelper.createNotificationChannel()
+        setupRecurringBackup()
+    }
+
+    private fun setupRecurringBackup() {
+        val constraints = androidx.work.Constraints.Builder()
+            .setRequiresBatteryNotLow(true)
+            .setRequiresDeviceIdle(true) // Run when user is not using device (e.g. at night)
+            .build()
+
+        val backupRequest = androidx.work.PeriodicWorkRequestBuilder<com.cardio.fitbit.workers.AutoBackupWorker>(
+            1, java.util.concurrent.TimeUnit.DAYS
+        )
+            .setConstraints(constraints)
+            .setInitialDelay(2, java.util.concurrent.TimeUnit.HOURS) // Delay first run a bit
+            .build()
+
+        androidx.work.WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "DailyBackup",
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            backupRequest
+        )
     }
 
     override val workManagerConfiguration: Configuration

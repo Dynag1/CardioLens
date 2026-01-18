@@ -21,6 +21,7 @@ sealed class Screen(val route: String) {
     object Trends : Screen("trends")
     object HealthConnectPermissions : Screen("health_connect_permissions")
     object ProviderSelection : Screen("provider_selection")
+    object Backup : Screen("backup")
 }
 
 @Composable
@@ -121,12 +122,23 @@ fun AppNavigation() {
                 },
                 onNavigateToTrends = {
                     navController.navigate(Screen.Trends.route)
+                },
+                onNavigateToBackup = {
+                    navController.navigate(Screen.Backup.route)
                 }
             )
         }
         
         composable(Screen.Trends.route) {
             com.cardio.fitbit.ui.screens.TrendsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Screen.Backup.route) {
+            com.cardio.fitbit.ui.screens.BackupScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

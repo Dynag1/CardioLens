@@ -45,7 +45,13 @@ class DashboardViewModel @Inject constructor(
 
     private val _hrvData = MutableStateFlow<List<HrvRecord>>(emptyList())
     val hrvData: StateFlow<List<HrvRecord>> = _hrvData.asStateFlow()
-    
+
+    private val _spo2Data = MutableStateFlow<SpO2Data?>(null)
+    val spo2Data: StateFlow<SpO2Data?> = _spo2Data.asStateFlow()
+
+    private val _spo2History = MutableStateFlow<List<SpO2Data>>(emptyList())
+    val spo2History: StateFlow<List<SpO2Data>> = _spo2History.asStateFlow()
+        
     // Daily HRV Average (derived from hrvData)
     private val _hrvDailyAverage = MutableStateFlow<Int?>(null)
     val hrvDailyAverage: StateFlow<Int?> = _hrvDailyAverage.asStateFlow()
@@ -59,7 +65,6 @@ class DashboardViewModel @Inject constructor(
     
     // Dynamic HR Zones
     val dateOfBirth = userPreferencesRepository.dateOfBirth
-    
     // Calculate Age and MaxHR
     // We combine the dateOfBirth flow to map it to MaxHR
     val userMaxHr: kotlinx.coroutines.flow.Flow<Int> = dateOfBirth.map { dob: Long? ->
@@ -136,7 +141,10 @@ class DashboardViewModel @Inject constructor(
         _rhrNight.value = null
         _hrvData.value = emptyList()
         _hrvDailyAverage.value = null
+        _hrvDailyAverage.value = null
         _dailyMood.value = null
+        _spo2Data.value = null
+        _spo2History.value = emptyList()
 
         // Only reload date-dependent data
         viewModelScope.launch {
@@ -148,8 +156,10 @@ class DashboardViewModel @Inject constructor(
                     launch { loadSleep(newDate, forceRefresh = false) },
                     launch { loadActivity(newDate, forceRefresh = false) }, 
                     launch { loadIntradayData(newDate, forceRefresh = false) },
+                    launch { loadIntradayData(newDate, forceRefresh = false) },
                     launch { loadHrvData(newDate, forceRefresh = false) },
-                    launch { loadMood(newDate) }
+                    launch { loadMood(newDate) },
+                    launch { loadSpO2(newDate, forceRefresh = false) }
                 )
                 jobs.forEach { it.join() } // Wait for all data
                 computeDerivedMetrics()
@@ -196,8 +206,10 @@ class DashboardViewModel @Inject constructor(
                     launch { loadActivity(selectedDate, forceRefresh) }, 
                     launch { loadActivity(selectedDate, forceRefresh) }, 
                     launch { loadIntradayData(selectedDate, forceRefresh) },
+                    launch { loadIntradayData(selectedDate, forceRefresh) },
                     launch { loadHrvData(selectedDate, forceRefresh) },
-                    launch { loadMood(selectedDate) }
+                    launch { loadMood(selectedDate) },
+                    launch { loadSpO2(selectedDate, forceRefresh) }
                 )
                 jobs.forEach { it.join() }
                 
@@ -479,6 +491,21 @@ class DashboardViewModel @Inject constructor(
 
     private suspend fun loadMood(date: java.util.Date) {
         _dailyMood.value = healthRepository.getMood(date)
+    }
+
+    private suspend fun loadSpO2(date: java.util.Date, forceRefresh: Boolean = false) {
+        // Load Today's SpO2
+        val result = healthRepository.getSpO2Data(date, forceRefresh)
+        result.onSuccess { data ->
+            _spo2Data.value = data
+        }
+
+        // Load History (Last 7 days)
+        val startDate = DateUtils.getDaysAgo(7, date)
+        val historyResult = healthRepository.getSpO2History(startDate, date, forceRefresh)
+        historyResult.onSuccess { list ->
+            _spo2History.value = list
+        }
     }
 
     fun updateHighHrThreshold(value: Int) {

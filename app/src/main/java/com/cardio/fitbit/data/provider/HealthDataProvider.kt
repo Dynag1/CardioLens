@@ -44,4 +44,7 @@ interface HealthDataProvider {
     
     suspend fun getHrvData(date: Date): Result<List<HrvRecord>> // Single day details (intraday if available)
     suspend fun getHrvHistory(startDate: Date, endDate: Date): Result<List<HrvRecord>> // Daily summaries over range
+
+    suspend fun getSpO2Data(date: Date): Result<SpO2Data?> // Daily summary
+    suspend fun getSpO2History(startDate: Date, endDate: Date): Result<List<SpO2Data>> // History over range
 }

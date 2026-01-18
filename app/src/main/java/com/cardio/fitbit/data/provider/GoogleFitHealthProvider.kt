@@ -278,4 +278,14 @@ class GoogleFitHealthProvider @Inject constructor(
     override suspend fun getHrvHistory(startDate: Date, endDate: Date): Result<List<com.cardio.fitbit.data.models.HrvRecord>> {
         return Result.success(emptyList())
     }
+
+    override suspend fun getSpO2Data(date: Date): Result<SpO2Data?> {
+        // Not implemented for Google Fit yet
+        return Result.success(null)
+    }
+
+    override suspend fun getSpO2History(startDate: Date, endDate: Date): Result<List<SpO2Data>> {
+        // Not implemented for Google Fit yet
+        return Result.success(emptyList())
+    }
 }

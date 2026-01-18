@@ -1,0 +1,8 @@
+Feature:
+- New Backup System: Use any folder (including Google Drive, Dropbox, Local Storage) without complex API setup.
+- Automatic daily backups to your chosen folder.
+- Manual backup button now exports directly to the chosen Cloud folder.
+
+Improvements:
+- Removed requirement for Google Cloud Project configuration.
+- Simplified "Backup / Restore" UI.

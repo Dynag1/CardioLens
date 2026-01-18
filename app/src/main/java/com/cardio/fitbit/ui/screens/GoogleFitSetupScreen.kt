@@ -32,7 +32,7 @@ fun GoogleFitSetupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Configuration Google Fit") },
+                title = { Text("Configuration Google API") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Retour")
@@ -67,10 +67,10 @@ fun GoogleFitSetupScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Comme pour Fitbit, Google impose de créer un projet Cloud pour accéder à vos données via le Web.\n\n" +
+						text = "Pour accéder à Google Fit et/ou Google Drive, vous devez créer un projet Google Cloud.\n\n" +
                                 "1. Allez sur console.cloud.google.com\n" +
                                 "2. Créez un projet\n" +
-                                "3. Activez l'API 'Fitness API'\n" +
+                                "3. Activez 'Fitness API' et 'Google Drive API'\n" +
                                 "4. Créez des identifiants OAuth 2.0 (Application Web)\n" +
                                 "5. Ajoutez 'cardioapp://google-auth' en URI de redirection.",
                         style = MaterialTheme.typography.bodySmall

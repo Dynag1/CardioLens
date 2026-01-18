@@ -37,7 +37,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
     onLogout: () -> Unit,
-    onNavigateToTrends: () -> Unit
+    onNavigateToTrends: () -> Unit,
+    onNavigateToBackup: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val sleepData by viewModel.sleepData.collectAsState()
@@ -53,6 +54,8 @@ fun DashboardScreen(
     val maxHr by viewModel.maxHr.collectAsState()
     val hrvData by viewModel.hrvData.collectAsState()
     val hrvAverage by viewModel.hrvDailyAverage.collectAsState()
+    val spo2Data by viewModel.spo2Data.collectAsState()
+    val spo2History by viewModel.spo2History.collectAsState()
 
     // Settings States
     val highThreshold by viewModel.highHrThreshold.collectAsState(initial = 120)
@@ -236,6 +239,16 @@ fun DashboardScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         showSettingsDialog = true
+                    }
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Save, contentDescription = null) },
+                    label = { Text("Sauvegarde / Restauration") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToBackup()
                     }
                 )
                 
@@ -606,6 +619,18 @@ fun DashboardScreen(
                                 }
                             }
                         }
+
+                        // SpO2 Card
+                        if (spo2Data != null || spo2History.isNotEmpty()) {
+                            item {
+                                SpO2Card(
+                                    currentData = spo2Data,
+                                    history = spo2History,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
                     }
                 }
                 }

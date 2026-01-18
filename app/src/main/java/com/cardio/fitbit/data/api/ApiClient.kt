@@ -127,4 +127,17 @@ class ApiClient @Inject constructor(
     }
 
     val googleFitApi: GoogleFitApiService by lazy { googleRetrofit.create(GoogleFitApiService::class.java) }
+
+    // --- Google Drive Client ---
+    private val driveBaseUrl = "https://www.googleapis.com/drive/v3/"
+
+    private val driveRetrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(driveBaseUrl)
+            .client(googleOkHttpClient) // Reuse same auth client (tokens are same)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+    }
+
+    val googleDriveApi: GoogleDriveApiService by lazy { driveRetrofit.create(GoogleDriveApiService::class.java) }
 }
