@@ -259,6 +259,32 @@ class DashboardViewModel @Inject constructor(
 
              val nightHeartRates = mutableListOf<Int>()
 
+             // 3. Calculate Night RHR (Average of Sleep HR)
+             // Check if any sleep session started YESTERDAY/Before midnight?
+             val startOfDayTs = DateUtils.getStartOfDay(date).time
+             val preMidnightSessions = sleep.filter { it.startTime.time < startOfDayTs }
+             
+             if (preMidnightSessions.isNotEmpty()) {
+                 val earliestStart = preMidnightSessions.minOf { it.startTime }
+                 
+                 try {
+                      // Fetch extra data for previous day part of sleep
+                      // Since we are in a coroutine, we can call suspend functions
+                      // Note: We need to handle this carefully to not block or crash if repository is not available or throws
+                      val result = healthRepository.getHeartRateSeries(earliestStart, java.util.Date(startOfDayTs))
+                      val extraData = result.getOrNull() ?: emptyList()
+                      
+                      extraData.forEach { point ->
+                          if (point.heartRate > 0) {
+                              nightHeartRates.add(point.heartRate)
+                          }
+                      }
+
+                 } catch (e: Exception) {
+                     android.util.Log.e("DashboardVM", "Failed to load pre-midnight HR", e)
+                 }
+             }
+
              sortedMinutes.forEachIndexed { index, (data, ts, hr) ->
                  // A. Sleep Check
                  val isSleep = sleepRanges.any { range -> ts in range }
@@ -292,49 +318,19 @@ class DashboardViewModel @Inject constructor(
                  validMinutesMask[index] = true
              }
 
-             // 3. Calculate Night RHR (Median of Sleep HR)
-             // Check if any sleep session started YESTERDAY/Before midnight?
-             val startOfDayTs = DateUtils.getStartOfDay(date).time
-             val preMidnightSessions = sleep.filter { it.startTime.time < startOfDayTs }
-             
-             if (preMidnightSessions.isNotEmpty()) {
-                 val earliestStart = preMidnightSessions.minOf { it.startTime }
-                 // Fetch extra data
-                 // Need to run this in a coroutine scope that can suspend, but computeDerivedMetrics is defined as normal fun in this context? 
-                 // Wait, computeDerivedMetrics launches a coroutine: viewModelScope.launch(Dispatchers.Default)
-                 // BUT launch is fire-and-forget. We are INSIDE that launch block.
-                 // We need to fetch data. HealthRepository calls are suspend.
-                 // To execute suspend calls here we need the block to be suspend or allow it.
-                 // The launch block IS a coroutine, so we CAN call suspend functions... 
-                 // EXCEPT: healthRepository is outside the local scope reference conveniently?
-                 // No, it's a class property.
-                 
-                 try {
-                      // Fetch generic series
-                      val result = healthRepository.getHeartRateSeries(earliestStart, java.util.Date(startOfDayTs))
-                      val extraData = result.getOrNull() ?: emptyList()
-                      
-                      extraData.forEach { point ->
-                          if (point.heartRate > 0) {
-                              nightHeartRates.add(point.heartRate)
-                          }
-                      }
-
-                 } catch (e: Exception) {
-                     android.util.Log.e("DashboardVM", "Failed to load pre-midnight HR", e)
-                 }
-             }
-
              _rhrNight.value = if (nightHeartRates.isNotEmpty()) {
                  nightHeartRates.average().toInt()
              } else null
 
-             // 4. Calculate Day RHR (Sliding Window on Valid Minutes)
-             // Scientific Standard: Lowest stable 10-minute average
-             val windowAverages = mutableListOf<Double>()
-             val WINDOW_SIZE_MINUTES = 10
+             // 4. Calculate Day RHR (Average of Sustained 20-min Windows)
+             // Method: Identify periods of *sustained* rest (20 mins to stabilize).
+             // Compute average of EACH valid window, then average those results.
+             // This filters out "micro-rests" (noise high) and averages the stable periods (avoiding "lowest" bias).
              
-             // Iterate through minutes to find 10-min valid blocks
+             val windowAverages = mutableListOf<Double>()
+             val WINDOW_SIZE_MINUTES = 20
+             
+             // Iterate through minutes to find 20-min valid blocks
              for (i in 0..sortedMinutes.size - WINDOW_SIZE_MINUTES) {
                  // Optimization: Skip if start is invalid
                  if (!validMinutesMask[i]) continue
@@ -361,18 +357,15 @@ class DashboardViewModel @Inject constructor(
                      sampleCount++
                  }
 
-                 // Require density (at least 8 samples for a 10m window to allow very minor gaps/sync freq)
-                 if (isValidWindow && sampleCount >= 8) {
+                 // Require density (at least 15 samples for a 20m window)
+                 if (isValidWindow && sampleCount >= 15) {
                      windowAverages.add(sumHr / sampleCount)
                  }
              }
 
-             // 5. Select Resting Baseline (Median of Valid Windows)
-             // Scientific Method: Median represents typical resting state, filtering low outliers (naps)
+             // 5. Select Resting Baseline (Average of Window Averages)
              _rhrDay.value = if (windowAverages.isNotEmpty()) {
-                 val sorted = windowAverages.sorted()
-                 val mid = sorted.size / 2
-                 if (sorted.size % 2 == 0) ((sorted[mid-1] + sorted[mid]) / 2).toInt() else sorted[mid].toInt()
+                 windowAverages.average().toInt()
              } else null
 
               // Aggregation & Min/Max
