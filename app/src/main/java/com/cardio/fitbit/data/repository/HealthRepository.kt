@@ -25,10 +25,33 @@ class HealthRepository @Inject constructor(
     private val activityDataDao: com.cardio.fitbit.data.local.dao.ActivityDataDao,
     private val hrvDataDao: com.cardio.fitbit.data.local.dao.HrvDataDao,
     private val heartRateDao: com.cardio.fitbit.data.local.dao.HeartRateDao,
-    private val stepsDao: com.cardio.fitbit.data.local.dao.StepsDao
+    private val stepsDao: com.cardio.fitbit.data.local.dao.StepsDao,
+    private val moodDao: com.cardio.fitbit.data.local.dao.MoodDao
 ) {
     companion object {
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
+    }
+
+    suspend fun getMood(date: java.util.Date): Int? = withContext(Dispatchers.IO) {
+        val dateString = DateUtils.formatForApi(date)
+        moodDao.getByDate(dateString)?.rating
+    }
+
+    suspend fun saveMood(date: java.util.Date, rating: Int) = withContext(Dispatchers.IO) {
+        val dateString = DateUtils.formatForApi(date)
+        moodDao.insert(
+            com.cardio.fitbit.data.local.entities.MoodEntry(
+                date = dateString,
+                rating = rating,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun getMoodHistory(startDate: java.util.Date, endDate: java.util.Date): List<com.cardio.fitbit.data.local.entities.MoodEntry> = withContext(Dispatchers.IO) {
+        val startStr = DateUtils.formatForApi(startDate)
+        val endStr = DateUtils.formatForApi(endDate)
+        moodDao.getBetweenDates(startStr, endStr)
     }
 
     private suspend fun getProvider(): HealthDataProvider {

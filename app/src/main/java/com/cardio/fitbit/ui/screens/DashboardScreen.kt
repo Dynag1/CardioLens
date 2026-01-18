@@ -294,6 +294,19 @@ fun DashboardScreen(
                         }
                     },
                     actions = {
+                        // Last Sync Display
+                        val lastSync by viewModel.lastSyncTimestamp.collectAsState(initial = 0L)
+                        val timestamp = lastSync
+                        if (timestamp != null && timestamp > 0) {
+                            val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timestamp))
+                            Text(
+                                text = "Sync: $timeStr",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+
                         IconButton(onClick = { viewModel.changeDate(-1) }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Précédent", tint = Color.Black)
                         }
@@ -380,6 +393,16 @@ fun DashboardScreen(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        
+                        // Mood Selector
+                        item {
+                            val currentMood by viewModel.dailyMood.collectAsState()
+                            MoodSelector(
+                                currentRating = currentMood,
+                                onRatingSelected = { rating -> viewModel.saveMood(rating) }
+                            )
+                        }
+
                         // Chart Section
                         intradayData?.let { data ->
                         

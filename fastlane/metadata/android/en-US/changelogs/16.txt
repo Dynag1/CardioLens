@@ -1,0 +1,3 @@
+Amélioration du calcul du pouls au repos (RHR) :
+- Nuit : Prise en compte du sommeil complet (y compris si endormissement avant minuit).
+- Jour : Nouvelle méthode scientifique (Moyenne des périodes stables de 20 min) pour une mesure plus précise.

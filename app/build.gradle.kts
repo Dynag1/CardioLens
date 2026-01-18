@@ -14,8 +14,8 @@ android {
         applicationId = "com.cardio.fitbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.1.13"
+        versionCode = 16
+        versionName = "1.1.16"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

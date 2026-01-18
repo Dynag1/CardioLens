@@ -1,0 +1,4 @@
+Suivi d'humeur amélioré : 
+- Les icônes d'humeur sont maintenant plus discrètes
+- Visualisez votre historique d'humeur directement dans l'onglet "Tendances"
+- Corrections mineures et améliorations de performances

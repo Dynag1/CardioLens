@@ -21,7 +21,8 @@ data class TrendPoint(
     val rhrNight: Int?,
     val rhrDay: Int?,
     val rhrAvg: Int?,
-    val hrv: Int? // Daily RMSSD
+    val hrv: Int?, // Daily RMSSD
+    val moodRating: Int?
 )
 
 sealed class TrendsUiState {
@@ -58,6 +59,10 @@ class TrendsViewModel @Inject constructor(
                 val hrvResult = healthRepository.getHrvHistory(startDate, endDate)
                 val hrvMap = hrvResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.time) }?.toMutableMap() ?: mutableMapOf()
 
+                // Fetch Mood History
+                val moodHistory = healthRepository.getMoodHistory(startDate, endDate)
+                val moodMap = moodHistory.associateBy { it.date }
+
                 // HOTFIX: Explicitly fetch Today's HRV using single-day endpoint to ensure consistency with Dashboard
                 // (Range endpoint sometimes returns stale data for current day)
                 try {
@@ -87,9 +92,10 @@ class TrendsViewModel @Inject constructor(
                     val targetDate = calendar.time
                     val dateStr = DateUtils.formatForApi(targetDate)
                     val hrvValue = hrvMap[dateStr]?.rmssd?.toInt()
+                    val moodRating = moodMap[dateStr]?.rating
                     
-                    // Fetch data for this day (passing HRV)
-                    val rhrValues = calculateDailyRHR(targetDate, hrvValue)
+                    // Fetch data for this day (passing HRV and Mood)
+                    val rhrValues = calculateDailyRHR(targetDate, hrvValue, moodRating)
                     trendPoints.add(rhrValues)
                     
                     // Move back one day
@@ -105,7 +111,7 @@ class TrendsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun calculateDailyRHR(date: Date, hrvValue: Int?): TrendPoint {
+    private suspend fun calculateDailyRHR(date: Date, hrvValue: Int?, moodRating: Int?): TrendPoint {
         // 1. Load Data
         // Initial attempt (uses cache if available)
         var intradayResult = healthRepository.getIntradayData(date) 
@@ -129,7 +135,7 @@ class TrendsViewModel @Inject constructor(
         sleep = (sleep + extraSleep).distinctBy { it.startTime.time }
 
         if (intraday.isEmpty()) {
-            return TrendPoint(date, null, null, null, hrvValue)
+            return TrendPoint(date, null, null, null, hrvValue, moodRating)
         }
 
         // --- CALCULATION LOGIC (Copied/Adapted from DashboardViewModel) ---
@@ -280,6 +286,6 @@ class TrendsViewModel @Inject constructor(
             else -> null
         }
 
-        return TrendPoint(date, rhrNight, rhrDay, rhrAvg, hrvValue)
+        return TrendPoint(date, rhrNight, rhrDay, rhrAvg, hrvValue, moodRating)
     }
 }
