@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -65,33 +66,34 @@ fun ActivityDetailCard(
             modifier = Modifier.padding(12.dp)
         ) {
             // --- High Precision Data Processing ---
-            val cal = Calendar.getInstance()
-            cal.time = activity.startTime
-            // Don't zero out seconds! Activity start time might be precise.
             val startTimeMs = activity.startTime.time 
             val durationMs = activity.duration
             val endTimeMs = startTimeMs + durationMs
 
-            // Filter data within range (with 10 min margin)
-            val relevantData = allMinuteData.filter { 
-                val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
-                // Adjust dataTime to match the activity date (since MinuteData only has time)
-                val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                fullDataTime >= startTimeMs && fullDataTime <= (endTimeMs + 10 * 60 * 1000)
+            // Filter data within range (with 10 min margin) - MEMOIZED
+            // allMinuteData might be the same instance, but just in case, use remember.
+            // Assuming allMinuteData is passed as stable or immutable list.
+            val relevantData = remember(activity.startTime, activity.duration, allMinuteData, selectedDate) {
+                 allMinuteData.filter { 
+                    val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
+                    val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
+                    fullDataTime >= startTimeMs && fullDataTime <= (endTimeMs + 10 * 60 * 1000)
+                }
             }
             
-            // If empty (e.g. no data synced yet), fallback or show empty
             val continuousMinutes = if (relevantData.isNotEmpty()) relevantData else emptyList()
 
             // Calculate duration in minutes (float) for Stats
             val durationMinutes = durationMs / 60000.0
             
             // Calculate Average HR
-            val avgHr = if (activity.averageHeartRate != null && activity.averageHeartRate > 0) {
-                activity.averageHeartRate
-            } else if (continuousMinutes.isNotEmpty()) {
-                 continuousMinutes.map { it.heartRate }.filter { it > 0 }.average().toInt()
-            } else 0
+            val avgHr = remember(activity.averageHeartRate, continuousMinutes) {
+                 if (activity.averageHeartRate != null && activity.averageHeartRate > 0) {
+                    activity.averageHeartRate
+                } else if (continuousMinutes.isNotEmpty()) {
+                     continuousMinutes.map { it.heartRate }.filter { it > 0 }.average().toInt()
+                } else 0
+            }
 
             // --- Header ---
             Row(
@@ -388,6 +390,21 @@ fun ActivityHeartRateChart(
             }
         },
         update = { chart ->
+            if (activityMinutes.isEmpty()) {
+                 if (chart.data != null && chart.data.entryCount > 0) {
+                     chart.clear()
+                 }
+                return@AndroidView
+            }
+            
+            // OPTIMIZATION: Check tag. If tag == activityMinutes.hashCode(), skip.
+             val dataHash = activityMinutes.hashCode().toString()
+            
+            if (chart.tag == dataHash) {
+                return@AndroidView 
+            }
+            chart.tag = dataHash
+
             val combinedData = CombinedData()
 
             // 1. Bar Data (HR) High Precision

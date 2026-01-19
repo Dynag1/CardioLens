@@ -234,7 +234,14 @@ fun HeartRateDetailChart(
                     else -> aggregatedData     // Normal view: use 5-minute aggregated data
                 }
                 
-
+                // OPTIMIZATION: Check tag
+                val dataHash = (activeList.hashCode() + scaleX.toInt()).toString() + "_" + selectedPoint?.hashCode()
+                
+                if (chart.tag == dataHash) {
+                     return@AndroidView
+                }
+                chart.tag = dataHash
+                
                 
                 val combinedData = CombinedData()
 

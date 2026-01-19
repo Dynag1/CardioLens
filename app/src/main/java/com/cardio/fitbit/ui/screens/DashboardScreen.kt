@@ -56,6 +56,7 @@ fun DashboardScreen(
     val hrvAverage by viewModel.hrvDailyAverage.collectAsState()
     val spo2Data by viewModel.spo2Data.collectAsState()
     val spo2History by viewModel.spo2History.collectAsState()
+    val dailySymptoms by viewModel.dailySymptoms.collectAsState()
 
     // Aggregate 1-minute data for Main Chart (Dashboard Only)
     // Keeps main chart readable while preserving seconds for ActivityDetail
@@ -583,6 +584,24 @@ fun DashboardScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        // Symptom Section
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.1f))
+                            ) {
+                                SymptomSection(
+                                    symptoms = dailySymptoms,
+                                    onSave = viewModel::saveSymptoms,
+                                    modifier = Modifier.padding(16.dp)
+                                )
                             }
                         }
 

@@ -27,7 +27,8 @@ class HealthRepository @Inject constructor(
     private val heartRateDao: com.cardio.fitbit.data.local.dao.HeartRateDao,
     private val stepsDao: com.cardio.fitbit.data.local.dao.StepsDao,
     private val moodDao: com.cardio.fitbit.data.local.dao.MoodDao,
-    private val spo2Dao: com.cardio.fitbit.data.local.dao.SpO2Dao
+    private val spo2Dao: com.cardio.fitbit.data.local.dao.SpO2Dao,
+    private val symptomDao: com.cardio.fitbit.data.local.dao.SymptomDao
 ) {
     companion object {
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
@@ -44,6 +45,22 @@ class HealthRepository @Inject constructor(
             com.cardio.fitbit.data.local.entities.MoodEntry(
                 date = dateString,
                 rating = rating,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun getSymptoms(date: java.util.Date): String? = withContext(Dispatchers.IO) {
+        val dateString = DateUtils.formatForApi(date)
+        symptomDao.getSymptomsForDate(dateString)?.symptoms
+    }
+
+    suspend fun saveSymptoms(date: java.util.Date, symptoms: String) = withContext(Dispatchers.IO) {
+        val dateString = DateUtils.formatForApi(date)
+        symptomDao.insertSymptom(
+            com.cardio.fitbit.data.local.entities.SymptomEntry(
+                date = dateString,
+                symptoms = symptoms,
                 timestamp = System.currentTimeMillis()
             )
         )

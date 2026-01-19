@@ -56,6 +56,9 @@ class DashboardViewModel @Inject constructor(
     // Daily HRV Average (derived from hrvData)
     private val _hrvDailyAverage = MutableStateFlow<Int?>(null)
     val hrvDailyAverage: StateFlow<Int?> = _hrvDailyAverage.asStateFlow()
+    
+    private val _dailySymptoms = MutableStateFlow<String?>(null)
+    val dailySymptoms: StateFlow<String?> = _dailySymptoms.asStateFlow()
 
     // Settings
     val highHrThreshold = userPreferencesRepository.highHrThreshold
@@ -144,8 +147,8 @@ class DashboardViewModel @Inject constructor(
         _hrvDailyAverage.value = null
         _hrvDailyAverage.value = null
         _dailyMood.value = null
-        _spo2Data.value = null
         _spo2History.value = emptyList()
+        _dailySymptoms.value = null
 
         // Only reload date-dependent data
         viewModelScope.launch {
@@ -160,6 +163,7 @@ class DashboardViewModel @Inject constructor(
                     launch { loadIntradayData(newDate, forceRefresh = false) },
                     launch { loadHrvData(newDate, forceRefresh = false) },
                     launch { loadMood(newDate) },
+                    launch { loadSymptoms(newDate) },
                     launch { loadSpO2(newDate, forceRefresh = false) }
                 )
                 jobs.forEach { it.join() } // Wait for all data
@@ -210,6 +214,9 @@ class DashboardViewModel @Inject constructor(
                     launch { loadIntradayData(selectedDate, forceRefresh) },
                     launch { loadHrvData(selectedDate, forceRefresh) },
                     launch { loadMood(selectedDate) },
+                    launch { loadHrvData(selectedDate, forceRefresh) },
+                    launch { loadMood(selectedDate) },
+                    launch { loadSymptoms(selectedDate) },
                     launch { loadSpO2(selectedDate, forceRefresh) }
                 )
                 jobs.forEach { it.join() }
@@ -407,6 +414,18 @@ class DashboardViewModel @Inject constructor(
         val historyResult = healthRepository.getSpO2History(startDate, date, forceRefresh)
         historyResult.onSuccess { list ->
             _spo2History.value = list
+        }
+    }
+
+    private suspend fun loadSymptoms(date: java.util.Date) {
+        _dailySymptoms.value = healthRepository.getSymptoms(date)
+    }
+
+    fun saveSymptoms(symptoms: String) {
+        viewModelScope.launch {
+            val date = _selectedDate.value
+            healthRepository.saveSymptoms(date, symptoms)
+            _dailySymptoms.value = symptoms
         }
     }
 

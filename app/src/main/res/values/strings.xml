@@ -114,4 +114,20 @@
     <string name="feature_sleep">Detailed sleep analysis</string>
     <string name="feature_activity">Step counting and activities</string>
     <string name="feature_charts">Interactive charts and statistics</string>
+
+    <!-- Symptoms -->
+    <string name="label_symptoms">Day Symptoms</string>
+    <string name="btn_add_note">Add</string>
+    <string name="dialog_symptom_title">How do you feel?</string>
+    <string name="dialog_symptom_subtitle">Select symptoms or add a note.</string>
+    <string name="label_custom_note">Custom Note</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    
+    <string name="symptom_sick">Sick</string>
+    <string name="symptom_fever">Fever</string>
+    <string name="symptom_fatigue">Fatigue</string>
+    <string name="symptom_stress">Stress</string>
+    <string name="symptom_headache">Headache</string>
+    <string name="symptom_nausea">Nausea</string>
 </resources>
