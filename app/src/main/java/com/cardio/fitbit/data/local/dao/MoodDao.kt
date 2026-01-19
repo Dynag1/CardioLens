@@ -23,9 +23,5 @@ interface MoodDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: MoodEntry)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(entries: List<MoodEntry>)
 
-    @Query("SELECT * FROM mood_entries")
-    suspend fun getAll(): List<MoodEntry>
 }
