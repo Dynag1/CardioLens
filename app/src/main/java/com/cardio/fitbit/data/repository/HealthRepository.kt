@@ -26,7 +26,8 @@ class HealthRepository @Inject constructor(
     private val hrvDataDao: com.cardio.fitbit.data.local.dao.HrvDataDao,
     private val heartRateDao: com.cardio.fitbit.data.local.dao.HeartRateDao,
     private val stepsDao: com.cardio.fitbit.data.local.dao.StepsDao,
-    private val moodDao: com.cardio.fitbit.data.local.dao.MoodDao
+    private val moodDao: com.cardio.fitbit.data.local.dao.MoodDao,
+    private val spo2Dao: com.cardio.fitbit.data.local.dao.SpO2Dao
 ) {
     companion object {
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
@@ -492,6 +493,88 @@ class HealthRepository @Inject constructor(
 
     // Keep old signature for compatibility/migration if needed, or remove it.
     // Let's rename the interface method or overload it.
+
+    suspend fun getSpO2Data(date: java.util.Date, forceRefresh: Boolean = false): Result<SpO2Data?> = withContext(Dispatchers.IO) {
+        try {
+            // Check cache
+            if (!forceRefresh) {
+                val cached = spo2Dao.getSpO2ByDate(date.time)
+                if (cached != null) {
+                    return@withContext Result.success(cached.toDomain())
+                }
+            }
+
+            // Fetch
+            val result = getProvider().getSpO2Data(date)
+            if (result.isSuccess) {
+                val data = result.getOrNull()
+                if (data != null) {
+                    spo2Dao.insertSpO2(com.cardio.fitbit.data.local.entities.SpO2DataEntity.fromDomain(data))
+                }
+                Result.success(data)
+            } else {
+                result
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getSpO2History(startDate: java.util.Date, endDate: java.util.Date, forceRefresh: Boolean = false): Result<List<SpO2Data>> = withContext(Dispatchers.IO) {
+        try {
+             // 1. Check cache
+            val cachedEntities = if (!forceRefresh) spo2Dao.getSpO2Range(startDate.time, endDate.time) else emptyList()
+            val cachedMap = cachedEntities.associateBy { it.date } // date is Long here (clean midnight timestamp expected)
+            
+            // 2. Identify missing dates
+            val calendar = java.util.Calendar.getInstance()
+            calendar.time = startDate
+            DateUtils.toStartOfDay(calendar) // Ensure we step through midnights
+            
+            val missingDates = mutableListOf<java.util.Date>()
+            
+            while (!calendar.time.after(endDate)) {
+                if (cachedMap[calendar.timeInMillis] == null) {
+                    missingDates.add(calendar.time)
+                }
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+
+            // 3. Fetch Strategy
+            val fetchedData = mutableListOf<SpO2Data>()
+            
+            if (missingDates.isNotEmpty()) {
+                val fetchStart = missingDates.minOrNull() ?: startDate
+                val fetchEnd = missingDates.maxOrNull() ?: endDate
+                
+                val result = getProvider().getSpO2History(fetchStart, fetchEnd)
+                if (result.isSuccess) {
+                    val data = result.getOrNull() ?: emptyList()
+                    fetchedData.addAll(data)
+                    
+                    val entities = data.map { com.cardio.fitbit.data.local.entities.SpO2DataEntity.fromDomain(it) }
+                    spo2Dao.insertAll(entities)
+                }
+            }
+
+            // 4. Reconstruct
+            val finalData = mutableListOf<SpO2Data>()
+            finalData.addAll(fetchedData)
+            
+            val fetchedDates = fetchedData.map { it.date.time }.toSet()
+            
+            cachedEntities.forEach { entity ->
+                if (!fetchedDates.contains(entity.date)) {
+                    finalData.add(entity.toDomain())
+                }
+            }
+            
+            Result.success(finalData.sortedBy { it.date })
+
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 

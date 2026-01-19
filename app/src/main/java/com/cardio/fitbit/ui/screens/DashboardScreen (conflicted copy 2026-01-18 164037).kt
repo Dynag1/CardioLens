@@ -86,10 +86,6 @@ fun DashboardScreen(
         }
     }
 
-    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-        viewModel.loadAllData(forceRefresh = true)
-    }
-
     LaunchedEffect(uiState) {
         if (uiState !is DashboardUiState.Loading) {
             pullRefreshState.endRefresh()

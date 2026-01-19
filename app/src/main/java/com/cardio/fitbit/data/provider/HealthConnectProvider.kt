@@ -29,7 +29,8 @@ class HealthConnectProvider @Inject constructor(
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
             HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
-            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
+            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
+            HealthPermission.getReadPermission(OxygenSaturationRecord::class)
         )
     }
 
@@ -553,6 +554,73 @@ class HealthConnectProvider @Inject constructor(
             
             return Result.success(hrvRecords)
 
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getSpO2Data(date: Date): Result<SpO2Data?> {
+        try {
+            val startOfDay = DateUtils.getStartOfDay(date)
+            val endOfDay = DateUtils.getEndOfDay(date)
+
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    OxygenSaturationRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startOfDay.toInstant(),
+                        endOfDay.toInstant()
+                    )
+                )
+            )
+
+            if (response.records.isEmpty()) return Result.success(null)
+
+            // Calculate daily stats from all samples
+            val values = response.records.map { it.percentage.value }
+            if (values.isEmpty()) return Result.success(null)
+
+            return Result.success(
+                SpO2Data(
+                    date = date,
+                    avg = values.average(),
+                    min = values.minOrNull() ?: 0.0,
+                    max = values.maxOrNull() ?: 0.0
+                )
+            )
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getSpO2History(startDate: Date, endDate: Date): Result<List<SpO2Data>> {
+         try {
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    OxygenSaturationRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startDate.toInstant(),
+                        endDate.toInstant()
+                    )
+                )
+            )
+            
+            // Group by day
+            val grouped = response.records.groupBy { 
+                DateUtils.getStartOfDay(Date.from(it.time))
+            }
+            
+            val history = grouped.map { (day, records) ->
+                val values = records.map { it.percentage.value }
+                SpO2Data(
+                    date = day,
+                    avg = values.average(),
+                    min = values.minOrNull() ?: 0.0,
+                    max = values.maxOrNull() ?: 0.0
+                )
+            }.sortedBy { it.date }
+
+            return Result.success(history)
         } catch (e: Exception) {
             return Result.failure(e)
         }

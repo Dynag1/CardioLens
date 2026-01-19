@@ -201,7 +201,7 @@ class DashboardViewModel @Inject constructor(
 
                 // Load all data in parallel
                 val jobs = listOf(
-                    launch { loadHeartRate(selectedDate, forceRefresh) },
+                    launch { loadHeartRate(selectedDate) },
                     launch { loadSleep(selectedDate, forceRefresh) },
                     launch { loadSteps(sevenDaysAgo, today) },
                     launch { loadActivity(selectedDate, forceRefresh) }, 
@@ -295,8 +295,8 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadHeartRate(date: java.util.Date, forceRefresh: Boolean = false) {
-        val result = healthRepository.getHeartRateData(date, forceRefresh)
+    private suspend fun loadHeartRate(date: java.util.Date) {
+        val result = healthRepository.getHeartRateData(date)
         result.onSuccess { data ->
             _heartRateData.value = data
         }

@@ -279,3 +279,25 @@ data class HrvValue(
     @SerializedName("deepRmssd")
     val deepRmssd: Double?
 )
+
+// SpO2 API Response
+data class SpO2Response(
+    @SerializedName("spo2")
+    val spo2: List<SpO2Log>
+)
+
+data class SpO2Log(
+    @SerializedName("dateTime")
+    val dateTime: String,
+    @SerializedName("value")
+    val value: SpO2Value
+)
+
+data class SpO2Value(
+    @SerializedName("avg")
+    val avg: Double,
+    @SerializedName("min")
+    val min: Double,
+    @SerializedName("max")
+    val max: Double
+)

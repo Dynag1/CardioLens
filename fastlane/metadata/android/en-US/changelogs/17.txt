@@ -1,0 +1,8 @@
+Nouveautés :
+- Système de sauvegarde universel : Sauvegardez vos données dans n'importe quel dossier local ou Cloud.
+- Actualisation automatique : Vos données sont à jour dès l'ouverture de l'application.
+
+Corrections critiques :
+- Persistance des données : Vos entrées d'humeur et données sont désormais conservées lors des mises à jour.
+- Sauvegardes : Les entrées d'humeur sont correctement incluses dans les fichiers de sauvegarde.
+- Synchronisation : Bug de mise à jour de la fréquence cardiaque corrigé.
