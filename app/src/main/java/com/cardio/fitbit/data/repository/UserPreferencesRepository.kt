@@ -38,6 +38,9 @@ class UserPreferencesRepository @Inject constructor(
         val USE_HEALTH_CONNECT = booleanPreferencesKey("use_health_connect")
         val LAST_SYNC_TIMESTAMP = androidx.datastore.preferences.core.longPreferencesKey("last_sync_timestamp")
         val DATE_OF_BIRTH = androidx.datastore.preferences.core.longPreferencesKey("date_of_birth")
+        
+        val GOOGLE_DRIVE_BACKUP_ENABLED = booleanPreferencesKey("google_drive_backup_enabled")
+        val BACKUP_URI = androidx.datastore.preferences.core.stringPreferencesKey("backup_uri")
     }
 
     val highHrThreshold: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -174,6 +177,26 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setDateOfBirth(timestamp: Long) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.DATE_OF_BIRTH] = timestamp
+        }
+    }
+
+    val googleDriveBackupEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.GOOGLE_DRIVE_BACKUP_ENABLED] ?: false
+    }
+
+    suspend fun setGoogleDriveBackupEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.GOOGLE_DRIVE_BACKUP_ENABLED] = enabled
+        }
+    }
+    
+    val backupUri: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.BACKUP_URI]
+    }
+
+    suspend fun setBackupUri(uri: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.BACKUP_URI] = uri
         }
     }
 }

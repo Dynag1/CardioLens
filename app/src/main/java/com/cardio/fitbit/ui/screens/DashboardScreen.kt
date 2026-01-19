@@ -37,7 +37,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
     onLogout: () -> Unit,
-    onNavigateToTrends: () -> Unit
+    onNavigateToTrends: () -> Unit,
+    onNavigateToBackup: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val sleepData by viewModel.sleepData.collectAsState()
@@ -242,6 +243,16 @@ fun DashboardScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         showSettingsDialog = true
+                    }
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Save, contentDescription = null) },
+                    label = { Text("Sauvegarde / Restauration") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToBackup()
                     }
                 )
                 

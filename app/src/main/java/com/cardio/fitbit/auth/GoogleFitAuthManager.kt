@@ -30,7 +30,7 @@ class GoogleFitAuthManager @Inject constructor(
     private val authUrl = "https://accounts.google.com/o/oauth2/v2/auth"
     private val tokenUrl = "https://oauth2.googleapis.com/token"
     
-    private val scopes = "https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.heart_rate.read https://www.googleapis.com/auth/fitness.sleep.read https://www.googleapis.com/auth/fitness.body.read"
+    private val scopes = "https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.heart_rate.read https://www.googleapis.com/auth/fitness.sleep.read https://www.googleapis.com/auth/fitness.body.read https://www.googleapis.com/auth/drive.file"
 
     // Reactive Auth State from DataStore
     val authState: StateFlow<AuthState> = userPreferencesRepository.googleAccessToken

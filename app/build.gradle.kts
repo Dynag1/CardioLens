@@ -145,5 +145,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
+    // DocumentFile (SAF)
+    implementation("androidx.documentfile:documentfile:1.0.1")
+
     // Testing
 }

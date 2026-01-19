@@ -7,6 +7,7 @@ import com.cardio.fitbit.data.models.IntradayHeartRate
 import com.cardio.fitbit.data.models.SleepData
 import com.cardio.fitbit.data.repository.HealthRepository
 import com.cardio.fitbit.utils.DateUtils
+import com.cardio.fitbit.utils.HeartRateAnalysisUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -138,80 +139,15 @@ class TrendsViewModel @Inject constructor(
             return TrendPoint(date, null, null, null, hrvValue, moodRating)
         }
 
-        // --- CALCULATION LOGIC (Copied/Adapted from DashboardViewModel) ---
-
-        // Helper to get timestamp from HH:mm or HH:mm:ss string for THIS date
-        fun getTimestamp(timeStr: String): Long {
-            val parts = timeStr.split(":")
-            val c = Calendar.getInstance().apply { time = date }
-            c.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-            c.set(Calendar.MINUTE, parts[1].toInt())
-            c.set(Calendar.SECOND, 0)
-            c.set(Calendar.MILLISECOND, 0)
-            return c.timeInMillis
-        }
-
-        // Parse and Sort Intraday Data
-        val sortedMinutes = intraday.map { data -> 
-            val ts = getTimestamp(data.time)
-            Triple(data, ts, data.heartRate)
-        }.sortedBy { it.second }
-
-        // 1. Identify Activity & Sleep Ranges
-        val sleepRanges = sleep.map { it.startTime.time..it.endTime.time }
-        val activityRanges = activity?.activities?.map { 
-            it.startTime.time..(it.startTime.time + it.duration) 
-        } ?: emptyList()
-
-        // 2. Mark Valid/Invalid Minutes
-        val validMinutesMask = BooleanArray(sortedMinutes.size) { false }
-        var cooldownUntil = 0L
-        val COOLDOWN_MS = 15 * 60 * 1000L
-
-        val nightHeartRates = mutableListOf<Int>()
-
-        sortedMinutes.forEachIndexed { index, triple ->
-            val data = triple.first
-            val ts = triple.second
-            val hr = triple.third
-            
-            // A. Sleep Check
-            val isSleep = sleepRanges.any { range -> ts in range }
-            if (isSleep) {
-                if (hr > 0) nightHeartRates.add(hr) // Collect Night HR
-                return@forEachIndexed // Exclude from Day RHR
-            }
-
-            // B. Activity Check (Logged Activity OR Steps > 0)
-            val isLoggedActivity = activityRanges.any { range -> ts in range }
-            val isStepActivity = data.steps > 0
-            
-            if (isLoggedActivity || isStepActivity) {
-                // Trigger Cooldown
-                cooldownUntil = ts + COOLDOWN_MS
-                return@forEachIndexed
-            }
-
-            // C. Cooldown Check
-            if (ts < cooldownUntil) {
-                return@forEachIndexed
-            }
-
-            // D. Invalid Data Check (Noise/Device Off)
-            // < 35 bpm considered physiological outlier/noise
-            if (hr < 35) {
-                return@forEachIndexed
-            }
-
-            // If passed all checks -> VALID Resting Minute
-            validMinutesMask[index] = true
-        }
+        // --- CALCULATION LOGIC (Delegated to HeartRateAnalysisUtils) ---
 
         // 3. Calculate Night RHR (Median of Sleep HR)
         // Check if any sleep session started YESTERDAY/Before midnight?
         val startOfDayTs = DateUtils.getStartOfDay(date).time
         val preMidnightSessions = sleep.filter { it.startTime.time < startOfDayTs }
         
+        val preMidnightHeartRates = mutableListOf<Int>()
+
         if (preMidnightSessions.isNotEmpty()) {
             val earliestStart = preMidnightSessions.minOf { it.startTime }
             try {
@@ -221,7 +157,7 @@ class TrendsViewModel @Inject constructor(
                  
                  extraData.forEach { point ->
                      if (point.heartRate > 0) {
-                         nightHeartRates.add(point.heartRate)
+                         preMidnightHeartRates.add(point.heartRate)
                      }
                  }
             } catch (e: Exception) {
@@ -229,63 +165,14 @@ class TrendsViewModel @Inject constructor(
             }
         }
 
-        val rhrNight = if (nightHeartRates.isNotEmpty()) {
-            nightHeartRates.average().toInt()
-        } else null
+        val rhrResult = HeartRateAnalysisUtils.calculateDailyRHR(
+            date,
+            intraday,
+            sleep,
+            activity,
+            preMidnightHeartRates
+        )
 
-        // 4. Calculate Day RHR (Sliding Window on Valid Minutes)
-        // Scientific Standard: Lowest stable 10-minute average
-        val windowAverages = mutableListOf<Double>()
-        val WINDOW_SIZE_MINUTES = 10
-        
-        // Iterate through minutes to find 10-min valid blocks
-        for (i in 0..sortedMinutes.size - WINDOW_SIZE_MINUTES) {
-            // Optimization: Skip if start is invalid
-            if (!validMinutesMask[i]) continue
-
-            val startTs = sortedMinutes[i].second
-            val endTsTarget = startTs + (WINDOW_SIZE_MINUTES * 60 * 1000L)
-            
-            var sampleCount = 0
-            var sumHr = 0.0
-            var isValidWindow = true
-            
-            // Scan forward 
-            for (j in i until sortedMinutes.size) {
-                val currTs = sortedMinutes[j].second
-                if (currTs >= endTsTarget) break // Window full
-                
-                // Strict Contiguity: Any invalid minute taints the window
-                if (!validMinutesMask[j]) {
-                    isValidWindow = false
-                    break
-                }
-                
-                sumHr += sortedMinutes[j].third
-                sampleCount++
-            }
-
-            // Require density (at least 8 samples for a 10m window)
-            if (isValidWindow && sampleCount >= 8) {
-                windowAverages.add(sumHr / sampleCount)
-            }
-        }
-
-        // 5. Select Resting Baseline (Median of Valid Windows)
-        val rhrDay = if (windowAverages.isNotEmpty()) {
-            val sorted = windowAverages.sorted()
-            val mid = sorted.size / 2
-            if (sorted.size % 2 == 0) ((sorted[mid-1] + sorted[mid]) / 2).toInt() else sorted[mid].toInt()
-        } else null
-        
-        // 6. Calculate Average (Simple average of available metrics)
-        val rhrAvg = when {
-            rhrNight != null && rhrDay != null -> (rhrNight + rhrDay) / 2
-            rhrNight != null -> rhrNight
-            rhrDay != null -> rhrDay
-            else -> null
-        }
-
-        return TrendPoint(date, rhrNight, rhrDay, rhrAvg, hrvValue, moodRating)
+        return TrendPoint(date, rhrResult.rhrNight, rhrResult.rhrDay, rhrResult.rhrAvg, hrvValue, moodRating)
     }
 }

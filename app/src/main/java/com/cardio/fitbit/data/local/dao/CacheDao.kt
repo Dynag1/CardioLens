@@ -16,6 +16,12 @@ interface IntradayDataDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: IntradayDataEntity)
     
+    @Query("SELECT * FROM intraday_data")
+    suspend fun getAll(): List<IntradayDataEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(data: List<IntradayDataEntity>)
+    
     @Query("DELETE FROM intraday_data WHERE timestamp < :expiryTime")
     suspend fun deleteExpired(expiryTime: Long)
 }
@@ -28,6 +34,12 @@ interface SleepDataDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: SleepDataEntity)
     
+    @Query("SELECT * FROM sleep_data")
+    suspend fun getAll(): List<SleepDataEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(data: List<SleepDataEntity>)
+    
     @Query("DELETE FROM sleep_data WHERE timestamp < :expiryTime")
     suspend fun deleteExpired(expiryTime: Long)
 }
@@ -39,6 +51,12 @@ interface ActivityDataDao {
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: ActivityDataEntity)
+    
+    @Query("SELECT * FROM activity_data")
+    suspend fun getAll(): List<ActivityDataEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(data: List<ActivityDataEntity>)
     
     @Query("DELETE FROM activity_data WHERE timestamp < :expiryTime")
     suspend fun deleteExpired(expiryTime: Long)
@@ -58,6 +76,9 @@ interface HrvDataDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(data: List<com.cardio.fitbit.data.local.entities.HrvDataEntity>)
     
+    @Query("SELECT * FROM hrv_data")
+    suspend fun getAll(): List<com.cardio.fitbit.data.local.entities.HrvDataEntity>
+
     @Query("DELETE FROM hrv_data WHERE timestamp < :expiryTime")
     suspend fun deleteExpired(expiryTime: Long)
 }
@@ -69,6 +90,12 @@ interface HeartRateDao {
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: com.cardio.fitbit.data.local.entities.HeartRateDataEntity)
+    
+    @Query("SELECT * FROM heart_rate_data")
+    suspend fun getAll(): List<com.cardio.fitbit.data.local.entities.HeartRateDataEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(data: List<com.cardio.fitbit.data.local.entities.HeartRateDataEntity>)
     
     @Query("DELETE FROM heart_rate_data WHERE timestamp < :expiryTime")
     suspend fun deleteExpired(expiryTime: Long)
@@ -88,6 +115,9 @@ interface StepsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(data: List<com.cardio.fitbit.data.local.entities.StepsDataEntity>)
     
+    @Query("SELECT * FROM steps_data")
+    suspend fun getAll(): List<com.cardio.fitbit.data.local.entities.StepsDataEntity>
+
     @Query("DELETE FROM steps_data WHERE timestamp < :expiryTime")
     suspend fun deleteExpired(expiryTime: Long)
 }
