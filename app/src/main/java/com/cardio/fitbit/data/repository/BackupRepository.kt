@@ -37,7 +37,7 @@ class BackupRepository @Inject constructor(
                 moodEntries = database.moodDao().getAll(),
                 spo2Data = database.spo2Dao().getAll(),
                 symptomEntries = database.symptomDao().getAllSymptoms(),
-                dateOfBirth = kotlinx.coroutines.flow.firstOrNull(userPreferencesRepository.dateOfBirth)
+                dateOfBirth = userPreferencesRepository.dateOfBirth.firstOrNull()
             )
 
             OutputStreamWriter(outputStream).use { writer ->
