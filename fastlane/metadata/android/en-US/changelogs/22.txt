@@ -1,0 +1,4 @@
+🚀 Version 1.1.22
+- Lisibilité du graphique principal améliorée (1 minute par barre)
+- Suppression des notifications intrusives lors de la consultation des détails
+- Toujours avec la précision à la seconde pour vos entraînements !

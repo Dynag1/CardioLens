@@ -1,5 +1,10 @@
 # Historique des Versions (Changelog)
 
+## Version 22 (v1.1.22) - 2026-01-19
+### Modifié
+- **Graphique Principal** : Résolution forcée à 1 minute pour une lisibilité optimale (barres pleines).
+- **Interface** : Suppression des popups de résumé d'entraînement à l'ouverture des détails.
+
 ## Version 21 (v1.1.21) - 2026-01-19
 ### Nouvelles Fonctionnalités
 - **Haute Précision Cardiaque** : Support des données à la seconde pour les détails d'activité.
