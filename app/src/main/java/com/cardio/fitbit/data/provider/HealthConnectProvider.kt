@@ -181,7 +181,8 @@ class HealthConnectProvider @Inject constructor(
             allHrRecords.forEach { record ->
                 record.samples.forEach { sample ->
                     val time = sample.time.atZone(ZoneId.systemDefault())
-                    val timeKey = String.format("%02d:%02d", time.hour, time.minute)
+                    // Use HH:mm:ss for high precision
+                    val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
                     val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
                     minuteDataMap[timeKey] = existing.copy(heartRate = sample.beatsPerMinute.toInt())
                 }
@@ -189,7 +190,8 @@ class HealthConnectProvider @Inject constructor(
 
             allStepsRecords.forEach { record ->
                 val time = record.startTime.atZone(ZoneId.systemDefault())
-                val timeKey = String.format("%02d:%02d", time.hour, time.minute)
+                // Steps are often aggregated, but we assign them to the second they start
+                val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
                 val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
                 minuteDataMap[timeKey] = existing.copy(steps = existing.steps + record.count.toInt())
             }
@@ -473,23 +475,9 @@ class HealthConnectProvider @Inject constructor(
             allRecords.forEach { record ->
                 record.samples.forEach { sample ->
                     val time = sample.time.atZone(ZoneId.systemDefault())
-                    // IMPORTANT: Include Date in key to handle multi-day fetching correctness if needed, 
-                    // but MinuteData usually only holds HH:mm.
-                    // For the purpose of RHR calculation in DashboardVM, we likely process raw samples or need 
-                    // a way to distinguish days if spanning midnight.
-                    // However, standard MinuteData allows HH:mm. 
-                    // Let's stick to standard map but be aware of overlaps effectively merging same times on different days?
-                    // "getHeartRateSeries" is generic.
-                    // For Night RHR logic, we specifically append PRE-midnight data to POST-midnight data.
-                    // So distinct HH:mm keys are fine as long as we know the context.
-                    // BUT: 23:59 from Day 1 and 00:01 from Day 2 are distinct.
-                    
-                    val timeKey = String.format("%02d:%02d", time.hour, time.minute)
+                    // IMPORTANT: Use HH:mm:ss for high precision matching
+                    val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
                     val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
-                    // If multiple samples in same minute, average or max? Health Connect usually has one record per series but samples can definitely be sub-minute.
-                    // Last-wins or simple average? Let's take the first or last for simplicity or max?
-                    // Let's use the last one encountered for now, or better: average if multiple?
-                    // Simply overwriting is the current behavior in getIntradayData.
                     minuteDataMap[timeKey] = existing.copy(heartRate = sample.beatsPerMinute.toInt())
                 }
             }

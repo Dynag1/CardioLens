@@ -95,4 +95,30 @@ class NotificationHelper @Inject constructor(
 
         }
     }
+
+    fun showWorkoutSummary(activityName: String, duration: String, distance: String, avgHr: Int, calories: Int) {
+        val title = "Entrainement terminé : $activityName"
+        val message = "$duration | $distance | $avgHr bpm | $calories kcal"
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message)) // Expandable for details
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        try {
+            val notificationManager = NotificationManagerCompat.from(context)
+            notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
+        } catch (e: SecurityException) {
+            // Permission check handled by caller or ignored if missing
+        }
+    }
 }
