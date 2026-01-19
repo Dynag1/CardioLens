@@ -264,11 +264,11 @@ fun HeartRateDetailChart(
                 }
 
                 fun interpolateColor(color1: Int, color2: Int, fraction: Float): Int {
-                    val a = (Color.alpha(color1) + (Color.alpha(color2) - Color.alpha(color1)) * fraction).toInt()
+                    // Force Alpha to 255 (Opaque)
                     val r = (Color.red(color1) + (Color.red(color2) - Color.red(color1)) * fraction).toInt()
                     val g = (Color.green(color1) + (Color.green(color2) - Color.green(color1)) * fraction).toInt()
                     val b = (Color.blue(color1) + (Color.blue(color2) - Color.blue(color1)) * fraction).toInt()
-                    return Color.argb(a, r, g, b)
+                    return Color.argb(255, r, g, b)
                 }
 
                 fun getHeartRateColor(bpm: Float): Int {
@@ -366,7 +366,10 @@ fun HeartRateDetailChart(
                     (t2 - t1).coerceAtLeast(0.016f) // Avoid 0
                 } else 1f
                 
-                barData.barWidth = (interval * 0.9f)
+                // Dynamic Bar Width
+                // Fix for transparency issue: Use 1.05f to ensure slight overlap and full opacity visual
+                // especially for high precision data.
+                barData.barWidth = (interval * 1.05f)
 
                 // --- Zone Rendering Logic (Sleep & Activity) ---
                 
