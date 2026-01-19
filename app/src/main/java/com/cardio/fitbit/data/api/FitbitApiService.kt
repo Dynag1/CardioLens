@@ -126,4 +126,21 @@ interface FitbitApiService {
         @Path("startDate") startDate: String,
         @Path("endDate") endDate: String
     ): Response<HrvResponse>
+
+    /**
+     * Get SpO2 data for a specific date
+     */
+    @GET("1/user/-/spo2/date/{date}.json")
+    suspend fun getSpO2(
+        @Path("date") date: String
+    ): Response<SpO2Response>
+
+    /**
+     * Get SpO2 data for a date range
+     */
+    @GET("1/user/-/spo2/date/{startDate}/{endDate}.json")
+    suspend fun getSpO2Range(
+        @Path("startDate") startDate: String,
+        @Path("endDate") endDate: String
+    ): Response<SpO2Response>
 }

@@ -9,6 +9,7 @@ import com.cardio.fitbit.data.local.dao.HrvDataDao
 import com.cardio.fitbit.data.local.dao.HeartRateDao
 import com.cardio.fitbit.data.local.dao.StepsDao
 import com.cardio.fitbit.data.local.dao.MoodDao
+import com.cardio.fitbit.data.local.dao.SpO2Dao
 import com.cardio.fitbit.data.local.entities.IntradayDataEntity
 import com.cardio.fitbit.data.local.entities.SleepDataEntity
 import com.cardio.fitbit.data.local.entities.ActivityDataEntity
@@ -16,6 +17,7 @@ import com.cardio.fitbit.data.local.entities.HrvDataEntity
 import com.cardio.fitbit.data.local.entities.HeartRateDataEntity
 import com.cardio.fitbit.data.local.entities.StepsDataEntity
 import com.cardio.fitbit.data.local.entities.MoodEntry
+import com.cardio.fitbit.data.local.entities.SpO2DataEntity
 
 @Database(
     entities = [
@@ -25,9 +27,10 @@ import com.cardio.fitbit.data.local.entities.MoodEntry
         HrvDataEntity::class,
         HeartRateDataEntity::class,
         StepsDataEntity::class,
-        MoodEntry::class
+        MoodEntry::class,
+        SpO2DataEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,4 +41,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun heartRateDao(): HeartRateDao
     abstract fun stepsDao(): StepsDao
     abstract fun moodDao(): MoodDao
+    abstract fun spo2Dao(): SpO2Dao
 }

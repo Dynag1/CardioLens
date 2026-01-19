@@ -27,7 +27,6 @@ object DatabaseModule {
             AppDatabase::class.java,
             "cardio_database"
         )
-        .fallbackToDestructiveMigration()
         .build()
     }
     
@@ -64,5 +63,10 @@ object DatabaseModule {
     @Provides
     fun provideMoodDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.MoodDao {
         return database.moodDao()
+    }
+
+    @Provides
+    fun provideSpO2Dao(database: AppDatabase): com.cardio.fitbit.data.local.dao.SpO2Dao {
+        return database.spo2Dao()
     }
 }

@@ -6,6 +6,7 @@ import com.cardio.fitbit.auth.FitbitAuthManager
 import com.cardio.fitbit.data.models.*
 import com.cardio.fitbit.data.repository.HealthRepository
 import com.cardio.fitbit.utils.DateUtils
+import com.cardio.fitbit.utils.HeartRateAnalysisUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,7 +66,6 @@ class DashboardViewModel @Inject constructor(
     
     // Dynamic HR Zones
     val dateOfBirth = userPreferencesRepository.dateOfBirth
-    
     // Calculate Age and MaxHR
     // We combine the dateOfBirth flow to map it to MaxHR
     val userMaxHr: kotlinx.coroutines.flow.Flow<Int> = dateOfBirth.map { dob: Long? ->
@@ -201,7 +201,7 @@ class DashboardViewModel @Inject constructor(
 
                 // Load all data in parallel
                 val jobs = listOf(
-                    launch { loadHeartRate(selectedDate, forceRefresh) },
+                    launch { loadHeartRate(selectedDate) },
                     launch { loadSleep(selectedDate, forceRefresh) },
                     launch { loadSteps(sevenDaysAgo, today) },
                     launch { loadActivity(selectedDate, forceRefresh) }, 
@@ -242,41 +242,13 @@ class DashboardViewModel @Inject constructor(
         val date = _selectedDate.value
 
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-             // Helper: Parse HH:mm to timestamp
-             fun getTimestamp(timeStr: String): Long {
-                 val parts = timeStr.split(":")
-                 val cal = java.util.Calendar.getInstance()
-                 cal.time = date
-                 cal.set(java.util.Calendar.HOUR_OF_DAY, parts[0].toInt())
-                 cal.set(java.util.Calendar.MINUTE, parts[1].toInt())
-                 cal.set(java.util.Calendar.SECOND, 0)
-                 return cal.timeInMillis
-             }
-
-             // Parse and Sort Intraday Data
-             val sortedMinutes = intraday.map { 
-                 val ts = getTimestamp(it.time)
-                 Triple(it, ts, it.heartRate)
-             }.sortedBy { it.second }
-
-             // 1. Identify Activity & Sleep Ranges
-             val sleepRanges = sleep.map { it.startTime.time..it.endTime.time }
-             val activityRanges = activity?.activities?.map { 
-                 it.startTime.time..(it.startTime.time + it.duration) 
-             } ?: emptyList()
-
-             // 2. Mark Valid/Invalid Minutes
-             val validMinutesMask = BooleanArray(sortedMinutes.size) { false }
-             var cooldownUntil = 0L
-             val COOLDOWN_MS = 15 * 60 * 1000L
-
-             val nightHeartRates = mutableListOf<Int>()
-
              // 3. Calculate Night RHR (Average of Sleep HR)
              // Check if any sleep session started YESTERDAY/Before midnight?
              val startOfDayTs = DateUtils.getStartOfDay(date).time
              val preMidnightSessions = sleep.filter { it.startTime.time < startOfDayTs }
              
+             val preMidnightHeartRates = mutableListOf<Int>()
+
              if (preMidnightSessions.isNotEmpty()) {
                  val earliestStart = preMidnightSessions.minOf { it.startTime }
                  
@@ -289,7 +261,7 @@ class DashboardViewModel @Inject constructor(
                       
                       extraData.forEach { point ->
                           if (point.heartRate > 0) {
-                              nightHeartRates.add(point.heartRate)
+                              preMidnightHeartRates.add(point.heartRate)
                           }
                       }
 
@@ -298,88 +270,17 @@ class DashboardViewModel @Inject constructor(
                  }
              }
 
-             sortedMinutes.forEachIndexed { index, (data, ts, hr) ->
-                 // A. Sleep Check
-                 val isSleep = sleepRanges.any { range -> ts in range }
-                 if (isSleep) {
-                     if (hr > 0) nightHeartRates.add(hr) // Collect Night HR
-                     return@forEachIndexed // Exclude from Day RHR
-                 }
+             val rhrResult = HeartRateAnalysisUtils.calculateDailyRHR(
+                 date, 
+                 intraday, 
+                 sleep, 
+                 activity,
+                 preMidnightHeartRates
+             )
 
-                 // B. Activity Check (Logged Activity OR Steps > 0)
-                 val isLoggedActivity = activityRanges.any { range -> ts in range }
-                 val isStepActivity = data.steps > 0
-                 
-                 if (isLoggedActivity || isStepActivity) {
-                     // Trigger Cooldown
-                     cooldownUntil = ts + COOLDOWN_MS
-                     return@forEachIndexed
-                 }
+             _rhrDay.value = rhrResult.rhrDay
+             _rhrNight.value = rhrResult.rhrNight
 
-                 // C. Cooldown Check
-                 if (ts < cooldownUntil) {
-                     return@forEachIndexed
-                 }
-
-                 // D. Invalid Data Check (Noise/Device Off)
-                 // < 35 bpm considered physiological outlier/noise
-                 if (hr < 35) {
-                     return@forEachIndexed
-                 }
-
-                 // If passed all checks -> VALID Resting Minute
-                 validMinutesMask[index] = true
-             }
-
-             _rhrNight.value = if (nightHeartRates.isNotEmpty()) {
-                 nightHeartRates.average().toInt()
-             } else null
-
-             // 4. Calculate Day RHR (Average of Sustained 20-min Windows)
-             // Method: Identify periods of *sustained* rest (20 mins to stabilize).
-             // Compute average of EACH valid window, then average those results.
-             // This filters out "micro-rests" (noise high) and averages the stable periods (avoiding "lowest" bias).
-             
-             val windowAverages = mutableListOf<Double>()
-             val WINDOW_SIZE_MINUTES = 20
-             
-             // Iterate through minutes to find 20-min valid blocks
-             for (i in 0..sortedMinutes.size - WINDOW_SIZE_MINUTES) {
-                 // Optimization: Skip if start is invalid
-                 if (!validMinutesMask[i]) continue
-
-                 val startTs = sortedMinutes[i].second
-                 val endTsTarget = startTs + (WINDOW_SIZE_MINUTES * 60 * 1000L)
-                 
-                 var sampleCount = 0
-                 var sumHr = 0.0
-                 var isValidWindow = true
-                 
-                 // Scan forward 
-                 for (j in i until sortedMinutes.size) {
-                     val currTs = sortedMinutes[j].second
-                     if (currTs >= endTsTarget) break // Window full
-                     
-                     // Strict Contiguity: Any invalid minute taints the window
-                     if (!validMinutesMask[j]) {
-                         isValidWindow = false
-                         break
-                     }
-                     
-                     sumHr += sortedMinutes[j].third
-                     sampleCount++
-                 }
-
-                 // Require density (at least 15 samples for a 20m window)
-                 if (isValidWindow && sampleCount >= 15) {
-                     windowAverages.add(sumHr / sampleCount)
-                 }
-             }
-
-             // 5. Select Resting Baseline (Average of Window Averages)
-             _rhrDay.value = if (windowAverages.isNotEmpty()) {
-                 windowAverages.average().toInt()
-             } else null
 
               // Aggregation & Min/Max
               _aggregatedMinuteData.value = intraday.sortedBy { it.time }
@@ -394,8 +295,8 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadHeartRate(date: java.util.Date, forceRefresh: Boolean = false) {
-        val result = healthRepository.getHeartRateData(date, forceRefresh)
+    private suspend fun loadHeartRate(date: java.util.Date) {
+        val result = healthRepository.getHeartRateData(date)
         result.onSuccess { data ->
             _heartRateData.value = data
         }
