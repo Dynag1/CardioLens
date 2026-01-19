@@ -3,6 +3,8 @@ name: Deploy to Play Store
 on:
   push:
     branches: [ "master", "beta" ]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:

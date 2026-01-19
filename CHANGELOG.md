@@ -1,5 +1,14 @@
 # Historique des Versions (Changelog)
 
+## Version 23 (v1.1.23) - 2026-01-19
+### Nouvelles Fonctionnalités
+- **Suivi des Symptômes** : Ajout quotidien de symptômes (Malade, Fièvre, etc.) via le Dashboard.
+- **Sauvegarde Complète** : Inclusion des symptômes et de l'âge dans les sauvegardes.
+
+### Corrections
+- **Optimisations** : Réduction drastique des lags (mémoïsation et mise à jour intelligente des graphiques).
+- **Traductions** : Ajout des traductions françaises manquantes.
+
 ## Version 22 (v1.1.22) - 2026-01-19
 ### Modifié
 - **Graphique Principal** : Résolution forcée à 1 minute pour une lisibilité optimale (barres pleines).
