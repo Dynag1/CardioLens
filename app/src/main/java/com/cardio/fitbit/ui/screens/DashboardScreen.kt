@@ -568,7 +568,7 @@ fun DashboardScreen(
 
                                         HeartRateDetailChart(
                                             minuteData = oneMinuteData,
-                                            aggregatedData = aggregatedMinuteData,
+                                            aggregatedData = oneMinuteData, // Force 1-minute resolution even when zoomed out
                                             sleepSessions = sleepData,
                                             activityData = activityData,
                                             restingHeartRate = rhrDay,

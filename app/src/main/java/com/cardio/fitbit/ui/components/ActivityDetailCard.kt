@@ -186,7 +186,8 @@ fun ActivityDetailCard(
                     }
                 }
                 
-                // NOTIFICATION LOGIC
+                // NOTIFICATION LOGIC - REMOVED PER USER REQUEST
+                /*
                 androidx.compose.runtime.LaunchedEffect(Unit) {
                      try {
                          val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
@@ -204,6 +205,7 @@ fun ActivityDetailCard(
                          // Fallback
                      }
                 }
+                */
             } else {
                  // DEBUG: Show why speed isn't showing
                  if (activity.distance == null || activity.distance == 0.0) {
