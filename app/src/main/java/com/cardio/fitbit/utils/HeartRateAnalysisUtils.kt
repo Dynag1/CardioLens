@@ -31,7 +31,11 @@ object HeartRateAnalysisUtils {
             val c = Calendar.getInstance().apply { time = date }
             c.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
             c.set(Calendar.MINUTE, parts[1].toInt())
-            c.set(Calendar.SECOND, 0)
+            if (parts.size > 2) {
+                c.set(Calendar.SECOND, parts[2].toInt())
+            } else {
+                c.set(Calendar.SECOND, 0)
+            }
             c.set(Calendar.MILLISECOND, 0)
             return c.timeInMillis
         }
@@ -71,9 +75,15 @@ object HeartRateAnalysisUtils {
             val isLoggedActivity = activityRanges.any { range -> ts in range }
             val isStepActivity = data.steps > 0
             
-            if (isLoggedActivity || isStepActivity) {
-                // Trigger Cooldown
+            if (isLoggedActivity) {
+                // Trigger Cooldown for Logged Activity
                 cooldownUntil = ts + COOLDOWN_MS
+                return@forEachIndexed
+            }
+
+            if (isStepActivity) {
+                // Just skip this minute if moving, but don't trigger long cooldown unless high intensity?
+                // For now, just strict skip.
                 return@forEachIndexed
             }
 

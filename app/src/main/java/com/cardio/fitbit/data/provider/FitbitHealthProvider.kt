@@ -49,8 +49,9 @@ class FitbitHealthProvider @Inject constructor(
             // Try fetching High Precision (1sec) first
             var hrResponse = apiClient.fitbitApi.getIntradayHeartRatePrecision(dateString)
             
-            // If failed (e.g. 403 Forbidden or not personal app), fallback to standard 1min
-            if (!hrResponse.isSuccessful && hrResponse.code() != 429) {
+            // If failed or empty (some apps might return empty instead of 403), fallback to standard 1min
+            val isEmpty = hrResponse.body()?.intradayData?.dataset.isNullOrEmpty()
+            if ((!hrResponse.isSuccessful && hrResponse.code() != 429) || (hrResponse.isSuccessful && isEmpty)) {
                  hrResponse = apiClient.fitbitApi.getIntradayHeartRate(dateString)
             }
 

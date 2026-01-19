@@ -1,5 +1,9 @@
 # Historique des Versions (Changelog)
 
+## Version 25 (v1.1.25) - 2026-01-19
+### Corrections
+- **Fitbit RHR** : Correction du calcul du pouls au repos (Jour/Nuit). Les données sont maintenant récupérées avec plus de précision et la tolérance aux mouvements a été ajustée pour ne pas bloquer le calcul lors de simples pas.
+
 ## Version 24 (v1.1.24) - 2026-01-19
 ### Interface
 - **Détails d'Entraînement** : Les graphiques sont désormais masqués par défaut et ne se chargent qu'au clic pour une meilleure fluidité.
