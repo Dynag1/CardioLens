@@ -1,0 +1,5 @@
+🚀 Version 1.1.21
+- Amélioration majeure du graphique de fréquence cardiaque (Haute Précision)
+- Nouvelles statistiques de Récupération (chute de cardio après effort)
+- Optimisation de l'affichage pour une meilleure lisibilité
+- Correction des permissions Health Connect pour la distance

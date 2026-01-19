@@ -1,5 +1,16 @@
 # Historique des Versions (Changelog)
 
+## Version 21 (v1.1.21) - 2026-01-19
+### Nouvelles Fonctionnalités
+- **Haute Précision Cardiaque** : Support des données à la seconde pour les détails d'activité.
+- **Statistiques de Récupération** : Affichage automatique de la chute de cardio (1min/2min) après l'effort.
+- **Graphique Principal Optimisé** : Agrégation intelligente à la minute pour une lisibilité parfaite sur le tableau de bord.
+- **Vérification des Permissions** : Bouton pour s'assurer que toutes les données (Distance, Pas) sont accessibles.
+
+### Corrections
+- **Affichage Graphique** : Correction de la transparence et de la finesse des barres sur les données haute fréquence.
+- **Déploiement** : Correction du nom de version sur le Play Store.
+
 ## Version 17 (En cours)
 ### Fichiers locaux et Cloud
 - **Nouveau système de sauvegarde** : Sauvegardez vos données dans n'importe quel dossier (Google Drive, Dropbox, Stockage local) sans configuration complexe.
