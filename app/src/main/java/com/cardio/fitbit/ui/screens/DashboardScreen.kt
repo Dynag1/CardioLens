@@ -57,6 +57,24 @@ fun DashboardScreen(
     val spo2Data by viewModel.spo2Data.collectAsState()
     val spo2History by viewModel.spo2History.collectAsState()
 
+    // Aggregate 1-minute data for Main Chart (Dashboard Only)
+    // Keeps main chart readable while preserving seconds for ActivityDetail
+    val oneMinuteData = remember(intradayData) {
+        intradayData?.minuteData
+            ?.groupBy { it.time.substring(0, 5) } // Group by HH:mm
+            ?.mapNotNull { (timeKey, entries) ->
+                val avgHr = entries.map { it.heartRate }.filter { it > 0 }.average()
+                if (avgHr.isNaN()) return@mapNotNull null
+                entries.first().copy(
+                    time = timeKey,
+                    heartRate = avgHr.toInt(),
+                    steps = entries.sumOf { it.steps }
+                )
+            }
+            ?.sortedBy { it.time }
+            ?: emptyList()
+    }
+
     // Settings States
     val highThreshold by viewModel.highHrThreshold.collectAsState(initial = 120)
     val lowThreshold by viewModel.lowHrThreshold.collectAsState(initial = 50)
@@ -549,7 +567,7 @@ fun DashboardScreen(
                                         }
 
                                         HeartRateDetailChart(
-                                            minuteData = data.minuteData,
+                                            minuteData = oneMinuteData,
                                             aggregatedData = aggregatedMinuteData,
                                             sleepSessions = sleepData,
                                             activityData = activityData,
