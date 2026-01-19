@@ -1,8 +1,8 @@
 name: Deploy to Play Store
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ "master", "beta" ]
   workflow_dispatch:
 
 jobs:
