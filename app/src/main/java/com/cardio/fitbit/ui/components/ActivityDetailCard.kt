@@ -27,6 +27,12 @@ import com.github.mikephil.charting.data.BarData
 import com.github.mikephil.charting.data.BarDataSet
 import com.github.mikephil.charting.data.BarEntry
 import com.github.mikephil.charting.data.CombinedData
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import java.util.*
 
 @Composable
@@ -53,10 +59,15 @@ fun ActivityDetailCard(
     }
     val userMaxHr = 220 - age
     
+    // State for Reference Expansion
+    var isExpanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp)
+            .animateContentSize()
+            .clickable { isExpanded = !isExpanded },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
@@ -70,14 +81,16 @@ fun ActivityDetailCard(
             val durationMs = activity.duration
             val endTimeMs = startTimeMs + durationMs
 
-            // Filter data within range (with 10 min margin) - MEMOIZED
-            // allMinuteData might be the same instance, but just in case, use remember.
-            // Assuming allMinuteData is passed as stable or immutable list.
-            val relevantData = remember(activity.startTime, activity.duration, allMinuteData, selectedDate) {
-                 allMinuteData.filter { 
-                    val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
-                    val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                    fullDataTime >= startTimeMs && fullDataTime <= (endTimeMs + 10 * 60 * 1000)
+            // Filter data within range (with 10 min margin) - OPTIMIZED: Only if expanded
+            val relevantData = remember(activity.startTime, activity.duration, allMinuteData, selectedDate, isExpanded) {
+                if (isExpanded) {
+                     allMinuteData.filter { 
+                        val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
+                        val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
+                        fullDataTime >= startTimeMs && fullDataTime <= (endTimeMs + 10 * 60 * 1000)
+                    }
+                } else {
+                    emptyList()
                 }
             }
             
@@ -165,16 +178,18 @@ fun ActivityDetailCard(
                 val paceMinPerKm = if (avgSpeedKmph > 0) 60 / avgSpeedKmph else 0.0
                 val paceSeconds = ((paceMinPerKm - paceMinPerKm.toInt()) * 60).toInt()
 
-                // Max Speed Estimation
-                val avgStrideLengthM = if (displaySteps > 0) (activity.distance * 1000) / displaySteps else 0.0
-                // Max steps needs 1-min window aggregation if data is 1sec!
-                // We should bucket relevantData by minute to find max steps per minute.
-                val maxStepsPerMin = continuousMinutes
-                    .groupBy { it.time.substring(0, 5) } // Group by HH:mm
-                    .values
-                    .maxOfOrNull { list -> list.sumOf { it.steps } } ?: 0
-                
-                val maxSpeedKmph = (maxStepsPerMin * avgStrideLengthM * 60) / 1000
+                // Max Speed Estimation (Only if Expanded or if we have data)
+                val maxSpeedKmph = if (continuousMinutes.isNotEmpty()) {
+                    val avgStrideLengthM = if (displaySteps > 0) (activity.distance * 1000) / displaySteps else 0.0
+                    // Max steps needs 1-min window aggregation if data is 1sec!
+                    // We should bucket relevantData by minute to find max steps per minute.
+                    val maxStepsPerMin = continuousMinutes
+                        .groupBy { it.time.substring(0, 5) } // Group by HH:mm
+                        .values
+                        .maxOfOrNull { list -> list.sumOf { it.steps } } ?: 0
+                    
+                    (maxStepsPerMin * avgStrideLengthM * 60) / 1000
+                } else 0.0
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -187,27 +202,6 @@ fun ActivityDetailCard(
                        StatItem(label = "Vitesse Max", value = String.format("%.1f km/h", maxSpeedKmph))
                     }
                 }
-                
-                // NOTIFICATION LOGIC - REMOVED PER USER REQUEST
-                /*
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                     try {
-                         val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
-                             context.applicationContext,
-                             NotificationHelperEntryPoint::class.java
-                         )
-                         entryPoint.getNotificationHelper().showWorkoutSummary(
-                             activityName = activity.activityName,
-                             duration = DateUtils.formatDuration(activity.duration),
-                             distance = String.format("%.2f km", activity.distance),
-                             avgHr = avgHr,
-                             calories = activity.calories
-                         )
-                     } catch (e: Exception) {
-                         // Fallback
-                     }
-                }
-                */
             } else {
                  // DEBUG: Show why speed isn't showing
                  if (activity.distance == null || activity.distance == 0.0) {
@@ -215,62 +209,81 @@ fun ActivityDetailCard(
                  }
             }
             
-            // --- Recovery Stats ---
-            // Calculate HR at End, +1 min, +2 min
-            val endHrEntry = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - (startTimeMs + durationMs))) }
+            // --- Recovery Stats (Visible only if Expanded or always? User said "graph if click". I will keep stats for now or better, hide everything detailed)
+            // Let's hide detailed stats and chart if not expanded to make it a true summary.
             
-            // Only show recovery if we have data AFTER the end
-            if (continuousMinutes.any { (DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0)) > (startTimeMs + durationMs + 30000) }) { 
+            if (isExpanded) {
+                // --- Recovery Stats ---
+                // Calculate HR at End, +1 min, +2 min
+                val endHrEntry = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - (startTimeMs + durationMs))) }
                 
-                 val oneMinPost = startTimeMs + durationMs + 60000
-                 val twoMinPost = startTimeMs + durationMs + 120000
-                 
-                 val hr1Min = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - oneMinPost)) }?.heartRate
-                 val hr2Min = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - twoMinPost)) }?.heartRate
-                 
-                 val endHr = endHrEntry?.heartRate ?: 0
-                 
-                 if (endHr > 0 && (hr1Min != null || hr2Min != null)) {
-                     Spacer(modifier = Modifier.height(8.dp))
-                     HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                     Spacer(modifier = Modifier.height(8.dp))
+                // Only show recovery if we have data AFTER the end
+                if (continuousMinutes.any { (DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0)) > (startTimeMs + durationMs + 30000) }) { 
+                    
+                     val oneMinPost = startTimeMs + durationMs + 60000
+                     val twoMinPost = startTimeMs + durationMs + 120000
                      
-                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                         Text("Récupération", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                             if (hr1Min != null && hr1Min > 0) {
-                                 val drop = endHr - hr1Min
-                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                     Text("$hr1Min bpm", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                     Text("1 min (${if(drop>=0) "-" else "+"}$drop)", style = MaterialTheme.typography.labelSmall, color = if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                     val hr1Min = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - oneMinPost)) }?.heartRate
+                     val hr2Min = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - twoMinPost)) }?.heartRate
+                     
+                     val endHr = endHrEntry?.heartRate ?: 0
+                     
+                     if (endHr > 0 && (hr1Min != null || hr2Min != null)) {
+                         Spacer(modifier = Modifier.height(8.dp))
+                         HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                         Spacer(modifier = Modifier.height(8.dp))
+                         
+                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                             Text("Récupération", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                                 if (hr1Min != null && hr1Min > 0) {
+                                     val drop = endHr - hr1Min
+                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                         Text("$hr1Min bpm", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                         Text("1 min (${if(drop>=0) "-" else "+"}$drop)", style = MaterialTheme.typography.labelSmall, color = if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                     }
                                  }
-                             }
-                             if (hr2Min != null && hr2Min > 0) {
-                                 val drop = endHr - hr2Min
-                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                     Text("$hr2Min bpm", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                     Text("2 min (${if(drop>=0) "-" else "+"}$drop)", style = MaterialTheme.typography.labelSmall, color = if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                 if (hr2Min != null && hr2Min > 0) {
+                                     val drop = endHr - hr2Min
+                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                         Text("$hr2Min bpm", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                         Text("2 min (${if(drop>=0) "-" else "+"}$drop)", style = MaterialTheme.typography.labelSmall, color = if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                     }
                                  }
                              }
                          }
                      }
-                 }
-            }
-
-            // --- Chart ---
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .padding(top = 16.dp)
-            ) {
-                ActivityHeartRateChart(
-                    activityMinutes = continuousMinutes,
-                    activityStartTime = activity.startTime.time, // Pass start time for X-axis ref
-                    cutoffIndex = durationMinutes.toFloat(), // Float minutes
-                    userMaxHr = userMaxHr,
-                    selectedDate = selectedDate
-                )
+                }
+    
+                // --- Chart ---
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .padding(top = 16.dp)
+                ) {
+                    ActivityHeartRateChart(
+                        activityMinutes = continuousMinutes,
+                        activityStartTime = activity.startTime.time, // Pass start time for X-axis ref
+                        cutoffIndex = durationMinutes.toFloat(), // Float minutes
+                        userMaxHr = userMaxHr,
+                        selectedDate = selectedDate
+                    )
+                }
+            } else {
+                // Hint to expand
+                 Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        contentDescription = "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

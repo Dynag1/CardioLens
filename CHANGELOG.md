@@ -1,5 +1,10 @@
 # Historique des Versions (Changelog)
 
+## Version 24 (v1.1.24) - 2026-01-19
+### Interface
+- **Détails d'Entraînement** : Les graphiques sont désormais masqués par défaut et ne se chargent qu'au clic pour une meilleure fluidité.
+- **Optimisation** : Chargement différé des données détaillées pour économiser de la batterie et améliorer le défilement.
+
 ## Version 23 (v1.1.23) - 2026-01-19
 ### Nouvelles Fonctionnalités
 - **Suivi des Symptômes** : Ajout quotidien de symptômes (Malade, Fièvre, etc.) via le Dashboard.
