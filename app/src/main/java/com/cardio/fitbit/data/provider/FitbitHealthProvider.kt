@@ -46,35 +46,52 @@ class FitbitHealthProvider @Inject constructor(
     override suspend fun getIntradayData(date: Date): Result<IntradayData?> {
          try {
             val dateString = DateUtils.formatForApi(date)
-            val hrResponse = apiClient.fitbitApi.getIntradayHeartRate(dateString)
+            // Try fetching High Precision (1sec) first
+            var hrResponse = apiClient.fitbitApi.getIntradayHeartRatePrecision(dateString)
+            
+            // If failed (e.g. 403 Forbidden or not personal app), fallback to standard 1min
+            if (!hrResponse.isSuccessful && hrResponse.code() != 429) {
+                 hrResponse = apiClient.fitbitApi.getIntradayHeartRate(dateString)
+            }
+
             val stepsResponse = apiClient.fitbitApi.getIntradaySteps(dateString)
 
             if (!hrResponse.isSuccessful) {
                 if (hrResponse.code() == 429) {
                      return Result.failure(com.cardio.fitbit.data.api.RateLimitException("Limite d'API Fitbit atteinte.", 3600))
                 }
-                return Result.failure(Exception("Fitbit Intraday HR Error"))
+                return Result.failure(Exception("Fitbit Intraday HR Error: ${hrResponse.code()}"))
             }
 
-            // Steps parsing is less critical but check success
-            
             val hrData = hrResponse.body()?.intradayData?.dataset ?: emptyList()
             val stepsData = stepsResponse.body()?.intradayData?.dataset ?: emptyList()
-
-            val allTimes = (hrData.map { it.time } + stepsData.map { it.time }).distinct()
+            
+            // Create maps for lookup
             val hrMap = hrData.associateBy { it.time }
-            val stepsMap = stepsData.associateBy { it.time }
+            val stepsMap = stepsData.associateBy { it.time } // Steps usually HH:mm:ss (00 endings)
+            
+            // To associate steps correctly (which are 1-min aggregated) to high-res HR (1-sec),
+            // we might want steps only on the exact match, or distributed. 
+            // For now, exact match is simplest and prevents inflating step counts.
+            // But we need to ensure we don't lose Steps timestamp if HR is missing for that exact second.
+            
+            val allTimes = (hrData.map { it.time } + stepsData.map { it.time }).distinct().sorted()
 
             val minuteData = allTimes.map { timeRaw ->
-                // Normalize time to HH:mm (Fitbit returns HH:mm:ss)
-                val time = if (timeRaw.length >= 5) timeRaw.substring(0, 5) else timeRaw
+                // Keep raw time (e.g. "12:00:05") to support high precision
+                
+                // Lookup Steps: Try exact match first.
+                // If we want to accept "12:00" matching "12:00:00", we might need normalization,
+                // but usually Fitbit output is consistent HH:mm:ss for both if 1sec requested?
+                // Actually 1min endpoint returns HH:mm:00 often.
+                // Let's rely on string match.
                 
                 MinuteData(
-                    time = time,
+                    time = timeRaw,
                     heartRate = hrMap[timeRaw]?.value ?: 0,
                     steps = stepsMap[timeRaw]?.value ?: 0
                 )
-            }.sortedBy { it.time }
+            }
 
             return Result.success(IntradayData(date, minuteData))
         } catch (e: Exception) {

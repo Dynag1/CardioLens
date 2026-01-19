@@ -472,6 +472,15 @@ fun DashboardScreen(
                                             ) {
                                                 Text("Accorder les permissions", color = Color.White)
                                             }
+                                            // Extra button to force request all permissions even if some granted
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            TextButton(
+                                                onClick = {
+                                                    requestPermissions.launch(healthConnectPermissions)
+                                                }
+                                            ) {
+                                                Text("Vérifier toutes les permissions", color = MaterialTheme.colorScheme.error)
+                                            }
                                         }
                                     }
                                 }
@@ -565,7 +574,8 @@ fun DashboardScreen(
                                 ActivityDetailCard(
                                     activity = activity,
                                     allMinuteData = intradayData?.minuteData ?: emptyList(),
-                                    selectedDate = selectedDate
+                                    selectedDate = selectedDate,
+                                    dateOfBirth = dateOfBirth
                                 )
                             }
                         }

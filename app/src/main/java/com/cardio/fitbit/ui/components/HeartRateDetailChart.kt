@@ -244,13 +244,14 @@ fun HeartRateDetailChart(
                 chart.axisLeft.axisMaximum = finalYMax
                 val zoneHeight = 40f + (finalYMax - 40f) * 0.75f // Cover 75% of height (taller)
 
-                // Helper function to convert time string to index (1-minute granularity)
+                // Helper function to convert time string to index (float minutes)
                 fun timeToIndex(time: String): Float {
                     val parts = time.split(":")
                     if (parts.size < 2) return 0f
                     val hours = parts[0].toInt()
                     val minutes = parts[1].toInt()
-                    return (hours * 60 + minutes).toFloat()
+                    val seconds = if (parts.size > 2) parts[2].toInt() else 0
+                    return (hours * 60 + minutes + seconds / 60f)
                 }
 
                 // 1. HR Bars (With Fluid Gradient)
@@ -355,7 +356,17 @@ fun HeartRateDetailChart(
 
                 // Combine both in BarData (Order: HR first, then Steps on top)
                 val barData = BarData(hrDataSet, stepDataSet)
-                barData.barWidth = 0.9f
+                
+                // Dynamic Bar Width
+                // If data is 1sec (interval ~0.016f), bar width must be ~0.015f
+                // If data is 1min (interval ~1.0f), bar width must be ~0.9f
+                val interval = if (activeList.size > 1) {
+                    val t1 = timeToIndex(activeList[0].time)
+                    val t2 = timeToIndex(activeList[1].time)
+                    (t2 - t1).coerceAtLeast(0.016f) // Avoid 0
+                } else 1f
+                
+                barData.barWidth = (interval * 0.9f)
 
                 // --- Zone Rendering Logic (Sleep & Activity) ---
                 
