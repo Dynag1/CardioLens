@@ -463,7 +463,7 @@ class HealthConnectProvider @Inject constructor(
             )
             
             val grouped = response.records.groupBy { 
-                DateUtils.getStartOfDay(Date.from(it.time))
+                DateUtils.getStartOfDay(Date.from(it.startTime))
             }
             
             val history = grouped.map { (day, records) ->

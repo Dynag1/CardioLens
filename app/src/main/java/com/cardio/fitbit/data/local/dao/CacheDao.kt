@@ -31,6 +31,9 @@ interface SleepDataDao {
     @Query("SELECT * FROM sleep_data WHERE date = :date")
     suspend fun getByDate(date: String): SleepDataEntity?
     
+    @Query("SELECT * FROM sleep_data WHERE date BETWEEN :startDate AND :endDate")
+    suspend fun getBetweenDates(startDate: String, endDate: String): List<SleepDataEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: SleepDataEntity)
     
@@ -87,6 +90,9 @@ interface HrvDataDao {
 interface HeartRateDao {
     @Query("SELECT * FROM heart_rate_data WHERE date = :date")
     suspend fun getByDate(date: String): com.cardio.fitbit.data.local.entities.HeartRateDataEntity?
+    
+    @Query("SELECT * FROM heart_rate_data WHERE date BETWEEN :startDate AND :endDate")
+    suspend fun getBetweenDates(startDate: String, endDate: String): List<com.cardio.fitbit.data.local.entities.HeartRateDataEntity>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: com.cardio.fitbit.data.local.entities.HeartRateDataEntity)
