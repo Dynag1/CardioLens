@@ -148,6 +148,109 @@ class HealthRepository @Inject constructor(
     }
 
     /**
+     * Get heart rate history (daily summaries) for a date range
+     * Note: This usually returns simplified data (no full intraday) to save bandwidth/quota.
+     * We do NOT cache this into the main HeartRate entity to avoid overwriting detailed intraday data with summaries.
+     */
+    suspend fun getHeartRateHistory(startDate: java.util.Date, endDate: java.util.Date): Result<List<HeartRateData>> = withContext(Dispatchers.IO) {
+        getProvider().getHeartRateHistory(startDate, endDate)
+    }
+    
+    /**
+     * Get sleep history for a date range
+     */
+    suspend fun getSleepHistory(startDate: java.util.Date, endDate: java.util.Date, forceRefresh: Boolean = false): Result<List<SleepData>> = withContext(Dispatchers.IO) {
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            
+            // 1. Check cache
+            val cachedList = if (!forceRefresh) sleepDataDao.getBetweenDates(startStr, endStr) else emptyList()
+            val cachedMap = cachedList.associateBy { it.date }
+            
+            // 2. Identify missing dates
+            val calendar = java.util.Calendar.getInstance()
+            calendar.time = startDate
+            val missingDates = mutableListOf<java.util.Date>()
+            
+            while (!calendar.time.after(endDate)) {
+                val dateStr = DateUtils.formatForApi(calendar.time)
+                if (cachedMap[dateStr] == null) {
+                    missingDates.add(calendar.time)
+                }
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            
+            val fetchedData = mutableListOf<SleepData>()
+            
+            if (missingDates.isNotEmpty()) {
+                val totalDays = ((endDate.time - startDate.time) / (1000 * 60 * 60 * 24)).toInt() + 1
+                 // Range fetch strategy
+                 val fetchStart: java.util.Date
+                 val fetchEnd: java.util.Date
+                 
+                 if (missingDates.size > totalDays / 2) {
+                     fetchStart = startDate
+                     fetchEnd = endDate
+                 } else {
+                     fetchStart = missingDates.minOrNull() ?: startDate
+                     fetchEnd = missingDates.maxOrNull() ?: endDate
+                 }
+                
+                val result = getProvider().getSleepHistory(fetchStart, fetchEnd)
+                
+                if (result.isSuccess) {
+                    val data = result.getOrNull() ?: emptyList()
+                    fetchedData.addAll(data)
+                    
+                    // Cache
+                    // SleepData structure is complex (list of SleepData per day? No, getSleepHistory returns List<SleepData> flat?)
+                    // Fitbit API returns list of sleep logs. Multiple logs can exist for same day.
+                    // SleepDataDao expects One Entity per Date?
+                    // Let's check SleepDataDao...
+                    // SleepDataEntity: date (String), data (JSON List<SleepData>)
+                    // getSleepHistory returns List<SleepData>.
+                    // We need to group by Date to insert into DB.
+                    
+                    val grouped = data.groupBy { DateUtils.formatForApi(it.date) }
+                    
+                    val entities = grouped.map { (dateStr, sleepList) ->
+                        com.cardio.fitbit.data.local.entities.SleepDataEntity(
+                            date = dateStr,
+                            data = com.google.gson.Gson().toJson(sleepList),
+                            timestamp = System.currentTimeMillis()
+                        )
+                    }
+                    if (entities.isNotEmpty()) {
+                        sleepDataDao.insertAll(entities)
+                    }
+                }
+            }
+            
+            // Reconstruct logic mostly same as HrvHistory
+            // ... (Simplified: just returning what we have combined)
+             val finalRecords = mutableListOf<SleepData>()
+             finalRecords.addAll(fetchedData)
+             
+             // Simple distinct union
+             val fetchedDates = fetchedData.map { DateUtils.formatForApi(it.date) }.toSet()
+             
+             cachedList.forEach { entity ->
+                  if (!fetchedDates.contains(entity.date)) {
+                      val type = object : com.google.gson.reflect.TypeToken<List<SleepData>>() {}.type
+                      val list = com.google.gson.Gson().fromJson<List<SleepData>>(entity.data, type)
+                       finalRecords.addAll(list)
+                  }
+             }
+             
+             Result.success(finalRecords.sortedBy { it.startTime })
+            
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Get sleep data for a specific date
      * Uses cache-first strategy with 24h TTL
      */

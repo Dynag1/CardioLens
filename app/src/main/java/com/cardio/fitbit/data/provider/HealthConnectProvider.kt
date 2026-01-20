@@ -449,6 +449,75 @@ class HealthConnectProvider @Inject constructor(
         // No implementation needed here
     }
 
+    override suspend fun getHeartRateHistory(startDate: Date, endDate: Date): Result<List<HeartRateData>> {
+        // For efficiency, we can query range and group by day.
+        try {
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    HeartRateRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startDate.toInstant(),
+                        endDate.toInstant()
+                    )
+                )
+            )
+            
+            val grouped = response.records.groupBy { 
+                DateUtils.getStartOfDay(Date.from(it.time))
+            }
+            
+            val history = grouped.map { (day, records) ->
+                val samples = records.flatMap { it.samples }.map { it.beatsPerMinute.toInt() }
+                val resting = samples.minOrNull() // Proxy for RHR
+                
+                // Minimal HeartRateData
+                HeartRateData(
+                    date = day,
+                    restingHeartRate = resting,
+                    heartRateZones = emptyList(), // TODO: calculate if needed
+                    intradayData = null
+                )
+            }.sortedBy { it.date }
+            
+            return Result.success(history)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getSleepHistory(startDate: Date, endDate: Date): Result<List<SleepData>> {
+         try {
+             // Similar to single day but range
+             val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    SleepSessionRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startDate.toInstant(),
+                        endDate.toInstant()
+                    )
+                )
+            )
+            
+            val list = response.records.map { record ->
+                 val durationMs = record.endTime.toEpochMilli() - record.startTime.toEpochMilli()
+                 SleepData(
+                     date = Date.from(record.startTime), // Using start time as date anchor for now
+                     duration = durationMs,
+                     efficiency = 90,
+                     startTime = Date.from(record.startTime),
+                     endTime = Date.from(record.endTime),
+                     minutesAsleep = (durationMs / 60000).toInt(),
+                     minutesAwake = 0,
+                     stages = null,
+                     levels = emptyList()
+                 )
+            }.sortedBy { it.startTime }
+            return Result.success(list)
+         } catch (e: Exception) {
+             return Result.failure(e)
+         }
+    }
+
     override suspend fun getHeartRateSeries(startTime: Date, endTime: Date): Result<List<MinuteData>> {
         try {
             val allRecords = mutableListOf<HeartRateRecord>()

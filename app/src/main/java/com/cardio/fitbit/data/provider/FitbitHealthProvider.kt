@@ -174,6 +174,52 @@ class FitbitHealthProvider @Inject constructor(
         }
     }
 
+    override suspend fun getHeartRateHistory(startDate: Date, endDate: Date): Result<List<HeartRateData>> {
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            val response = apiClient.fitbitApi.getHeartRateRange(startStr, endStr)
+            
+            if (response.isSuccessful && response.body() != null) {
+                // Fitbit returns activities-heart list
+                val list = response.body()!!.activitiesHeart.mapNotNull { daily ->
+                    val date = DateUtils.parseApiDate(daily.dateTime) ?: return@mapNotNull null
+                    
+                    // Construct minimal HeartRateData (no intraday, just daily summary)
+                    val zones = daily.value.heartRateZones.map { zone ->
+                        HeartRateZone(zone.name, zone.min, zone.max, zone.minutes, zone.caloriesOut)
+                    }
+                    
+                    HeartRateData(
+                        date = date,
+                        restingHeartRate = daily.value.restingHeartRate,
+                        heartRateZones = zones,
+                        intradayData = null
+                    )
+                }
+                return Result.success(list)
+            }
+            return Result.failure(Exception("Fitbit HR History Error: ${response.code()}"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getSleepHistory(startDate: Date, endDate: Date): Result<List<SleepData>> {
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            val response = apiClient.fitbitApi.getSleepRange(startStr, endStr)
+            
+            if (response.isSuccessful && response.body() != null) {
+                return Result.success(mapSleepResponse(response.body()!!))
+            }
+            return Result.failure(Exception("Fitbit Sleep History Error"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
     override suspend fun getHeartRateSeries(startTime: Date, endTime: Date): Result<List<MinuteData>> {
         try {
             // Assume single day for now as per use case (22:00 to 23:59 on same day)

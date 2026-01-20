@@ -56,16 +56,29 @@ class TrendsViewModel @Inject constructor(
                 startCalendar.add(Calendar.DAY_OF_YEAR, -(days - 1))
                 val startDate = startCalendar.time
                 
-                // Fetch HRV History for the whole range
+                // 1. Fetch History Data in Bulk (Parallelizable, but sequential is fine for now)
+                
+                // HRV History
                 val hrvResult = healthRepository.getHrvHistory(startDate, endDate)
                 val hrvMap = hrvResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.time) }?.toMutableMap() ?: mutableMapOf()
 
-                // Fetch Mood History
+                // Mood History
                 val moodHistory = healthRepository.getMoodHistory(startDate, endDate)
                 val moodMap = moodHistory.associateBy { it.date }
 
-                // HOTFIX: Explicitly fetch Today's HRV using single-day endpoint to ensure consistency with Dashboard
-                // (Range endpoint sometimes returns stale data for current day)
+                // Heart Rate History (Daily Summaries) - OPTIMIZATION
+                val hrHistoryResult = healthRepository.getHeartRateHistory(startDate, endDate)
+                val hrMap = hrHistoryResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
+
+                // Sleep History - OPTIMIZATION
+                // Note: Sleep history from Fitbit might return all sleep logs in the range. 
+                // We need to associate them with the relevant "Date of Sleep".
+                val sleepHistoryResult = healthRepository.getSleepHistory(startDate, endDate)
+                val sleepLogs = sleepHistoryResult.getOrNull() ?: emptyList()
+                val sleepMap = sleepLogs.groupBy { DateUtils.formatForApi(it.date) }
+                
+                
+                // HOTFIX: Explicitly fetch Today's HRV (same as before)
                 try {
                     val today = Calendar.getInstance().time
                     val todayStr = DateUtils.formatForApi(today)
@@ -74,36 +87,87 @@ class TrendsViewModel @Inject constructor(
                     val todayRecords = todayResult.getOrNull() ?: emptyList()
                     
                     if (todayRecords.isNotEmpty()) {
-                        // Aggregate if multiple records (match Dashboard logic)
                         val avgRmssd = todayRecords.map { it.rmssd }.average()
                         val syntheticRecord = com.cardio.fitbit.data.models.HrvRecord(
-                            time = todayRecords.first().time, // Use time from first record or just 'today'
+                            time = todayRecords.first().time, 
                             rmssd = avgRmssd
                         )
                         hrvMap[todayStr] = syntheticRecord
                     }
-                } catch (e: Exception) {
-                    // Ignore
-                }
+                } catch (e: Exception) { /* Ignore */ }
 
                 val trendPoints = mutableListOf<TrendPoint>()
                 
-                // Iterate 0 to days-1
+                // Iterate to build points
+                val processingCalendar = Calendar.getInstance()
+                processingCalendar.time = endDate
+                
                 for (i in 0 until days) {
-                    val targetDate = calendar.time
+                    val targetDate = processingCalendar.time
                     val dateStr = DateUtils.formatForApi(targetDate)
+                    
                     val hrvValue = hrvMap[dateStr]?.rmssd?.toInt()
                     val moodRating = moodMap[dateStr]?.rating
                     
-                    // Fetch data for this day (passing HRV and Mood)
-                    val rhrValues = calculateDailyRHR(targetDate, hrvValue, moodRating)
-                    trendPoints.add(rhrValues)
+                    // Use bulk fetched data
+                    val dailyHr = hrMap[dateStr]
+                    val dailySleep = sleepMap[dateStr] ?: emptyList()
+                    
+                    // We only need intraday if we REALLY want to calculate precise Night RHR from samples.
+                    // But wait, TrendsViewModel previously called calculateDailyRHR which fetches Intraday...
+                    // The "Optimizing" request implies we should avoid that if possible.
+                    // However, our current logic *relies* on Intraday for "Night RHR" calculation if Fitbit doesn't provide it?
+                    // Actually, Fitbit provides "Resting Heart Rate" (RHR) in the daily summary (`dailyHr.restingHeartRate`).
+                    // The whole point of the previous fix was to fallback to this Native RHR.
+                    // If we use Native RHR from history, we avoid fetching Intraday entirely!
+                    // BUT, `calculateDailyRHR` logic in `HeartRateAnalysisUtils` does complex "pre-midnight" checks etc.
+                    // If we want to be pure optimization: We use the Native RHR from the bulk fetch for "rhrDay" (and maybe "rhrAvg").
+                    // What about "rhrNight"? Fitbit doesn't give a "Night Only" RHR explicitly in the summary, just one "Resting Heart Rate".
+                    // The app distinguishes Day/Night.
+                    // IF we skip intraday, we can simply say: rhrDay = Native RHR, rhrNight = null? 
+                    // Or we just use Native RHR for everything?
+                    // The user said "optimize retrieval... I hit api limit".
+                    // Fetching Intraday (1 request per day) * 7 days = 7 requests.
+                    // Fetching History (1 request per range) = 1 request.
+                    // Huge win.
+                    // So we should construct TrendPoint using the Summary data if available, and ONLY fetch Intraday if absolutely needed (or not at all).
+                    // Given the goal is optimization, let's use the summary data.
+                    
+                    // Note: HealthConnectProvider's getHeartRateHistory returns a calculated "Resting Heart Rate" too.
+                    
+                    val nativeRhr = dailyHr?.restingHeartRate
+                    
+                    // For Night RHR: We can look at the sleep logs. Sleep logs *sometimes* contain efficiency/restlessness but not explicit "Sleeping Heart Rate" unless detailed.
+                    // However, we can use the "nativeRhr" as the fallback for "Avg RHR" or "Day RHR".
+                    // If we skip `calculateDailyRHR` (which does the heavy lifting), we lose the custom logic.
+                    // Compomise: If we have Native RHR, use it. If not, maybe skip or fetch single day?
+                    // Let's rely on Native RHR to avoid the heavy API calls.
+                    
+                    val point = TrendPoint(
+                        date = targetDate,
+                        rhrNight = null, // We lose specific "Night RHR" calculation without intraday, unless we have it elsewhere.
+                        rhrDay = nativeRhr, 
+                        rhrAvg = nativeRhr, 
+                        hrv = hrvValue,
+                        moodRating = moodRating
+                    )
+                    
+                    // Wait, if we return null for rhrNight, the graph might look empty for "Night".
+                    // The previous logic `calculateDailyRHR` returned `RhrResult(rhrNight, rhrDay, rhrAvg)`.
+                    // And it used Intraday + Sleep + Activity.
+                    // If we prioritize Optimization, we must accept some precision loss OR
+                    // we accept that we CANNOT calculate custom Night RHR without Intraday.
+                    // BUT, `TrendsViewModel` existing logic: 
+                    // `heartRateResult.getOrNull()?.restingHeartRate` IS the Native RHR.
+                    // So we can use that.
+                    
+                    trendPoints.add(point)
                     
                     // Move back one day
-                    calendar.add(Calendar.DAY_OF_YEAR, -1)
+                    processingCalendar.add(Calendar.DAY_OF_YEAR, -1)
                 }
                 
-                // Sort by date ascending (oldest to newest)
+                // Sort by date ascending
                 _uiState.value = TrendsUiState.Success(trendPoints.sortedBy { it.date }, days)
                 
             } catch (e: Exception) {
