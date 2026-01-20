@@ -169,10 +169,11 @@ object HeartRateAnalysisUtils {
         val rhrDayComputed = if (windowAverages.isNotEmpty()) {
             val sorted = windowAverages.sorted()
             
-            // Limit to bottom 50% to include more periods (addressing "too low" feedback)
-            // This is essentially averaging the lower half of stable data, filtering out stress/activity but not over-biasing to deep rest.
+            // Adjusted to Average of Lowest 50% (Balanced Baseline)
+            // User feedback: Median is too high, Bottom 20% is too low.
+            // Bottom 50% provides a robust average of the relaxed half of the day,
+            // balancing out deep rest and light sedentary activity.
             val countToAverage = (sorted.size * 0.5).toInt().coerceAtLeast(1)
-            
             val lowestWindows = sorted.take(countToAverage)
             kotlin.math.round(lowestWindows.average()).toInt()
         } else null

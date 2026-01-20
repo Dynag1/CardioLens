@@ -23,7 +23,8 @@ data class TrendPoint(
     val rhrDay: Int?,
     val rhrAvg: Int?,
     val hrv: Int?, // Daily RMSSD
-    val moodRating: Int?
+    val moodRating: Int?,
+    val steps: Int?
 )
 
 sealed class TrendsUiState {
@@ -80,8 +81,13 @@ class TrendsViewModel @Inject constructor(
                 val sleepMap = sleepLogs.groupBy { DateUtils.formatForApi(it.date) } // Note: Sleep date logic might be tricky, assuming API returns 'dateOfSleep' correctly
                 
                 // Activity History (for excluding workouts from RHR)
+                // Activity History (for excluding workouts from RHR)
                 val activityHistoryResult = healthRepository.getActivityHistory(startDate, endDate)
                 val activityMap = activityHistoryResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
+
+                // Steps History
+                val stepsResult = healthRepository.getStepsData(startDate, endDate)
+                val stepsMap = stepsResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
                 
                 
                 // HOTFIX: Explicitly fetch Today's HRV (same as before)
@@ -137,13 +143,16 @@ class TrendsViewModel @Inject constructor(
                         nativeRhr = nativeRhr
                     )
 
+                    val dailySteps = stepsMap[dateStr]?.steps
+
                     val point = TrendPoint(
                         date = targetDate,
                         rhrNight = rhrResult.rhrNight,
                         rhrDay = rhrResult.rhrDay, 
                         rhrAvg = rhrResult.rhrAvg, 
                         hrv = hrvValue,
-                        moodRating = moodRating
+                        moodRating = moodRating,
+                        steps = dailySteps
                     )
                     
                     trendPoints.add(point)

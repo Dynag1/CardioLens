@@ -131,10 +131,15 @@ class DashboardViewModel @Inject constructor(
         calendar.time = _selectedDate.value
         calendar.add(java.util.Calendar.DAY_OF_YEAR, daysOffset)
         val newDate = calendar.time
+        setDate(newDate)
+    }
+
+    fun setDate(newDate: java.util.Date) {
+        // If same date (ignore time), do nothing? Or force reload?
+        // For now, let's just reload.
+        
         _selectedDate.value = newDate
         
-
-
         // Reset state & Set UI to Loading to provide feedback
         _uiState.value = DashboardUiState.Loading
         _sleepData.value = emptyList()
@@ -144,7 +149,6 @@ class DashboardViewModel @Inject constructor(
         _rhrDay.value = null
         _rhrNight.value = null
         _hrvData.value = emptyList()
-        _hrvDailyAverage.value = null
         _hrvDailyAverage.value = null
         _dailyMood.value = null
         _spo2History.value = emptyList()
@@ -160,7 +164,6 @@ class DashboardViewModel @Inject constructor(
                     launch { loadSleep(newDate, forceRefresh = false) },
                     launch { loadActivity(newDate, forceRefresh = false) }, 
                     launch { loadIntradayData(newDate, forceRefresh = false) },
-                    launch { loadIntradayData(newDate, forceRefresh = false) },
                     launch { loadHrvData(newDate, forceRefresh = false) },
                     launch { loadMood(newDate) },
                     launch { loadSymptoms(newDate) },
@@ -172,7 +175,6 @@ class DashboardViewModel @Inject constructor(
                 // Switch back to success
                 _uiState.value = DashboardUiState.Success
             } catch (e: Exception) {
-
                 _uiState.value = DashboardUiState.Error(e.message ?: "Erreur de navigation")
             }
         }

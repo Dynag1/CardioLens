@@ -1,0 +1,5 @@
+What's New in 1.2.0:
+- New Unified Trends Chart: View Resting Heart Rate, HRV, and Steps all in one interactive chart.
+- Toggleable Metrics: Customize your trends view with simple chips.
+- Improved RHR Calculation: More accurate resting heart rate baseline using a balanced algorithm.
+- Dashboard Navigation: Click on mood emojis in Trends to jump to that day's dashboard.

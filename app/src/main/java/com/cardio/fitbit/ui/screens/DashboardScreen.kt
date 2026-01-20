@@ -35,6 +35,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
+    initialDate: Long? = null,
     viewModel: DashboardViewModel = hiltViewModel(),
     onLogout: () -> Unit,
     onNavigateToTrends: () -> Unit,
@@ -57,6 +58,14 @@ fun DashboardScreen(
     val spo2Data by viewModel.spo2Data.collectAsState()
     val spo2History by viewModel.spo2History.collectAsState()
     val dailySymptoms by viewModel.dailySymptoms.collectAsState()
+
+    // Handle Deep Linking / Navigation with Date
+    LaunchedEffect(initialDate) {
+        if (initialDate != null && initialDate > 0) {
+            val date = java.util.Date(initialDate)
+            viewModel.setDate(date)
+        }
+    }
 
     // Aggregate 1-minute data for Main Chart (Dashboard Only)
     // Keeps main chart readable while preserving seconds for ActivityDetail
@@ -106,7 +115,10 @@ fun DashboardScreen(
     }
 
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-        viewModel.loadAllData(forceRefresh = true)
+        // Only auto-reload if we didn't just navigate here with a specific date
+        if (initialDate == null) {
+             viewModel.loadAllData(forceRefresh = true)
+        }
     }
 
     LaunchedEffect(uiState) {
