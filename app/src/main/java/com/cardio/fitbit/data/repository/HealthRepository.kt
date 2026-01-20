@@ -106,7 +106,11 @@ class HealthRepository @Inject constructor(
                 val cached = heartRateDao.getByDate(dateString)
                 if (cached != null) {
                     val data = com.google.gson.Gson().fromJson(cached.data, HeartRateData::class.java)
-                    return@withContext Result.success(data)
+                    // Only return if we have detailed data (intraday is not null). 
+                    // History fetch stores null intraday, but Dashboard needs details.
+                    if (data.intradayData != null) {
+                        return@withContext Result.success(data)
+                    }
                 }
             }
             
@@ -153,7 +157,144 @@ class HealthRepository @Inject constructor(
      * We do NOT cache this into the main HeartRate entity to avoid overwriting detailed intraday data with summaries.
      */
     suspend fun getHeartRateHistory(startDate: java.util.Date, endDate: java.util.Date): Result<List<HeartRateData>> = withContext(Dispatchers.IO) {
-        getProvider().getHeartRateHistory(startDate, endDate)
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+
+            // 1. Check cache
+            val cachedList = heartRateDao.getBetweenDates(startStr, endStr)
+            val cachedMap = cachedList.associateBy { it.date }
+
+            // 2. Identify missing dates
+            val calendar = java.util.Calendar.getInstance()
+            calendar.time = startDate
+            val missingDates = mutableListOf<java.util.Date>()
+
+            while (!calendar.time.after(endDate)) {
+                val dateStr = DateUtils.formatForApi(calendar.time)
+                if (cachedMap[dateStr] == null) {
+                    missingDates.add(calendar.time)
+                }
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+
+            val fetchedData = mutableListOf<HeartRateData>()
+
+            if (missingDates.isNotEmpty()) {
+                val totalDays = ((endDate.time - startDate.time) / (1000 * 60 * 60 * 24)).toInt() + 1
+                
+                 val fetchStart: java.util.Date
+                 val fetchEnd: java.util.Date
+
+                 if (missingDates.size > totalDays / 2) {
+                     fetchStart = startDate
+                     fetchEnd = endDate
+                 } else {
+                     fetchStart = missingDates.minOrNull() ?: startDate
+                     fetchEnd = missingDates.maxOrNull() ?: endDate
+                 }
+
+                val result = getProvider().getHeartRateHistory(fetchStart, fetchEnd)
+                
+                if (result.isSuccess) {
+                    val data = result.getOrNull() ?: emptyList()
+                    fetchedData.addAll(data)
+
+                    // Cache (overwrite if exists, to ensure we have at least this summary)
+                    // Logic: If we already have a record for this date, should we overwrite?
+                    // If existing record has intraday (!= null), DO NOT overwrite with summary (null).
+                    // If existing record is just summary, we can overwrite (update).
+                    // Since we filtered `missingDates` based on `cachedMap[dateStr] == null`, 
+                    // we are mostly dealing with new data here.
+                    // BUT, if we fetched a Range (e.g. startDate to endDate) because >50% missing, 
+                    // the `data` result includes dates we ALREADY have.
+                    // We must be careful not to downgrade detailed data to summary.
+                    
+                    val existingMap = cachedMap.mapValues { 
+                         com.google.gson.Gson().fromJson(it.value.data, HeartRateData::class.java) 
+                    }
+                    
+                    val entitiesToInsert = mutableListOf<com.cardio.fitbit.data.local.entities.HeartRateDataEntity>()
+                    
+                    data.forEach { newItem ->
+                        val dateStr = DateUtils.formatForApi(newItem.date)
+                        val existingItem = existingMap[dateStr]
+                        
+                        // Only insert/update if:
+                        // 1. No existing item
+                        // 2. Existing item is just a summary (intraday == null) AND new item is better? (History fetch is always summary, so never better than detail)
+                        // So: rely on "History Fetch never beats Detailed Cache".
+                        // Basic rule: If exists and has details, keep existing. If not exists, insert new. 
+                        // If exists but summary, simple update (same level).
+                        
+                        val shouldSave = existingItem == null || existingItem.intradayData == null
+                        
+                        if (shouldSave) {
+                             val json = com.google.gson.Gson().toJson(newItem)
+                             entitiesToInsert.add(
+                                 com.cardio.fitbit.data.local.entities.HeartRateDataEntity(
+                                     date = dateStr,
+                                     data = json,
+                                     timestamp = System.currentTimeMillis()
+                                 )
+                             )
+                        }
+                    }
+                    
+                    if (entitiesToInsert.isNotEmpty()) {
+                        heartRateDao.insertAll(entitiesToInsert)
+                    }
+                }
+            }
+
+            // 3. Reconstruct Result
+            val finalData = mutableListOf<HeartRateData>()
+            finalData.addAll(fetchedData)
+            
+            // Add cached items that weren't in fetchedData (or were skipped during save)
+            // But we need to return the BEST data we have for the whole range.
+            // If we fetched the whole range, `fetchedData` has everything (Summaries).
+            // But `cachedList` might have DETAILS for some of those days.
+            // We should prioritize DETAILS over fetched SUMMARIES for the return value too.
+            
+            val fetchedMap = fetchedData.associateBy { DateUtils.formatForApi(it.date) }
+            val combinedResult = mutableListOf<HeartRateData>()
+            
+            // Iterate day by day for the requested range to build consistent list
+            val cal = java.util.Calendar.getInstance()
+            cal.time = startDate
+            
+            while (!cal.time.after(endDate)) {
+                val dStr = DateUtils.formatForApi(cal.time)
+                
+                // Get from cache (parse it)
+                val cachedEntity = cachedMap[dStr]
+                val cachedObj = cachedEntity?.let { 
+                    try { com.google.gson.Gson().fromJson(it.data, HeartRateData::class.java) } catch(e:Exception){null} 
+                }
+                
+                val fetchedObj = fetchedMap[dStr]
+                
+                // Pick best: Cached Details > Fetched Summary > Cached Summary
+                var bestObj: HeartRateData? = null
+                
+                if (cachedObj != null && cachedObj.intradayData != null) {
+                    bestObj = cachedObj
+                } else {
+                    // No detailed cache. Use fetched if available, else cached summary
+                    bestObj = fetchedObj ?: cachedObj
+                }
+                
+                if (bestObj != null) combinedResult.add(bestObj)
+                
+                cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            
+            Result.success(combinedResult)
+
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
