@@ -97,45 +97,56 @@ class HealthRepository @Inject constructor(
     /**
      * Get heart rate data for a specific date
      */
-    suspend fun getHeartRateData(date: java.util.Date, forceRefresh: Boolean = false): Result<HeartRateData?> = withContext(Dispatchers.IO) {
-        try {
-            val dateString = DateUtils.formatForApi(date)
-            
-            // Check cache
-            if (!forceRefresh) {
-                val cached = heartRateDao.getByDate(dateString)
-                if (cached != null) {
-                    val data = com.google.gson.Gson().fromJson(cached.data, HeartRateData::class.java)
-                    // Only return if we have detailed data (intraday is not null). 
-                    // History fetch stores null intraday, but Dashboard needs details.
-                    if (data.intradayData != null) {
-                        return@withContext Result.success(data)
-                    }
+    suspend fun getHeartRateData(date: java.util.Date, forceRefresh: Boolean = false): Result<HeartRateData> = withContext(Dispatchers.IO) {
+        val dateString = DateUtils.formatForApi(date)
+        
+        // Hold onto summary cache if we find it
+        var cachedSummary: HeartRateData? = null
+
+        if (!forceRefresh) {
+            val cached = heartRateDao.getByDate(dateString)
+            if (cached != null) {
+                val data = com.google.gson.Gson().fromJson(cached.data, HeartRateData::class.java)
+                // If we have details, return immediately
+                if (data.intradayData != null && data.intradayData.isNotEmpty()) {
+                    return@withContext Result.success(data)
                 }
+                // Determine if this is a summary
+                cachedSummary = data
             }
-            
-            // Fetch
-            val result = getProvider().getHeartRateData(date)
-            
-            if (result.isSuccess) {
-                val data = result.getOrNull()
-                // Cache
-                if (data != null) {
-                    val json = com.google.gson.Gson().toJson(data)
-                    heartRateDao.insert(
-                        com.cardio.fitbit.data.local.entities.HeartRateDataEntity(
-                            date = dateString,
-                            data = json,
-                            timestamp = System.currentTimeMillis()
-                        )
+        }
+
+        // Try to fetch fresh detailed data
+        val result = getProvider().getHeartRateData(date)
+        
+        if (result.isSuccess) {
+            val data = result.getOrNull()
+            if (data != null) {
+                // Save to cache
+                val json = com.google.gson.Gson().toJson(data)
+                heartRateDao.insert(
+                    com.cardio.fitbit.data.local.entities.HeartRateDataEntity(
+                        date = dateString,
+                        data = json,
+                        timestamp = System.currentTimeMillis()
                     )
-                }
-                Result.success(data)
-            } else {
-                result
+                )
+                return@withContext Result.success(data)
             }
-        } catch (e: Exception) {
-            Result.failure(e)
+        }
+        
+        // If fetch failed or came back empty, but we have a cached summary (from history), use it!
+        // This is crucial for "Server" apps that might not have Intraday permission but have Daily Summaries.
+        if (cachedSummary != null) {
+            return@withContext Result.success(cachedSummary)
+        }
+
+        // If all else fails, return the original fetch result (which might be failure or success with null data)
+        // If the original result was a success but with null data, we convert it to a failure for consistency
+        if (result.isSuccess && result.getOrNull() == null) {
+            Result.failure(NoSuchElementException("No heart rate data found for $dateString"))
+        } else {
+            result.map { it ?: throw NoSuchElementException("No heart rate data found for $dateString") }
         }
     }
 
@@ -427,7 +438,15 @@ class HealthRepository @Inject constructor(
                 }
                 Result.success(data)
             } else {
-                result
+                // Fallback to cache if API fails (e.g. 429)
+                val fallbackCache = sleepDataDao.getByDate(dateString)
+                if (fallbackCache != null) {
+                    val type = object : com.google.gson.reflect.TypeToken<List<SleepData>>() {}.type
+                    val data = com.google.gson.Gson().fromJson<List<SleepData>>(fallbackCache.data, type)
+                    Result.success(data)
+                } else {
+                    result
+                }
             }
         } catch (e: Exception) {
             Result.failure(e)
