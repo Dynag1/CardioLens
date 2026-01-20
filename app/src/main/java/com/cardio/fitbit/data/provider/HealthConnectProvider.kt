@@ -133,12 +133,22 @@ class HealthConnectProvider @Inject constructor(
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
             
-            // Paginate Heart Rate Records
+            // 1. Fetch Exercise Sessions to identify high-precision windows
+            val exerciseResponse = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    ExerciseSessionRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        startOfDay.toInstant(),
+                        endOfDay.toInstant()
+                    )
+                )
+            )
+            val exercises = exerciseResponse.records
+
+            // 2. Paginate Heart Rate Records
             val allHrRecords = mutableListOf<HeartRateRecord>()
             var hrPageToken: String? = null
-            var pgCount = 0
             do {
-                pgCount++
                 val response = healthConnectClient.readRecords(
                     ReadRecordsRequest(
                         HeartRateRecord::class,
@@ -151,12 +161,11 @@ class HealthConnectProvider @Inject constructor(
                     )
                 )
                 allHrRecords.addAll(response.records)
-
                 hrPageToken = response.pageToken
             } while (hrPageToken != null)
 
 
-            // Paginate Steps Records
+            // 3. Paginate Steps Records
             val allStepsRecords = mutableListOf<StepsRecord>()
             var stepsPageToken: String? = null
             do {
@@ -177,25 +186,57 @@ class HealthConnectProvider @Inject constructor(
 
 
             val minuteDataMap = mutableMapOf<String, MinuteData>()
+            // Helper to check if a time is inside an exercise
+            fun isDuringExercise(time: java.time.Instant): Boolean {
+                return exercises.any { ex -> 
+                    !time.isBefore(ex.startTime) && !time.isAfter(ex.endTime)
+                }
+            }
+
+            // Buckets for NON-exercise minutes to average them
+            val pendingAverages = mutableMapOf<String, MutableList<Int>>()
 
             allHrRecords.forEach { record ->
                 record.samples.forEach { sample ->
-                    val time = sample.time.atZone(ZoneId.systemDefault())
-                    // Use HH:mm:ss for high precision
-                    val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
-                    val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
-                    // Note: Here we are storing RAW sample for exact second, no averaging needed yet unless collision.
-                    // But if collision (multiple samples per second?), last one wins currently.
-                    // Wait, this loop iterates ALL samples. We should probably average if multiple per second or just overwrite.
-                    // Samples are INT. So no rounding needed here.
-                    minuteDataMap[timeKey] = existing.copy(heartRate = sample.beatsPerMinute.toInt())
+                    if (isDuringExercise(sample.time)) {
+                        // High Precision: Use exact time
+                        val time = sample.time.atZone(ZoneId.systemDefault())
+                        val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
+                        
+                        // If collision (multiple samples same second), overwrite/keep last
+                        val existing = minuteDataMap[timeKey]
+                        minuteDataMap[timeKey] = existing?.copy(heartRate = sample.beatsPerMinute.toInt()) 
+                            ?: MinuteData(timeKey, sample.beatsPerMinute.toInt(), 0)
+                    } else {
+                        // Low Precision: Aggregate to Minute
+                        val time = sample.time.atZone(ZoneId.systemDefault())
+                        val timeKey = String.format("%02d:%02d:00", time.hour, time.minute) // Force 00s
+                        
+                        pendingAverages.getOrPut(timeKey) { mutableListOf() }.add(sample.beatsPerMinute.toInt())
+                    }
+                }
+            }
+            
+            // Process Averages
+            pendingAverages.forEach { (key, values) ->
+                val avg = values.average().toInt()
+                val existing = minuteDataMap[key]
+                // Only write if not overwriting high precision (though keys differ by seconds usually)
+                // If key is HH:mm:00, it might collide with a high precision sample at exactly 00s.
+                // We prioritize High Precision if exists.
+                if (existing == null) {
+                    minuteDataMap[key] = MinuteData(key, avg, 0)
                 }
             }
 
             allStepsRecords.forEach { record ->
                 val time = record.startTime.atZone(ZoneId.systemDefault())
                 // Steps are often aggregated, but we assign them to the second they start
-                val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
+                // For simplified minute-by-minute visualization, usually steps are fine at minute level.
+                // We map them to HH:mm:00 if possible to align with base data, OR exact time if in workout?
+                // Visualizer usually sums steps. 
+                // Let's stick to minute bucket for Steps to avoid clutter.
+                val timeKey = String.format("%02d:%02d:00", time.hour, time.minute)
                 val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
                 minuteDataMap[timeKey] = existing.copy(steps = existing.steps + record.count.toInt())
             }
@@ -637,15 +678,20 @@ class HealthConnectProvider @Inject constructor(
             } while (pageToken != null)
 
             val minuteDataMap = mutableMapOf<String, MinuteData>()
+            val pendingAverages = mutableMapOf<String, MutableList<Int>>()
 
             allRecords.forEach { record ->
                 record.samples.forEach { sample ->
                     val time = sample.time.atZone(ZoneId.systemDefault())
-                    // IMPORTANT: Use HH:mm:ss for high precision matching
-                    val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
-                    val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
-                    minuteDataMap[timeKey] = existing.copy(heartRate = sample.beatsPerMinute.toInt())
+                    // Aggregating to Minute (00 seconds) for consistency with RHR calculation
+                    val timeKey = String.format("%02d:%02d:00", time.hour, time.minute)
+                    pendingAverages.getOrPut(timeKey) { mutableListOf() }.add(sample.beatsPerMinute.toInt())
                 }
+            }
+            
+            pendingAverages.forEach { (key, values) ->
+                val avg = values.average().toInt()
+                minuteDataMap[key] = MinuteData(key, avg, 0)
             }
             
             return Result.success(minuteDataMap.values.sortedBy { it.time })

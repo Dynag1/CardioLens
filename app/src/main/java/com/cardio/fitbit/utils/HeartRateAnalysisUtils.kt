@@ -32,17 +32,31 @@ object HeartRateAnalysisUtils {
             val c = Calendar.getInstance().apply { time = date }
             c.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
             c.set(Calendar.MINUTE, parts[1].toInt())
-            if (parts.size > 2) {
-                c.set(Calendar.SECOND, parts[2].toInt())
-            } else {
-                c.set(Calendar.SECOND, 0)
-            }
+            c.set(Calendar.SECOND, 0) // Always normalise to 00 seconds for aggregation
             c.set(Calendar.MILLISECOND, 0)
             return c.timeInMillis
         }
 
+        // AGGREGATION: Normalize to 1-minute buckets to maintain algorithm consistency (window sizes etc)
+        // This handles cases where we might have second-by-second data mixed in.
+        val aggregatedMinutes = intraday
+            .groupBy { 
+                // key by HH:mm
+                if (it.time.length >= 5) it.time.substring(0, 5) else it.time
+            }
+            .map { (timePrefix, samples) ->
+                // Average valid heart rates
+                val validHrs = samples.map { it.heartRate }.filter { it > 0 }
+                val avgHr = if (validHrs.isNotEmpty()) validHrs.average().toInt() else 0
+                
+                // Sum steps (if any sample has steps, the minute has steps)
+                val totalSteps = samples.sumOf { it.steps }
+                
+                MinuteData(timePrefix, avgHr, totalSteps)
+            }
+
         // Parse and Sort Intraday Data
-        val sortedMinutes = intraday.map { data -> 
+        val sortedMinutes = aggregatedMinutes.map { data -> 
             val ts = getTimestamp(data.time)
             Triple(data, ts, data.heartRate)
         }.sortedBy { it.second }

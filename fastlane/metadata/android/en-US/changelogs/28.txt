@@ -3,3 +3,4 @@ Scientific RHR Update:
 - Strict Activity Exclusion: Workouts (Yoga, Weights, etc.) are now actively filtered out from RHR calculation to prevent artificial inflation.
 - Precision Polish: Fixed rounding logic to eliminate 1 BPM discrepancies between devices.
 - Optimizations: Improved data fetching speed and caching for history graphs.
+- Data Efficiency: Smart resolution switching (Seconds for workouts, Minutes for rest) to optimize performance.
