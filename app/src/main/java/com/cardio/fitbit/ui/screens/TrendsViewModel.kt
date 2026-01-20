@@ -118,6 +118,7 @@ class TrendsViewModel @Inject constructor(
         var intradayResult = healthRepository.getIntradayData(date) 
         var sleepResult = healthRepository.getSleepData(date)
         var activityResult = healthRepository.getActivityData(date)
+        var heartRateResult = healthRepository.getHeartRateData(date)
         
         var intraday = intradayResult.getOrNull()?.minuteData ?: emptyList()
         var sleep = sleepResult.getOrNull() ?: emptyList()
@@ -165,12 +166,13 @@ class TrendsViewModel @Inject constructor(
             }
         }
 
-        val rhrResult = HeartRateAnalysisUtils.calculateDailyRHR(
+                val rhrResult = HeartRateAnalysisUtils.calculateDailyRHR(
             date,
             intraday,
             sleep,
             activity,
-            preMidnightHeartRates
+            preMidnightHeartRates,
+            nativeRhr = heartRateResult.getOrNull()?.restingHeartRate
         )
 
         return TrendPoint(date, rhrResult.rhrNight, rhrResult.rhrDay, rhrResult.rhrAvg, hrvValue, moodRating)

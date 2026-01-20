@@ -19,10 +19,11 @@ object HeartRateAnalysisUtils {
         intraday: List<MinuteData>,
         sleep: List<SleepData>,
         activity: ActivityData?,
-        preMidnightHeartRates: List<Int> = emptyList()
+        preMidnightHeartRates: List<Int> = emptyList(),
+        nativeRhr: Int? = null
     ): RhrResult {
         if (intraday.isEmpty()) {
-            return RhrResult(null, null, null)
+            return RhrResult(nativeRhr, null, nativeRhr)
         }
 
         // Helper to get timestamp from HH:mm or HH:mm:ss string for THIS date
@@ -149,11 +150,13 @@ object HeartRateAnalysisUtils {
         }
 
         // 5. Select Resting Baseline (Median of Valid Windows) - Matches Trends Logic
-        val rhrDay = if (windowAverages.isNotEmpty()) {
+        val rhrDayComputed = if (windowAverages.isNotEmpty()) {
             val sorted = windowAverages.sorted()
             val mid = sorted.size / 2
             if (sorted.size % 2 == 0) ((sorted[mid-1] + sorted[mid]) / 2).toInt() else sorted[mid].toInt()
         } else null
+        
+        val rhrDay = rhrDayComputed ?: nativeRhr
         
         // 6. Calculate Average (Simple average of available metrics)
         val rhrAvg = when {

@@ -1,0 +1,1 @@
+Correction du bug d'affichage de la fréquence cardiaque au repos pour les utilisateurs Fitbit.
