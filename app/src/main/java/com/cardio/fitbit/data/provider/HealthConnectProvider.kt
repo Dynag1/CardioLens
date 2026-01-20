@@ -184,6 +184,10 @@ class HealthConnectProvider @Inject constructor(
                     // Use HH:mm:ss for high precision
                     val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
                     val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
+                    // Note: Here we are storing RAW sample for exact second, no averaging needed yet unless collision.
+                    // But if collision (multiple samples per second?), last one wins currently.
+                    // Wait, this loop iterates ALL samples. We should probably average if multiple per second or just overwrite.
+                    // Samples are INT. So no rounding needed here.
                     minuteDataMap[timeKey] = existing.copy(heartRate = sample.beatsPerMinute.toInt())
                 }
             }
@@ -199,6 +203,95 @@ class HealthConnectProvider @Inject constructor(
             val minuteDataList = minuteDataMap.values.sortedBy { it.time }
             
             return Result.success(IntradayData(date, minuteDataList))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+    override suspend fun getIntradayHistory(startDate: Date, endDate: Date): Result<List<IntradayData>> {
+        try {
+            // 1. Fetch ALL HR records for range
+            val allHrRecords = mutableListOf<HeartRateRecord>()
+            var hrPageToken: String? = null
+            do {
+                val response = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        HeartRateRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startDate.toInstant(), endDate.toInstant()),
+                        pageSize = 5000,
+                        pageToken = hrPageToken
+                    )
+                )
+                allHrRecords.addAll(response.records)
+                hrPageToken = response.pageToken
+            } while (hrPageToken != null)
+
+            // 2. Fetch ALL Steps records for range
+            val allStepsRecords = mutableListOf<StepsRecord>()
+            var stepsPageToken: String? = null
+            do {
+                val response = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        StepsRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startDate.toInstant(), endDate.toInstant()),
+                        pageSize = 5000,
+                        pageToken = stepsPageToken
+                    )
+                )
+                allStepsRecords.addAll(response.records)
+                stepsPageToken = response.pageToken
+            } while (stepsPageToken != null)
+
+            // 3. Group by Day
+            val hrByDay = allHrRecords.groupBy { DateUtils.getStartOfDay(Date.from(it.startTime)) }
+            val stepsByDay = allStepsRecords.groupBy { DateUtils.getStartOfDay(Date.from(it.startTime)) }
+
+            // 4. Construct Result List
+            val resultList = mutableListOf<IntradayData>()
+            val cal = java.util.Calendar.getInstance()
+            cal.time = startDate
+            while (!cal.time.after(endDate)) {
+                val currentDay = DateUtils.getStartOfDay(cal.time)
+                
+                // Merge for this day (Logic same as getIntradayData)
+                val dayHr = hrByDay[currentDay] ?: emptyList()
+                val daySteps = stepsByDay[currentDay] ?: emptyList()
+                
+                // AGGREGATION FIX: Bucket by MINUTE to align Steps with HR
+                val minuteDataMap = mutableMapOf<String, MinuteData>()
+                
+                // Temporary storage for averaging HR within a minute
+                val hrBuckets = mutableMapOf<String, MutableList<Int>>()
+
+                dayHr.forEach { record ->
+                    record.samples.forEach { sample ->
+                        val time = sample.time.atZone(ZoneId.systemDefault())
+                        val timeKey = String.format("%02d:%02d:00", time.hour, time.minute) // Force 00 seconds
+                        
+                        hrBuckets.getOrPut(timeKey) { mutableListOf() }.add(sample.beatsPerMinute.toInt())
+                    }
+                }
+                
+                // Populate MinuteData from HR averages
+                hrBuckets.forEach { (key, values) ->
+                    val avgHr = kotlin.math.round(values.average()).toInt()
+                    minuteDataMap[key] = MinuteData(key, avgHr, 0)
+                }
+
+                daySteps.forEach { record ->
+                    val time = record.startTime.atZone(ZoneId.systemDefault())
+                    val timeKey = String.format("%02d:%02d:00", time.hour, time.minute) // Force 00 seconds
+                    
+                    val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
+                    minuteDataMap[timeKey] = existing.copy(steps = existing.steps + record.count.toInt())
+                }
+                
+                val minuteDataList = minuteDataMap.values.sortedBy { it.time }
+                resultList.add(IntradayData(currentDay, minuteDataList))
+                
+                cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            
+            return Result.success(resultList)
         } catch (e: Exception) {
             return Result.failure(e)
         }
@@ -422,6 +515,10 @@ class HealthConnectProvider @Inject constructor(
         } catch (e: Exception) {
             return Result.failure(e)
         }
+    }
+
+    override suspend fun getActivityHistory(startDate: Date, endDate: Date): Result<List<ActivityData>> {
+        return Result.success(emptyList())
     }
 
     override suspend fun getUserProfile(): Result<UserProfile> {

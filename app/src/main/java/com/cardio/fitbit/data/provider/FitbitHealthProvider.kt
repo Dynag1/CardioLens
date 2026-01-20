@@ -100,6 +100,21 @@ class FitbitHealthProvider @Inject constructor(
         }
     }
 
+    override suspend fun getIntradayHistory(startDate: Date, endDate: Date): Result<List<IntradayData>> {
+        val list = mutableListOf<IntradayData>()
+        val cal = java.util.Calendar.getInstance()
+        cal.time = startDate
+        while (!cal.time.after(endDate)) {
+            val result = getIntradayData(cal.time)
+            if (result.isSuccess) {
+                result.getOrNull()?.let { list.add(it) }
+            }
+            // Use try-catch or failure check? If one fails, do we fail all? Best effort is better for trends.
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        return Result.success(list)
+    }
+
     override suspend fun getSleepData(date: Date): Result<List<SleepData>> {
          try {
             val dateString = DateUtils.formatForApi(date)
@@ -160,6 +175,22 @@ class FitbitHealthProvider @Inject constructor(
         } catch (e: Exception) {
             return Result.failure(e)
         }
+    }
+
+
+
+    override suspend fun getActivityHistory(startDate: Date, endDate: Date): Result<List<ActivityData>> {
+        val list = mutableListOf<ActivityData>()
+        val cal = java.util.Calendar.getInstance()
+        cal.time = startDate
+        while (!cal.time.after(endDate)) {
+            val result = getActivityData(cal.time)
+            if (result.isSuccess) {
+                result.getOrNull()?.let { list.add(it) }
+            }
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        return Result.success(list)
     }
 
     override suspend fun getUserProfile(): Result<UserProfile?> {

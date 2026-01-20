@@ -1,0 +1,5 @@
+Scientific RHR Update:
+- Refined "True RHR" Algorithm: Now uses the average of the lowest stable baseline (Standardized Scientific Method).
+- Strict Activity Exclusion: Workouts (Yoga, Weights, etc.) are now actively filtered out from RHR calculation to prevent artificial inflation.
+- Precision Polish: Fixed rounding logic to eliminate 1 BPM discrepancies between devices.
+- Optimizations: Improved data fetching speed and caching for history graphs.

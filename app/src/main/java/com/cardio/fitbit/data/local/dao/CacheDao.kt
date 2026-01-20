@@ -13,6 +13,9 @@ interface IntradayDataDao {
     @Query("SELECT * FROM intraday_data WHERE date = :date")
     suspend fun getByDate(date: String): IntradayDataEntity?
     
+    @Query("SELECT * FROM intraday_data WHERE date BETWEEN :startDate AND :endDate")
+    suspend fun getBetweenDates(startDate: String, endDate: String): List<IntradayDataEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: IntradayDataEntity)
     
@@ -51,6 +54,9 @@ interface SleepDataDao {
 interface ActivityDataDao {
     @Query("SELECT * FROM activity_data WHERE date = :date")
     suspend fun getByDate(date: String): ActivityDataEntity?
+
+    @Query("SELECT * FROM activity_data WHERE date BETWEEN :startDate AND :endDate")
+    suspend fun getBetweenDates(startDate: String, endDate: String): List<ActivityDataEntity>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(data: ActivityDataEntity)

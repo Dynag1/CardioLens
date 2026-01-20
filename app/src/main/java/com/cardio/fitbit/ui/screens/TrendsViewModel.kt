@@ -66,16 +66,22 @@ class TrendsViewModel @Inject constructor(
                 val moodHistory = healthRepository.getMoodHistory(startDate, endDate)
                 val moodMap = moodHistory.associateBy { it.date }
 
-                // Heart Rate History (Daily Summaries) - OPTIMIZATION
+                // Heart Rate History (Daily Summaries - Native RHR Fallback)
                 val hrHistoryResult = healthRepository.getHeartRateHistory(startDate, endDate)
                 val hrMap = hrHistoryResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
 
-                // Sleep History - OPTIMIZATION
-                // Note: Sleep history from Fitbit might return all sleep logs in the range. 
-                // We need to associate them with the relevant "Date of Sleep".
+                // Intraday History (Detailed Data - The Source of "True RHR")
+                val intradayHistoryResult = healthRepository.getIntradayHistory(startDate, endDate)
+                val intradayMap = intradayHistoryResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
+
+                // Sleep History
                 val sleepHistoryResult = healthRepository.getSleepHistory(startDate, endDate)
-                val sleepLogs = sleepHistoryResult.getOrNull() ?: emptyList()
-                val sleepMap = sleepLogs.groupBy { DateUtils.formatForApi(it.date) }
+                val sleepLogs = sleepHistoryResult.getOrNull() ?: emptyList() 
+                val sleepMap = sleepLogs.groupBy { DateUtils.formatForApi(it.date) } // Note: Sleep date logic might be tricky, assuming API returns 'dateOfSleep' correctly
+                
+                // Activity History (for excluding workouts from RHR)
+                val activityHistoryResult = healthRepository.getActivityHistory(startDate, endDate)
+                val activityMap = activityHistoryResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
                 
                 
                 // HOTFIX: Explicitly fetch Today's HRV (same as before)
@@ -109,57 +115,36 @@ class TrendsViewModel @Inject constructor(
                     val hrvValue = hrvMap[dateStr]?.rmssd?.toInt()
                     val moodRating = moodMap[dateStr]?.rating
                     
-                    // Use bulk fetched data
+                    // Retrieve Datasets
                     val dailyHr = hrMap[dateStr]
                     val dailySleep = sleepMap[dateStr] ?: emptyList()
-                    
-                    // We only need intraday if we REALLY want to calculate precise Night RHR from samples.
-                    // But wait, TrendsViewModel previously called calculateDailyRHR which fetches Intraday...
-                    // The "Optimizing" request implies we should avoid that if possible.
-                    // However, our current logic *relies* on Intraday for "Night RHR" calculation if Fitbit doesn't provide it?
-                    // Actually, Fitbit provides "Resting Heart Rate" (RHR) in the daily summary (`dailyHr.restingHeartRate`).
-                    // The whole point of the previous fix was to fallback to this Native RHR.
-                    // If we use Native RHR from history, we avoid fetching Intraday entirely!
-                    // BUT, `calculateDailyRHR` logic in `HeartRateAnalysisUtils` does complex "pre-midnight" checks etc.
-                    // If we want to be pure optimization: We use the Native RHR from the bulk fetch for "rhrDay" (and maybe "rhrAvg").
-                    // What about "rhrNight"? Fitbit doesn't give a "Night Only" RHR explicitly in the summary, just one "Resting Heart Rate".
-                    // The app distinguishes Day/Night.
-                    // IF we skip intraday, we can simply say: rhrDay = Native RHR, rhrNight = null? 
-                    // Or we just use Native RHR for everything?
-                    // The user said "optimize retrieval... I hit api limit".
-                    // Fetching Intraday (1 request per day) * 7 days = 7 requests.
-                    // Fetching History (1 request per range) = 1 request.
-                    // Huge win.
-                    // So we should construct TrendPoint using the Summary data if available, and ONLY fetch Intraday if absolutely needed (or not at all).
-                    // Given the goal is optimization, let's use the summary data.
-                    
-                    // Note: HealthConnectProvider's getHeartRateHistory returns a calculated "Resting Heart Rate" too.
+                    val dailyIntraday = intradayMap[dateStr]?.minuteData ?: emptyList()
+                    val dailyActivity = activityMap[dateStr]
                     
                     val nativeRhr = dailyHr?.restingHeartRate
                     
-                    // For Night RHR: We can look at the sleep logs. Sleep logs *sometimes* contain efficiency/restlessness but not explicit "Sleeping Heart Rate" unless detailed.
-                    // However, we can use the "nativeRhr" as the fallback for "Avg RHR" or "Day RHR".
-                    // If we skip `calculateDailyRHR` (which does the heavy lifting), we lose the custom logic.
-                    // Compomise: If we have Native RHR, use it. If not, maybe skip or fetch single day?
-                    // Let's rely on Native RHR to avoid the heavy API calls.
+
+                    // --- RESTORED LOGIC: Calculate "True" Day RHR using Intraday ----
+                    // This uses the custom algorithm (Lowest 10-min sedentary avg)
+                    // Using 'nativeRhr' as the fallback if calculation fails (e.g. no data)
                     
+                    val rhrResult = HeartRateAnalysisUtils.calculateDailyRHR(
+                        date = targetDate,
+                        intraday = dailyIntraday,
+                        sleep = dailySleep,
+                        activity = dailyActivity, // NOW PASSING ACTIVITY DATA
+                        preMidnightHeartRates = emptyList(), 
+                        nativeRhr = nativeRhr
+                    )
+
                     val point = TrendPoint(
                         date = targetDate,
-                        rhrNight = null, // We lose specific "Night RHR" calculation without intraday, unless we have it elsewhere.
-                        rhrDay = nativeRhr, 
-                        rhrAvg = nativeRhr, 
+                        rhrNight = rhrResult.rhrNight,
+                        rhrDay = rhrResult.rhrDay, 
+                        rhrAvg = rhrResult.rhrAvg, 
                         hrv = hrvValue,
                         moodRating = moodRating
                     )
-                    
-                    // Wait, if we return null for rhrNight, the graph might look empty for "Night".
-                    // The previous logic `calculateDailyRHR` returned `RhrResult(rhrNight, rhrDay, rhrAvg)`.
-                    // And it used Intraday + Sleep + Activity.
-                    // If we prioritize Optimization, we must accept some precision loss OR
-                    // we accept that we CANNOT calculate custom Night RHR without Intraday.
-                    // BUT, `TrendsViewModel` existing logic: 
-                    // `heartRateResult.getOrNull()?.restingHeartRate` IS the Native RHR.
-                    // So we can use that.
                     
                     trendPoints.add(point)
                     

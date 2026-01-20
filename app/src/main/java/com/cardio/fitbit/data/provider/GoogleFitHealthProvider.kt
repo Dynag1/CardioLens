@@ -262,6 +262,10 @@ class GoogleFitHealthProvider @Inject constructor(
         return Result.success(null)
     }
 
+    override suspend fun getActivityHistory(startDate: Date, endDate: Date): Result<List<ActivityData>> {
+        return Result.success(emptyList())
+    }
+
     override suspend fun getUserProfile(): Result<UserProfile?> {
          // TODO: Implement
         return Result.success(null)
@@ -277,6 +281,10 @@ class GoogleFitHealthProvider @Inject constructor(
 
     override suspend fun getSleepHistory(startDate: Date, endDate: Date): Result<List<SleepData>> {
          return Result.success(emptyList())
+    }
+
+    override suspend fun getIntradayHistory(startDate: Date, endDate: Date): Result<List<IntradayData>> {
+        return Result.success(emptyList())
     }
 
     override suspend fun getHrvData(date: Date): Result<List<com.cardio.fitbit.data.models.HrvRecord>> {

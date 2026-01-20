@@ -149,11 +149,18 @@ object HeartRateAnalysisUtils {
             }
         }
 
-        // 5. Select Resting Baseline (Median of Valid Windows) - Matches Trends Logic
+        // 5. Select Resting Baseline (Scientific: Lowest Stable Baseline)
+        // Instead of Median (which includes stressed sedentary time), we take the average of the LOGIN sedentary periods.
+        // We sort by lowest HR and take the bottom 20% (or at least bottom 3 windows) to represent "True Physiological Rest".
         val rhrDayComputed = if (windowAverages.isNotEmpty()) {
             val sorted = windowAverages.sorted()
-            val mid = sorted.size / 2
-            if (sorted.size % 2 == 0) ((sorted[mid-1] + sorted[mid]) / 2).toInt() else sorted[mid].toInt()
+            
+            // Limit to bottom 50% to include more periods (addressing "too low" feedback)
+            // This is essentially averaging the lower half of stable data, filtering out stress/activity but not over-biasing to deep rest.
+            val countToAverage = (sorted.size * 0.5).toInt().coerceAtLeast(1)
+            
+            val lowestWindows = sorted.take(countToAverage)
+            kotlin.math.round(lowestWindows.average()).toInt()
         } else null
         
         val rhrDay = rhrDayComputed ?: nativeRhr

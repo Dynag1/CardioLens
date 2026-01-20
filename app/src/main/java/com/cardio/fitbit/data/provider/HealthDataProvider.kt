@@ -33,7 +33,10 @@ interface HealthDataProvider {
     
     suspend fun getStepsData(startDate: Date, endDate: Date): Result<List<StepsData>>
     
+    suspend fun getIntradayHistory(startDate: Date, endDate: Date): Result<List<com.cardio.fitbit.data.models.IntradayData>>
+    
     suspend fun getActivityData(date: Date): Result<ActivityData?>
+    suspend fun getActivityHistory(startDate: Date, endDate: Date): Result<List<ActivityData>>
     
     suspend fun getUserProfile(): Result<UserProfile?>
     
