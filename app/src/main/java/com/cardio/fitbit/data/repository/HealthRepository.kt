@@ -205,7 +205,11 @@ class HealthRepository @Inject constructor(
                      fetchEnd = missingDates.maxOrNull() ?: endDate
                  }
 
-                val result = getProvider().getHeartRateHistory(fetchStart, fetchEnd)
+                // Ensure we cover the full range of the days (00:00 -> 23:59)
+                val actualStart = DateUtils.getStartOfDay(fetchStart)
+                val actualEnd = DateUtils.getEndOfDay(fetchEnd)
+                
+                val result = getProvider().getHeartRateHistory(actualStart, actualEnd)
                 
                 if (result.isSuccess) {
                     val data = result.getOrNull() ?: emptyList()
@@ -349,7 +353,11 @@ class HealthRepository @Inject constructor(
                      fetchEnd = missingDates.maxOrNull() ?: endDate
                  }
                 
-                val result = getProvider().getSleepHistory(fetchStart, fetchEnd)
+                // Ensure we cover the full range of the days (00:00 -> 23:59)
+                val actualStart = DateUtils.getStartOfDay(fetchStart)
+                val actualEnd = DateUtils.getEndOfDay(fetchEnd)
+                
+                val result = getProvider().getSleepHistory(actualStart, actualEnd)
                 
                 if (result.isSuccess) {
                     val data = result.getOrNull() ?: emptyList()
@@ -480,7 +488,8 @@ class HealthRepository @Inject constructor(
             
             // 3. Decide Fetch Strategy
             val fetchedData = mutableListOf<StepsData>()
-            
+            android.util.Log.d("TrendsDebug", "HR Steps: Cached: ${cachedList.size}, Missing: ${missingDates.size}")
+
             if (missingDates.isNotEmpty()) {
                 val totalDays = ((endDate.time - startDate.time) / (1000 * 60 * 60 * 24)).toInt() + 1
                 
@@ -497,7 +506,14 @@ class HealthRepository @Inject constructor(
                      fetchEnd = missingDates.maxOrNull() ?: endDate
                 }
                 
-                val result = getProvider().getStepsData(fetchStart, fetchEnd)
+                // Ensure we cover the full range of the days (00:00 -> 23:59)
+                // This prevents "start == end" crashes in Health Connect and ensures full day data.
+                val actualStart = DateUtils.getStartOfDay(fetchStart)
+                val actualEnd = DateUtils.getEndOfDay(fetchEnd)
+                
+                val result = getProvider().getStepsData(actualStart, actualEnd)
+                android.util.Log.d("TrendsDebug", "HR Steps: Fetched Result Success: ${result.isSuccess}, Data Size: ${result.getOrNull()?.size}")
+                
                 if (result.isSuccess) {
                      val data = result.getOrNull() ?: emptyList()
                      fetchedData.addAll(data)
@@ -512,6 +528,7 @@ class HealthRepository @Inject constructor(
                      }
                      stepsDao.insertAll(entities)
                 } else {
+                    android.util.Log.e("TrendsDebug", "HR Steps: Fetch Failed: ${result.exceptionOrNull()}")
                     return@withContext result // Fail if network fails and we needed data
                 }
             }
@@ -535,10 +552,12 @@ class HealthRepository @Inject constructor(
             
             // Sort by date
             val finalList = finalMap.values.sortedBy { it.date }
+            android.util.Log.d("TrendsDebug", "HR Steps: Final List Size: ${finalList.size}")
             
             Result.success(finalList)
             
         } catch (e: Exception) {
+            android.util.Log.e("TrendsDebug", "HR Steps: Exception: ${e.message}")
             Result.failure(e)
         }
     }
@@ -627,7 +646,11 @@ class HealthRepository @Inject constructor(
                     fetchEnd = missingDates.maxOrNull() ?: endDate
                 }
                 
-                val result = getProvider().getActivityHistory(fetchStart, fetchEnd)
+                // Ensure we cover the full range of the days (00:00 -> 23:59)
+                val actualStart = DateUtils.getStartOfDay(fetchStart)
+                val actualEnd = DateUtils.getEndOfDay(fetchEnd)
+                
+                val result = getProvider().getActivityHistory(actualStart, actualEnd)
                 if (result.isSuccess) {
                     val data = result.getOrNull() ?: emptyList()
                     fetchedData.addAll(data)
@@ -712,7 +735,11 @@ class HealthRepository @Inject constructor(
                       fetchEnd = missingDates.maxOrNull() ?: endDate
                   }
                 
-                val result = getProvider().getIntradayHistory(fetchStart, fetchEnd)
+                // Ensure we cover the full range of the days (00:00 -> 23:59)
+                val actualStart = DateUtils.getStartOfDay(fetchStart)
+                val actualEnd = DateUtils.getEndOfDay(fetchEnd)
+                
+                val result = getProvider().getIntradayHistory(actualStart, actualEnd)
                 
                 if (result.isSuccess) {
                     val data = result.getOrNull() ?: emptyList()

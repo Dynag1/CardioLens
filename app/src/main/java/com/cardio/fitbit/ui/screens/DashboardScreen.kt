@@ -203,6 +203,16 @@ fun DashboardScreen(
                     // GitHub Links
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                     TextButton(
+                        onClick = { uriHandler.openUri("https://prog.dynag.co/CardioLens.html") },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_myplaces), contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.about_website))
+                        }
+                    }
+                    TextButton(
                         onClick = { uriHandler.openUri("https://github.com/Dynag1/CardioLens/blob/master/README.md") },
                         contentPadding = PaddingValues(0.dp)
                     ) {
@@ -267,6 +277,9 @@ fun DashboardScreen(
                     }
                 )
                 
+                // Push Settings, Backup, About, Logout to bottom
+                Spacer(Modifier.weight(1f))
+                
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text(stringResource(R.string.menu_settings)) },
@@ -286,12 +299,6 @@ fun DashboardScreen(
                         onNavigateToBackup()
                     }
                 )
-                
-                // Push disconnect to bottom
-                
-                
-                // Push disconnect to bottom
-                Spacer(Modifier.weight(1f))
                 
                 // About
                  NavigationDrawerItem(

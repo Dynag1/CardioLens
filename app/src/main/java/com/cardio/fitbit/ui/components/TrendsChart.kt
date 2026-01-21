@@ -1,15 +1,19 @@
 package com.cardio.fitbit.ui.components
 
 import android.graphics.Color
-import android.graphics.DashPathEffect
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.cardio.fitbit.ui.screens.TrendPoint
-import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.components.Legend
 import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.components.YAxis
+import com.github.mikephil.charting.data.BarData
+import com.github.mikephil.charting.data.BarDataSet
+import com.github.mikephil.charting.data.BarEntry
+import com.github.mikephil.charting.data.CombinedData
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -26,7 +30,7 @@ fun TrendsChart(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            LineChart(context).apply {
+            CombinedChart(context).apply {
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -37,6 +41,11 @@ fun TrendsChart(
                 isDragEnabled = true
                 setScaleEnabled(false)
                 setPinchZoom(false)
+                
+                drawOrder = arrayOf(
+                    CombinedChart.DrawOrder.LINE,
+                    CombinedChart.DrawOrder.BAR
+                )
                 
                 // Legend
                 legend.isEnabled = true
@@ -52,7 +61,7 @@ fun TrendsChart(
                 xAxis.granularity = 1f
                 
                 axisLeft.setDrawGridLines(true)
-                axisRight.setDrawGridLines(false) // Right axis for Steps
+                axisRight.setDrawGridLines(false) // Right axis
             }
         },
         update = { chart ->
@@ -61,7 +70,7 @@ fun TrendsChart(
                 return@AndroidView
             }
 
-            val dateFormat = SimpleDateFormat("EEE", Locale.getDefault())
+            val dateFormat = SimpleDateFormat("dd", Locale.getDefault())
             val dateLabels = data.map { dateFormat.format(it.date) }
             
             // X-Axis Labels
@@ -69,9 +78,11 @@ fun TrendsChart(
             chart.xAxis.labelCount = data.size
 
             // Data Sets
+            val combinedData = CombinedData()
+            
+            // --- Line Data (Heart Rate & HRV) ---
             val lineData = LineData()
             var hasLeftAxisData = false
-            var hasRightAxisData = false
 
             // 1. Night RHR (Blue)
             if (selectedMetrics.contains(TrendMetric.NIGHT)) {
@@ -88,7 +99,7 @@ fun TrendsChart(
                         setDrawValues(true)
                         valueTextSize = 10f
                         mode = LineDataSet.Mode.CUBIC_BEZIER
-                        axisDependency = com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT
+                        axisDependency = YAxis.AxisDependency.LEFT
                     }
                     lineData.addDataSet(nightSet)
                     hasLeftAxisData = true
@@ -110,7 +121,7 @@ fun TrendsChart(
                         setDrawValues(true)
                         valueTextSize = 10f
                         mode = LineDataSet.Mode.CUBIC_BEZIER
-                        axisDependency = com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT
+                        axisDependency = YAxis.AxisDependency.LEFT
                     }
                     lineData.addDataSet(daySet)
                     hasLeftAxisData = true
@@ -133,14 +144,14 @@ fun TrendsChart(
                         setDrawValues(true)
                         valueTextSize = 10f
                         mode = LineDataSet.Mode.LINEAR
-                        axisDependency = com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT
+                        axisDependency = YAxis.AxisDependency.LEFT
                     }
                     lineData.addDataSet(avgSet)
                     hasLeftAxisData = true
                 }
             }
 
-            // 4. HRV (Red/Pink)
+            // 4. HRV (Pink)
             if (selectedMetrics.contains(TrendMetric.HRV)) {
                 val hrvEntries = data.mapIndexedNotNull { index, point ->
                     point.hrv?.let { Entry(index.toFloat(), it.toFloat()) }
@@ -155,62 +166,96 @@ fun TrendsChart(
                         setDrawValues(true)
                         valueTextSize = 10f
                         mode = LineDataSet.Mode.CUBIC_BEZIER
-                        axisDependency = com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT
+                        axisDependency = YAxis.AxisDependency.LEFT
                     }
                     lineData.addDataSet(hrvSet)
                     hasLeftAxisData = true
                 }
             }
 
-            // 5. Steps (Green)
+            if (lineData.dataSetCount > 0) {
+                combinedData.setData(lineData)
+            } else {
+                 combinedData.setData(LineData())
+            }
+
+            // --- Bar Data (Steps & Workouts) ---
+            val barData = BarData()
+            var hasRightAxisData = false
+            // 5. Steps (Green Bars)
             if (selectedMetrics.contains(TrendMetric.STEPS)) {
                 val stepsEntries = data.mapIndexedNotNull { index, point ->
-                    point.steps?.let { Entry(index.toFloat(), it.toFloat()) }
+                    point.steps?.let { BarEntry(index.toFloat(), it.toFloat()) }
                 }
                 if (stepsEntries.isNotEmpty()) {
-                    val stepsSet = LineDataSet(stepsEntries, "Pas").apply {
-                        color = Color.parseColor("#43A047") // Green
-                        setCircleColor(Color.parseColor("#43A047"))
-                        lineWidth = 2f
-                        circleRadius = 4f
-                        setDrawCircleHole(false)
-                        setDrawValues(false) // Too many numbers if shown, or maybe true? False for now.
-                        mode = LineDataSet.Mode.LINEAR
-                        // Use Right Axis if mixed with HR, otherwise Left is fine but for consistency keep Right?
-                        // Actually if ONLY steps, display on left? No, simplifies logic to keep Right if we want consistency?
-                        // But if Left is empty, line chart on Right looks weird without left labels.
-                        // Let's say: If Right is used, enable it.
-                        axisDependency = if (hasLeftAxisData) com.github.mikephil.charting.components.YAxis.AxisDependency.RIGHT else com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT
+                    val stepsSet = BarDataSet(stepsEntries, "Pas").apply {
+                        color = Color.parseColor("#6643A047") // Green with 60% transparency (40% opacity)
+                        setDrawValues(false)
+                        axisDependency = YAxis.AxisDependency.RIGHT
                     }
-                    if (stepsSet.axisDependency == com.github.mikephil.charting.components.YAxis.AxisDependency.RIGHT) {
-                         hasRightAxisData = true
-                    } else {
-                         hasLeftAxisData = true
-                    }
-                    lineData.addDataSet(stepsSet)
+                    barData.addDataSet(stepsSet)
+                    hasRightAxisData = true
                 }
             }
 
-            chart.data = lineData
+            // 6. Workouts (Red/Orange Bars)
+            if (selectedMetrics.contains(TrendMetric.WORKOUTS)) {
+                val workoutEntries = data.mapIndexedNotNull { index, point ->
+                     point.workoutDurationMinutes?.let { 
+                         if (it > 0) BarEntry(index.toFloat(), it.toFloat() * 100f) else null  // Scale x100 to match Steps magnitude
+                     }
+                }
+                if (workoutEntries.isNotEmpty()) {
+                    val workoutSet = BarDataSet(workoutEntries, "Entraînement (min)").apply {
+                        color = Color.parseColor("#66D32F2F") // Transparent Red
+                        setDrawValues(true)
+                        valueTextSize = 10f
+                        valueTextColor = Color.BLACK
+                        axisDependency = YAxis.AxisDependency.RIGHT // Move to Right Axis
+                        
+                        // Custom formatter to divide by 100 and append "min"
+                        valueFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
+                            override fun getFormattedValue(value: Float): String {
+                                return "${(value / 100).toInt()} min"
+                            }
+                        }
+                    }
+                    barData.addDataSet(workoutSet)
+                    hasRightAxisData = true
+                }
+            } 
+
+            if (barData.dataSetCount > 0) {
+                 barData.barWidth = 0.5f 
+                 combinedData.setData(barData)
+            } else {
+                 combinedData.setData(BarData())
+            }
+
+            chart.data = combinedData
             
             // Toggle Axes
             chart.axisLeft.isEnabled = hasLeftAxisData
             chart.axisRight.isEnabled = hasRightAxisData
             
             // Adjust Scales
+            
+            // Left Axis: Purely for Lines (HR / HRV) -> Auto-scale based on Line Min/Max
             if (hasLeftAxisData) {
-                // If only HR, nice pad. If mixed, MPChart handles auto-scale.
-                // We add a little buffer
-                val min = lineData.getDataSets().filter { it.axisDependency == com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT }.minOfOrNull { it.yMin } ?: 0f
-                val max = lineData.getDataSets().filter { it.axisDependency == com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT }.maxOfOrNull { it.yMax } ?: 100f
-                chart.axisLeft.axisMinimum = (min - 5f).coerceAtLeast(0f)
-                chart.axisLeft.axisMaximum = max + 5f
+                val minLine = lineData.getDataSets()?.minOfOrNull { it.yMin } ?: 0f
+                val maxLine = lineData.getDataSets()?.maxOfOrNull { it.yMax } ?: 100f
+                
+                chart.axisLeft.axisMinimum = (minLine - 5f).coerceAtLeast(0f)
+                chart.axisLeft.axisMaximum = (maxLine + 5f).coerceAtLeast(chart.axisLeft.axisMinimum + 10f)
             }
+            
+            // Right Axis: For Bars (Steps / Workouts) -> Start at 0
              if (hasRightAxisData) {
-                 val min = lineData.getDataSets().filter { it.axisDependency == com.github.mikephil.charting.components.YAxis.AxisDependency.RIGHT }.minOfOrNull { it.yMin } ?: 0f
-                 val max = lineData.getDataSets().filter { it.axisDependency == com.github.mikephil.charting.components.YAxis.AxisDependency.RIGHT }.maxOfOrNull { it.yMax } ?: 1000f
-                 chart.axisRight.axisMinimum = 0f // Steps start at 0
-                 chart.axisRight.axisMaximum = max * 1.1f // 10% buffer
+                 val max = barData.getDataSets()?.maxOfOrNull { it.yMax } ?: 0f
+                 
+                 chart.axisRight.axisMinimum = 0f
+                 // Ensure max is at least slightly above 0 to avoid range 0..0
+                 chart.axisRight.axisMaximum = (max * 1.1f).coerceAtLeast(100f) 
             }
 
             chart.invalidate()
@@ -219,5 +264,5 @@ fun TrendsChart(
 }
 
 enum class TrendMetric {
-    NIGHT, DAY, AVG, HRV, STEPS
+    NIGHT, DAY, AVG, HRV, STEPS, WORKOUTS
 }

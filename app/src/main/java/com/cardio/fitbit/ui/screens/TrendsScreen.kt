@@ -205,7 +205,8 @@ fun TrendsScreen(
                                         com.cardio.fitbit.ui.components.TrendMetric.DAY to "Jour (Repos)",
                                         com.cardio.fitbit.ui.components.TrendMetric.AVG to "Moyenne",
                                         com.cardio.fitbit.ui.components.TrendMetric.HRV to "HRV",
-                                        com.cardio.fitbit.ui.components.TrendMetric.STEPS to "Pas"
+                                        com.cardio.fitbit.ui.components.TrendMetric.STEPS to "Pas",
+                                        com.cardio.fitbit.ui.components.TrendMetric.WORKOUTS to "Entraînements"
                                     )
                                     
                                     availableMetrics.forEach { (metric, label) ->

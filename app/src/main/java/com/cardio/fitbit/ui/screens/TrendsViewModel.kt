@@ -24,7 +24,8 @@ data class TrendPoint(
     val rhrAvg: Int?,
     val hrv: Int?, // Daily RMSSD
     val moodRating: Int?,
-    val steps: Int?
+    val steps: Int?,
+    val workoutDurationMinutes: Int?
 )
 
 sealed class TrendsUiState {
@@ -145,6 +146,12 @@ class TrendsViewModel @Inject constructor(
 
                     val dailySteps = stepsMap[dateStr]?.steps
 
+                    // Calculate Workout Duration
+                    // Sum duration of all activities for the day
+                    val workoutDurationMinutes = dailyActivity?.activities?.sumOf { it.duration }?.let { millis ->
+                        (millis / 1000 / 60).toInt()
+                    } ?: 0
+
                     val point = TrendPoint(
                         date = targetDate,
                         rhrNight = rhrResult.rhrNight,
@@ -152,7 +159,8 @@ class TrendsViewModel @Inject constructor(
                         rhrAvg = rhrResult.rhrAvg, 
                         hrv = hrvValue,
                         moodRating = moodRating,
-                        steps = dailySteps
+                        steps = dailySteps,
+                        workoutDurationMinutes = if (workoutDurationMinutes > 0) workoutDurationMinutes else null
                     )
                     
                     trendPoints.add(point)

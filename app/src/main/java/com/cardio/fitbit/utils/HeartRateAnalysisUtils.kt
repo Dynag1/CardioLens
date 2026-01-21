@@ -125,59 +125,38 @@ object HeartRateAnalysisUtils {
             nightHeartRates.average().toInt()
         } else null
 
-        // 4. Calculate Day RHR (Sliding Window on Valid Minutes)
-        // Scientific Standard: Lowest stable 10-minute average (matches Trends logic)
-        val windowAverages = mutableListOf<Double>()
-        val WINDOW_SIZE_MINUTES = 10
-        
-        // Iterate through minutes to find 10-min valid blocks
-        for (i in 0..sortedMinutes.size - WINDOW_SIZE_MINUTES) {
-            // Optimization: Skip if start is invalid
-            if (!validMinutesMask[i]) continue
+        // 4. Calculate Day RHR (Sedentary Blocks > 5 mins + 10th Percentile)
+        // New algorithm: 
+        // 1. Identify contiguous blocks of valid sedentary minutes.
+        // 2. Filter for blocks > 5 minutes.
+        // 3. Take 10th percentile of each block.
+        // 4. Take 10th percentile of those block values.
 
-            val startTs = sortedMinutes[i].second
-            val endTsTarget = startTs + (WINDOW_SIZE_MINUTES * 60 * 1000L)
-            
-            var sampleCount = 0
-            var sumHr = 0.0
-            var isValidWindow = true
-            
-            // Scan forward 
-            for (j in i until sortedMinutes.size) {
-                val currTs = sortedMinutes[j].second
-                if (currTs >= endTsTarget) break // Window full
-                
-                // Strict Contiguity: Any invalid minute taints the window
-                if (!validMinutesMask[j]) {
-                    isValidWindow = false
-                    break
+        val blockRepresentativeValues = mutableListOf<Int>()
+        var currentBlock = mutableListOf<Int>()
+
+        for (i in 0 until sortedMinutes.size) {
+            if (validMinutesMask[i]) {
+                currentBlock.add(sortedMinutes[i].third)
+            } else {
+                // End of a block
+                if (currentBlock.size >= 5) {
+                    // Calculate 20th percentile of this block
+                    blockRepresentativeValues.add(calculatePercentile(currentBlock, 20.0))
                 }
-                
-                sumHr += sortedMinutes[j].third
-                sampleCount++
-            }
-
-            // Require density (at least 8 samples for a 10m window)
-            if (isValidWindow && sampleCount >= 8) {
-                windowAverages.add(sumHr / sampleCount)
+                currentBlock.clear()
             }
         }
+        // Check final block
+        if (currentBlock.size >= 5) {
+             blockRepresentativeValues.add(calculatePercentile(currentBlock, 20.0))
+        }
 
-        // 5. Select Resting Baseline (Scientific: Lowest Stable Baseline)
-        // Instead of Median (which includes stressed sedentary time), we take the average of the LOGIN sedentary periods.
-        // We sort by lowest HR and take the bottom 20% (or at least bottom 3 windows) to represent "True Physiological Rest".
-        val rhrDayComputed = if (windowAverages.isNotEmpty()) {
-            val sorted = windowAverages.sorted()
-            
-            // Adjusted to Average of Lowest 50% (Balanced Baseline)
-            // User feedback: Median is too high, Bottom 20% is too low.
-            // Bottom 50% provides a robust average of the relaxed half of the day,
-            // balancing out deep rest and light sedentary activity.
-            val countToAverage = (sorted.size * 0.5).toInt().coerceAtLeast(1)
-            val lowestWindows = sorted.take(countToAverage)
-            kotlin.math.round(lowestWindows.average()).toInt()
+        // 5. Final RHR Calculation
+        val rhrDayComputed = if (blockRepresentativeValues.isNotEmpty()) {
+            calculatePercentile(blockRepresentativeValues, 20.0)
         } else null
-        
+
         val rhrDay = rhrDayComputed ?: nativeRhr
         
         // 6. Calculate Average (Simple average of available metrics)
@@ -189,5 +168,13 @@ object HeartRateAnalysisUtils {
         }
 
         return RhrResult(rhrDay, rhrNight, rhrAvg)
+    }
+
+    // Helper for Percentile Calculation (Nearest Rank method)
+    private fun calculatePercentile(data: List<Int>, percentile: Double): Int {
+        if (data.isEmpty()) return 0
+        val sorted = data.sorted()
+        val index = kotlin.math.ceil((percentile / 100.0) * sorted.size).toInt() - 1
+        return sorted[index.coerceIn(0, sorted.lastIndex)]
     }
 }
