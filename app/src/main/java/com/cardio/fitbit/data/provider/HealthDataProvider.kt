@@ -29,14 +29,10 @@ interface HealthDataProvider {
     suspend fun getIntradayData(date: Date): Result<IntradayData?>
     
     suspend fun getSleepData(date: Date): Result<List<SleepData>>
-    suspend fun getSleepHistory(startDate: Date, endDate: Date): Result<List<SleepData>>
     
     suspend fun getStepsData(startDate: Date, endDate: Date): Result<List<StepsData>>
     
-    suspend fun getIntradayHistory(startDate: Date, endDate: Date): Result<List<com.cardio.fitbit.data.models.IntradayData>>
-    
     suspend fun getActivityData(date: Date): Result<ActivityData?>
-    suspend fun getActivityHistory(startDate: Date, endDate: Date): Result<List<ActivityData>>
     
     suspend fun getUserProfile(): Result<UserProfile?>
     
@@ -45,8 +41,6 @@ interface HealthDataProvider {
      * Useful for fetching data across midnight (e.g. sleep logic).
      */
     suspend fun getHeartRateSeries(startTime: Date, endTime: Date): Result<List<MinuteData>>
-    
-    suspend fun getHeartRateHistory(startDate: Date, endDate: Date): Result<List<HeartRateData>> // History of daily summaries
     
     suspend fun getHrvData(date: Date): Result<List<HrvRecord>> // Single day details (intraday if available)
     suspend fun getHrvHistory(startDate: Date, endDate: Date): Result<List<HrvRecord>> // Daily summaries over range

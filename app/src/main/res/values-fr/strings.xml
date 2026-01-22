@@ -98,19 +98,4 @@
     <string name="feature_sleep">Analyse détaillée de votre sommeil</string>
     <string name="feature_activity">Comptage de pas et activités</string>
     <string name="feature_charts">Graphiques interactifs et statistiques</string>
-    <!-- Symptoms -->
-    <string name="label_symptoms">Symptômes du jour</string>
-    <string name="btn_add_note">Ajouter</string>
-    <string name="dialog_symptom_title">Comment allez-vous ?</string>
-    <string name="dialog_symptom_subtitle">Sélectionnez des symptômes ou ajoutez une note.</string>
-    <string name="label_custom_note">Note personnalisée</string>
-    <string name="save">Sauvegarder</string>
-    <string name="cancel">Annuler</string>
-    
-    <string name="symptom_sick">Malade</string>
-    <string name="symptom_fever">Fièvre</string>
-    <string name="symptom_fatigue">Fatigue</string>
-    <string name="symptom_stress">Stress</string>
-    <string name="symptom_headache">Maux de tête</string>
-    <string name="symptom_nausea">Nausée</string>
 </resources>

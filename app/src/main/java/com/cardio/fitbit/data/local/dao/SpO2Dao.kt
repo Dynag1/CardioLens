@@ -17,8 +17,6 @@ interface SpO2Dao {
     @Query("SELECT * FROM spo2_data")
     suspend fun getAll(): List<SpO2DataEntity>
 
-
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSpO2(data: SpO2DataEntity)
 

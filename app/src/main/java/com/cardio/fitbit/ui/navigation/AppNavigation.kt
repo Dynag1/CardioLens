@@ -11,8 +11,6 @@ import com.cardio.fitbit.ui.MainViewModel
 import com.cardio.fitbit.ui.screens.ApiSetupScreen
 import com.cardio.fitbit.ui.screens.DashboardScreen
 import com.cardio.fitbit.ui.screens.LoginScreen
-import androidx.navigation.navArgument
-import androidx.navigation.NavType
 
 sealed class Screen(val route: String) {
     object Welcome : Screen("welcome")
@@ -113,21 +111,11 @@ fun AppNavigation() {
             )
         }
 
-        composable(
-            route = "${Screen.Dashboard.route}?date={date}",
-            arguments = listOf(
-                navArgument("date") {
-                    type = NavType.LongType
-                    defaultValue = -1L
-                }
-            )
-        ) { backStackEntry ->
-            val dateArg = backStackEntry.arguments?.getLong("date")
-            val initialDate = if (dateArg != null && dateArg != -1L) dateArg else null
-
+        composable(Screen.Dashboard.route) {
             DashboardScreen(
-                initialDate = initialDate,
                 onLogout = {
+                    // When logging out, we might want to clear keys? Likely not, just auth.
+                    // If user wants to change keys, we'd need a settings option.
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.Dashboard.route) { inclusive = true }
                     }
@@ -145,11 +133,6 @@ fun AppNavigation() {
             com.cardio.fitbit.ui.screens.TrendsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
-                },
-                onNavigateToDashboard = { date ->
-                    navController.navigate("${Screen.Dashboard.route}?date=${date.time}") {
-                        popUpTo(Screen.Dashboard.route) { inclusive = true }
-                    }
                 }
             )
         }

@@ -6,7 +6,6 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.firstOrNull
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
@@ -18,8 +17,7 @@ import androidx.room.withTransaction
 
 @Singleton
 class BackupRepository @Inject constructor(
-    private val database: AppDatabase,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val database: AppDatabase
 ) {
     private val gson: Gson = GsonBuilder()
         .setDateFormat("yyyy-MM-dd'T'HH:mm:ss")
@@ -35,9 +33,7 @@ class BackupRepository @Inject constructor(
                 heartRateData = database.heartRateDao().getAll(),
                 stepsData = database.stepsDao().getAll(),
                 moodEntries = database.moodDao().getAll(),
-                spo2Data = database.spo2Dao().getAll(),
-                symptomEntries = database.symptomDao().getAllSymptoms(),
-                dateOfBirth = userPreferencesRepository.dateOfBirth.firstOrNull()
+                spo2Data = database.spo2Dao().getAll()
             )
 
             OutputStreamWriter(outputStream).use { writer ->
@@ -65,12 +61,6 @@ class BackupRepository @Inject constructor(
                 if (backupData.stepsData.isNotEmpty()) database.stepsDao().insertAll(backupData.stepsData)
                 if (backupData.moodEntries.isNotEmpty()) database.moodDao().insertAll(backupData.moodEntries)
                 if (backupData.spo2Data.isNotEmpty()) database.spo2Dao().insertAll(backupData.spo2Data)
-                if (backupData.symptomEntries.isNotEmpty()) database.symptomDao().insertAll(backupData.symptomEntries)
-            }
-            
-            // Restore Preferences
-            backupData.dateOfBirth?.let { dob ->
-                userPreferencesRepository.setDateOfBirth(dob)
             }
 
             Result.success(Unit)

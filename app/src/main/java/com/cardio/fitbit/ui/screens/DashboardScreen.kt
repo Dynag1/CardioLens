@@ -35,7 +35,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    initialDate: Long? = null,
     viewModel: DashboardViewModel = hiltViewModel(),
     onLogout: () -> Unit,
     onNavigateToTrends: () -> Unit,
@@ -57,33 +56,6 @@ fun DashboardScreen(
     val hrvAverage by viewModel.hrvDailyAverage.collectAsState()
     val spo2Data by viewModel.spo2Data.collectAsState()
     val spo2History by viewModel.spo2History.collectAsState()
-    val dailySymptoms by viewModel.dailySymptoms.collectAsState()
-
-    // Handle Deep Linking / Navigation with Date
-    LaunchedEffect(initialDate) {
-        if (initialDate != null && initialDate > 0) {
-            val date = java.util.Date(initialDate)
-            viewModel.setDate(date)
-        }
-    }
-
-    // Aggregate 1-minute data for Main Chart (Dashboard Only)
-    // Keeps main chart readable while preserving seconds for ActivityDetail
-    val oneMinuteData = remember(intradayData) {
-        intradayData?.minuteData
-            ?.groupBy { it.time.substring(0, 5) } // Group by HH:mm
-            ?.mapNotNull { (timeKey, entries) ->
-                val avgHr = entries.map { it.heartRate }.filter { it > 0 }.average()
-                if (avgHr.isNaN()) return@mapNotNull null
-                entries.first().copy(
-                    time = timeKey,
-                    heartRate = avgHr.toInt(),
-                    steps = entries.sumOf { it.steps }
-                )
-            }
-            ?.sortedBy { it.time }
-            ?: emptyList()
-    }
 
     // Settings States
     val highThreshold by viewModel.highHrThreshold.collectAsState(initial = 120)
@@ -111,13 +83,6 @@ fun DashboardScreen(
     if (pullRefreshState.isRefreshing) {
         LaunchedEffect(true) {
             viewModel.loadAllData(forceRefresh = true)
-        }
-    }
-
-    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-        // Only auto-reload if we didn't just navigate here with a specific date
-        if (initialDate == null) {
-             viewModel.loadAllData(forceRefresh = true)
         }
     }
 
@@ -203,16 +168,6 @@ fun DashboardScreen(
                     // GitHub Links
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                     TextButton(
-                        onClick = { uriHandler.openUri("https://prog.dynag.co/CardioLens.html") },
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_myplaces), contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.about_website))
-                        }
-                    }
-                    TextButton(
                         onClick = { uriHandler.openUri("https://github.com/Dynag1/CardioLens/blob/master/README.md") },
                         contentPadding = PaddingValues(0.dp)
                     ) {
@@ -277,9 +232,6 @@ fun DashboardScreen(
                     }
                 )
                 
-                // Push Settings, Backup, About, Logout to bottom
-                Spacer(Modifier.weight(1f))
-                
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text(stringResource(R.string.menu_settings)) },
@@ -299,6 +251,12 @@ fun DashboardScreen(
                         onNavigateToBackup()
                     }
                 )
+                
+                // Push disconnect to bottom
+                
+                
+                // Push disconnect to bottom
+                Spacer(Modifier.weight(1f))
                 
                 // About
                  NavigationDrawerItem(
@@ -510,15 +468,6 @@ fun DashboardScreen(
                                             ) {
                                                 Text("Accorder les permissions", color = Color.White)
                                             }
-                                            // Extra button to force request all permissions even if some granted
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            TextButton(
-                                                onClick = {
-                                                    requestPermissions.launch(healthConnectPermissions)
-                                                }
-                                            ) {
-                                                Text("Vérifier toutes les permissions", color = MaterialTheme.colorScheme.error)
-                                            }
                                         }
                                     }
                                 }
@@ -587,8 +536,8 @@ fun DashboardScreen(
                                         }
 
                                         HeartRateDetailChart(
-                                            minuteData = oneMinuteData,
-                                            aggregatedData = oneMinuteData, // Force 1-minute resolution even when zoomed out
+                                            minuteData = data.minuteData,
+                                            aggregatedData = aggregatedMinuteData,
                                             sleepSessions = sleepData,
                                             activityData = activityData,
                                             restingHeartRate = rhrDay,
@@ -606,32 +555,13 @@ fun DashboardScreen(
                             }
                         }
 
-                        // Symptom Section
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                ),
-                                shape = RoundedCornerShape(16.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.1f))
-                            ) {
-                                SymptomSection(
-                                    symptoms = dailySymptoms,
-                                    onSave = viewModel::saveSymptoms,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
-                        }
-
                         // Activity Detail Cards (Moved to the bottom)
                         activityData?.activities?.forEach { activity ->
                             item {
                                 ActivityDetailCard(
                                     activity = activity,
                                     allMinuteData = intradayData?.minuteData ?: emptyList(),
-                                    selectedDate = selectedDate,
-                                    dateOfBirth = dateOfBirth
+                                    selectedDate = selectedDate
                                 )
                             }
                         }

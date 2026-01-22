@@ -1,4 +1,0 @@
-What's New in 1.2.1:
-- Refined Day Resting Heart Rate Algorithm: Now using 20th percentile of sedentary blocks (>5 min) for more accurate baseline.
-- Combined Charts improvements.
-- Bug fixes and performance improvements.

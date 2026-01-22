@@ -5,7 +5,6 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -27,47 +26,18 @@ import com.github.mikephil.charting.data.BarData
 import com.github.mikephil.charting.data.BarDataSet
 import com.github.mikephil.charting.data.BarEntry
 import com.github.mikephil.charting.data.CombinedData
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import java.util.*
 
 @Composable
 fun ActivityDetailCard(
     activity: Activity,
     allMinuteData: List<MinuteData>,
-    selectedDate: Date,
-    dateOfBirth: Long?
+    selectedDate: Date
 ) {
-    // Determine context for notification (optional trigger)
-    val context = androidx.compose.ui.platform.LocalContext.current
-    
-    // Calculate Age for Max HR (Consistent with Main Chart)
-    val age = if (dateOfBirth != null && dateOfBirth > 0) {
-        val dob = Calendar.getInstance().apply { timeInMillis = dateOfBirth }
-        val now = Calendar.getInstance()
-        var a = now.get(Calendar.YEAR) - dob.get(Calendar.YEAR)
-        if (now.get(Calendar.DAY_OF_YEAR) < dob.get(Calendar.DAY_OF_YEAR)) {
-            a--
-        }
-        a
-    } else {
-        30 // Default age
-    }
-    val userMaxHr = 220 - age
-    
-    // State for Reference Expansion
-    var isExpanded by remember { androidx.compose.runtime.mutableStateOf(false) }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .animateContentSize()
-            .clickable { isExpanded = !isExpanded },
+            .padding(vertical = 8.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
@@ -76,39 +46,40 @@ fun ActivityDetailCard(
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
-            // --- High Precision Data Processing ---
-            val startTimeMs = activity.startTime.time 
+            // Generate CONTINUOUS timeline
+            // 1. Map existing data for quick lookup (Normalize time to HH:mm)
+            val dataMap = allMinuteData.associateBy { 
+                if (it.time.length >= 5) it.time.substring(0, 5) else it.time 
+            }
+            
+            // 2. Determine start/end time
+            val cal = Calendar.getInstance()
+            cal.time = activity.startTime
+            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.MILLISECOND, 0)
+            val startTimeMs = cal.timeInMillis
             val durationMs = activity.duration
-            val endTimeMs = startTimeMs + durationMs
+            val originalEndTimeMs = startTimeMs + durationMs
+            // Extend by 10 minutes for recovery
+            val endTimeMs = originalEndTimeMs + (10 * 60 * 1000)
 
-            // Filter data within range (with 10 min margin) - OPTIMIZED: Only if expanded
-            val relevantData = remember(activity.startTime, activity.duration, allMinuteData, selectedDate, isExpanded) {
-                if (isExpanded) {
-                     allMinuteData.filter { 
-                        val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
-                        val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                        fullDataTime >= startTimeMs && fullDataTime <= (endTimeMs + 10 * 60 * 1000)
-                    }
-                } else {
-                    emptyList()
-                }
-            }
-            
-            val continuousMinutes = if (relevantData.isNotEmpty()) relevantData else emptyList()
+            // 3. Generate full list of minutes
+            val continuousMinutes = mutableListOf<MinuteData>()
+            var currentMs = startTimeMs
+            val dateFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
 
-            // Calculate duration in minutes (float) for Stats
-            val durationMinutes = durationMs / 60000.0
-            
-            // Calculate Average HR
-            val avgHr = remember(activity.averageHeartRate, continuousMinutes) {
-                 if (activity.averageHeartRate != null && activity.averageHeartRate > 0) {
-                    activity.averageHeartRate
-                } else if (continuousMinutes.isNotEmpty()) {
-                     continuousMinutes.map { it.heartRate }.filter { it > 0 }.average().toInt()
-                } else 0
+            // Loop minute by minute
+            while (currentMs <= endTimeMs) {
+                val timeStr = dateFormat.format(Date(currentMs))
+                // Use existing data or empty default
+                val data = dataMap[timeStr] ?: MinuteData(timeStr, 0, 0)
+                continuousMinutes.add(data)
+                currentMs += 60000 // +1 minute
             }
 
-            // --- Header ---
+            // Calculate cutoff index for the separator
+            val durationMinutes = (durationMs / 60000).toInt() + 1 // +1 to ensure it covers the last minute of activity
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -127,6 +98,14 @@ fun ActivityDetailCard(
                     )
                 }
                 
+                // Calculate display average
+                 val avgHr = if (activity.averageHeartRate != null && activity.averageHeartRate > 0) {
+                    activity.averageHeartRate
+                } else if (continuousMinutes.isNotEmpty()) {
+                    val validMinutes = continuousMinutes.filter { it.heartRate > 0 }
+                    if (validMinutes.isNotEmpty()) validMinutes.map { it.heartRate }.average().toInt() else 0
+                } else 0
+
                 if (avgHr > 0) {
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
@@ -140,15 +119,9 @@ fun ActivityDetailCard(
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
 
-            // --- Basic Stats ---
-            // Sum steps correctly (avoid double counting if high freq data implies density)
-            // But steps are usually 1-min aggregated. If we have multiple points per minute,
-            // we risk summing the SAME 1-min step count multiple times if we merged poorly?
-            // In Provider, we map distinct times. If Step is at 12:00:00, it appears once.
-            // If HR is 12:00:01, Step is 0. So summing is safe.
+            // Spacer removed
+            
             val calculatedSteps = continuousMinutes.sumOf { it.steps }
             val displaySteps = if (activity.steps != null && activity.steps > 0) activity.steps else calculatedSteps
 
@@ -158,160 +131,33 @@ fun ActivityDetailCard(
             ) {
                 StatItem(label = "Pas", value = displaySteps.toString())
                 StatItem(label = "Calories", value = "${activity.calories} kcal")
-                // DEBUG: Force showing Distance even if null/0 for diagnosis
-                val distStr = if (activity.distance != null) String.format("%.2f km", activity.distance) else "N/A"
-                StatItem(label = "Distance", value = distStr)
+                if (activity.distance != null && activity.distance > 0) {
+                    StatItem(label = "Distance", value = String.format("%.2f km", activity.distance))
+                }
             }
 
-            // --- Speed Stats (Any activity with Distance) ---
-            // DEBUG: Relax condition to debug why it might fail. 
-            // If distance is explicitly 0 or null, it won't be calculated, but we want to see if we satisfy display conditions.
-            
-            if (activity.distance != null && activity.distance > 0.0 && durationMinutes > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Calculations
-                val hours = durationMs / 3600000.0
-                val avgSpeedKmph = activity.distance / hours
-                val paceMinPerKm = if (avgSpeedKmph > 0) 60 / avgSpeedKmph else 0.0
-                val paceSeconds = ((paceMinPerKm - paceMinPerKm.toInt()) * 60).toInt()
-
-                // Max Speed Estimation (Only if Expanded or if we have data)
-                val maxSpeedKmph = if (continuousMinutes.isNotEmpty()) {
-                    val avgStrideLengthM = if (displaySteps > 0) (activity.distance * 1000) / displaySteps else 0.0
-                    // Max steps needs 1-min window aggregation if data is 1sec!
-                    // We should bucket relevantData by minute to find max steps per minute.
-                    val maxStepsPerMin = continuousMinutes
-                        .groupBy { it.time.substring(0, 5) } // Group by HH:mm
-                        .values
-                        .maxOfOrNull { list -> list.sumOf { it.steps } } ?: 0
-                    
-                    (maxStepsPerMin * avgStrideLengthM * 60) / 1000
-                } else 0.0
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    // Show Both Speed and Pace
-                    StatItem(label = "Vitesse", value = String.format("%.1f km/h", avgSpeedKmph))
-                    StatItem(label = "Allure", value = String.format("%d'%02d\" /km", paceMinPerKm.toInt(), paceSeconds))
-                    if (maxSpeedKmph > 0) {
-                       StatItem(label = "Vitesse Max", value = String.format("%.1f km/h", maxSpeedKmph))
-                    }
-                }
-            } else {
-                 // DEBUG: Show why speed isn't showing
-                 if (activity.distance == null || activity.distance == 0.0) {
-                     Text("Pas de données de distance pour le calcul de vitesse.", style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.padding(top = 4.dp))
-                 }
-            }
-            
-            // --- Recovery Stats (Visible only if Expanded or always? User said "graph if click". I will keep stats for now or better, hide everything detailed)
-            // Let's hide detailed stats and chart if not expanded to make it a true summary.
-            
-            if (isExpanded) {
-                // --- Recovery Stats ---
-                // Calculate HR at End, +1 min, +2 min
-                val endHrEntry = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - (startTimeMs + durationMs))) }
-                
-                // Only show recovery if we have data AFTER the end
-                if (continuousMinutes.any { (DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0)) > (startTimeMs + durationMs + 30000) }) { 
-                    
-                     val oneMinPost = startTimeMs + durationMs + 60000
-                     val twoMinPost = startTimeMs + durationMs + 120000
-                     
-                     val hr1Min = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - oneMinPost)) }?.heartRate
-                     val hr2Min = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - twoMinPost)) }?.heartRate
-                     
-                     val endHr = endHrEntry?.heartRate ?: 0
-                     
-                     if (endHr > 0 && (hr1Min != null || hr2Min != null)) {
-                         Spacer(modifier = Modifier.height(8.dp))
-                         HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                         Spacer(modifier = Modifier.height(8.dp))
-                         
-                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                             Text("Récupération", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                                 if (hr1Min != null && hr1Min > 0) {
-                                     val drop = endHr - hr1Min
-                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                         Text("$hr1Min bpm", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                         Text("1 min (${if(drop>=0) "-" else "+"}$drop)", style = MaterialTheme.typography.labelSmall, color = if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                                     }
-                                 }
-                                 if (hr2Min != null && hr2Min > 0) {
-                                     val drop = endHr - hr2Min
-                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                         Text("$hr2Min bpm", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                         Text("2 min (${if(drop>=0) "-" else "+"}$drop)", style = MaterialTheme.typography.labelSmall, color = if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                                     }
-                                 }
-                             }
-                         }
-                     }
-                }
-    
-                // --- Chart ---
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .padding(top = 16.dp)
-                ) {
-                    ActivityHeartRateChart(
-                        activityMinutes = continuousMinutes,
-                        activityStartTime = activity.startTime.time, // Pass start time for X-axis ref
-                        cutoffIndex = durationMinutes.toFloat(), // Float minutes
-                        userMaxHr = userMaxHr,
-                        selectedDate = selectedDate
-                    )
-                }
-            } else {
-                // Hint to expand
-                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.KeyboardArrowDown,
-                        contentDescription = "Expand",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            // Chart area
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+            ) {
+                ActivityHeartRateChart(continuousMinutes, durationMinutes)
             }
         }
     }
 }
 
-// Hilt Entry Point Interface for UI-injected access (Defining here nicely or it needs to be in a separate file)
-@dagger.hilt.EntryPoint
-@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
-interface NotificationHelperEntryPoint {
-    fun getNotificationHelper(): com.cardio.fitbit.utils.NotificationHelper
-}
-
 @Composable
 fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = value, style = MaterialTheme.typography.bodyLarge)
+        Text(text = label, style = MaterialTheme.typography.labelSmall)
     }
 }
 
 @Composable
-fun ActivityHeartRateChart(
-    activityMinutes: List<MinuteData>, 
-    activityStartTime: Long,
-    cutoffIndex: Float,
-    userMaxHr: Int,
-    selectedDate: Date
-) {
+fun ActivityHeartRateChart(activityMinutes: List<MinuteData>, cutoffIndex: Int) {
     if (activityMinutes.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Pas de données détaillées", style = MaterialTheme.typography.labelSmall)
@@ -352,7 +198,7 @@ fun ActivityHeartRateChart(
                     
                     // Add LimitLine for Activity End
                     removeAllLimitLines()
-                    val limitLine = LimitLine(cutoffIndex, "Fin").apply {
+                    val limitLine = LimitLine(cutoffIndex.toFloat(), "Fin").apply {
                         lineWidth = 1f
                         lineColor = Color.DKGRAY
                         enableDashedLine(10f, 10f, 0f)
@@ -363,11 +209,10 @@ fun ActivityHeartRateChart(
                     
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
-                            // value is Minutes from Start
-                            val timeMs = activityStartTime + (value * 60000).toLong()
-                            val date = Date(timeMs)
-                            val format = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                            return format.format(date)
+                            val index = value.toInt()
+                            return if (index >= 0 && index < activityMinutes.size) {
+                                activityMinutes[index].time
+                            } else ""
                         }
                     }
                 }
@@ -378,153 +223,79 @@ fun ActivityHeartRateChart(
                     textColor = Color.GRAY
                     textSize = 10f
                     axisMinimum = 40f
+                    
+                    // Dynamic Y-Axis Max
                     val maxHrInGraph = activityMinutes.maxOfOrNull { it.heartRate } ?: 150
-                    axisMaximum = (maxHrInGraph + 10).toFloat().coerceAtLeast(100f)
+                    val targetMax = (maxHrInGraph + 10).toFloat()
+                    axisMaximum = targetMax.coerceAtLeast(100f)
                 }
 
+                // Right Axis for Steps (Hidden but scaled)
                 axisRight.apply {
                     isEnabled = true
                     setDrawLabels(false)
                     setDrawGridLines(false)
-                    textColor = Color.GRAY
                     axisMinimum = 0f
-                    val maxSteps = activityMinutes.maxOfOrNull { it.steps } ?: 50
-                    axisMaximum = (maxSteps * 1.5f).coerceAtLeast(10f)
+                    axisMaximum = 100f // Scale so steps aren't huge
                 }
                 
+                // Add marker
                 val mv = CustomMarkerView(context, R.layout.marker_view)
                 mv.chartView = this
                 marker = mv
 
                 drawOrder = arrayOf(
-                    CombinedChart.DrawOrder.BAR, 
-                    CombinedChart.DrawOrder.LINE 
+                    CombinedChart.DrawOrder.BAR, // Steps first
+                    CombinedChart.DrawOrder.LINE // HR on top
                 )
             }
         },
         update = { chart ->
-            if (activityMinutes.isEmpty()) {
-                 if (chart.data != null && chart.data.entryCount > 0) {
-                     chart.clear()
-                 }
-                return@AndroidView
-            }
-            
-            // OPTIMIZATION: Check tag. If tag == activityMinutes.hashCode(), skip.
-             val dataHash = activityMinutes.hashCode().toString()
-            
-            if (chart.tag == dataHash) {
-                return@AndroidView 
-            }
-            chart.tag = dataHash
-
             val combinedData = CombinedData()
 
-            // 1. Bar Data (HR) High Precision
-            val hrEntries = mutableListOf<BarEntry>()
-            
-            activityMinutes.forEach { data ->
+            // 1. HR Line Data
+            val hrEntries = activityMinutes.mapIndexedNotNull { index, data ->
                 if (data.heartRate > 0) {
-                    val dataTime = DateUtils.parseTimeToday(data.time)?.time ?: 0L
-                    val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                    val diffMin = (fullDataTime - activityStartTime) / 60000f // Float index
-                    
-                    if (diffMin >= 0) {
-                        hrEntries.add(BarEntry(diffMin, data.heartRate.toFloat(), data))
-                    }
-                }
+                    Entry(index.toFloat(), data.heartRate.toFloat(), data)
+                } else null 
             }
-
-            // Color Interpolation Function (Copied from HeartRateDetailChart)
-            fun interpolateColor(color1: Int, color2: Int, fraction: Float): Int {
-                val a = (Color.alpha(color1) + (Color.alpha(color2) - Color.alpha(color1)) * fraction).toInt()
-                val r = (Color.red(color1) + (Color.red(color2) - Color.red(color1)) * fraction).toInt()
-                val g = (Color.green(color1) + (Color.green(color2) - Color.green(color1)) * fraction).toInt()
-                val b = (Color.blue(color1) + (Color.blue(color2) - Color.blue(color1)) * fraction).toInt()
-                return Color.argb(a, r, g, b)
-            }
-
-            fun getHeartRateColor(bpm: Float): Int {
-                val maxHr = userMaxHr.toFloat()
-                
-                val zoneStart = maxHr * 0.30f
-                val zone1End = maxHr * 0.40f
-                val zone2End = maxHr * 0.50f
-                val zone3End = maxHr * 0.65f
-                val zone4End = maxHr * 0.80f
-
-                val colorBlue = Color.parseColor("#42A5F5")
-                val colorCyan = Color.parseColor("#06B6D4")
-                val colorGreen = Color.parseColor("#10B981")
-                val colorYellow = Color.parseColor("#FFD600")
-                val colorOrange = Color.parseColor("#F59E0B")
-                val colorRed = Color.parseColor("#EF4444")
-
-                return when {
-                    bpm < zoneStart -> colorBlue
-                    bpm < zone1End -> interpolateColor(colorCyan, colorGreen, (bpm - zoneStart) / (zone1End - zoneStart))
-                    bpm < zone2End -> interpolateColor(colorGreen, colorYellow, (bpm - zone1End) / (zone2End - zone1End))
-                    bpm < zone3End -> interpolateColor(colorYellow, colorOrange, (bpm - zone2End) / (zone3End - zone2End))
-                    bpm < zone4End -> interpolateColor(colorOrange, colorRed, (bpm - zone3End) / (zone4End - zone3End))
-                    else -> colorRed
-                }
-            }
-
+            // Only draw line if we have data
             if (hrEntries.isNotEmpty()) {
-                val hrDataSet = BarDataSet(hrEntries, "Heart Rate").apply {
-                    // Apply fluid colors
-                    val colors = hrEntries.map { entry -> getHeartRateColor(entry.y) }
-                    setColors(colors)
-                    
-                    setDrawValues(false)
-                    axisDependency = YAxis.AxisDependency.LEFT
-                    isHighlightEnabled = true
-                    highLightColor = Color.GRAY
-                }
-                val barData = BarData(hrDataSet)
-                // Bar width optimization for visibility
-                val interval = if (activityMinutes.size > 1) {
-                    val t1 = (DateUtils.parseTimeToday(activityMinutes[0].time)?.time ?: 0)
-                    val t2 = (DateUtils.parseTimeToday(activityMinutes[1].time)?.time ?: 0)
-                    ((t2 - t1) / 60000f).coerceAtLeast(0.001f)
-                } else 0.016f // Default 1 sec
-                
-                // Use slightly wider bars to prevent gaps/antialiasing fade
-                barData.barWidth = interval * 1.0f 
-                combinedData.setData(barData)
-            }
-
-            // 2. Steps Line (Purple)
-            val stepEntries = mutableListOf<Entry>()
-             activityMinutes.forEach { data ->
-                if (data.steps > 0) {
-                     val dataTime = DateUtils.parseTimeToday(data.time)?.time ?: 0L
-                    val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                    val diffMin = (fullDataTime - activityStartTime) / 60000f
-                    
-                    if (diffMin >= 0) {
-                        stepEntries.add(Entry(diffMin, data.steps.toFloat(), data))
-                    }
-                }
-            }
-
-            if (stepEntries.isNotEmpty()) {
-                val stepDataSet = LineDataSet(stepEntries, "Steps").apply {
-                    color = Color.parseColor("#9C27B0")
-                    setCircleColor(Color.parseColor("#9C27B0"))
-                    circleRadius = 1.5f
+                val hrDataSet = LineDataSet(hrEntries, "Heart Rate").apply {
                     setDrawCircles(false)
                     setDrawValues(false)
+                    color = Color.parseColor("#EF5350")
                     lineWidth = 2f
                     mode = LineDataSet.Mode.CUBIC_BEZIER
-                    axisDependency = YAxis.AxisDependency.RIGHT
-                    isHighlightEnabled = false
+                    setDrawFilled(true)
+                    fillColor = Color.parseColor("#EF5350")
+                    fillAlpha = 50
+                    isHighlightEnabled = true
+                    setDrawHorizontalHighlightIndicator(false)
+                    highlightLineWidth = 1.5f
+                    highLightColor = Color.GRAY
                 }
-                combinedData.setData(LineData(stepDataSet))
+                combinedData.setData(LineData(hrDataSet))
             }
+
+            // 2. Steps Bar Data (Show ALL minutes, even 0, to keep alignment)
+            val stepEntries = activityMinutes.mapIndexed { index, data ->
+               BarEntry(index.toFloat(), if(data.steps > 0) data.steps.toFloat() else 0f, data)
+            }
+            
+            val stepDataSet = BarDataSet(stepEntries, "Steps").apply {
+                color = Color.parseColor("#9C27B0") // Purple
+                setDrawValues(false)
+                axisDependency = YAxis.AxisDependency.RIGHT // Use Right Axis
+                isHighlightEnabled = false
+            }
+            val barData = BarData(stepDataSet)
+            barData.barWidth = 0.6f
+            combinedData.setData(barData)
 
             chart.data = combinedData
             chart.invalidate()
-        }
+        },
+        modifier = Modifier.fillMaxSize()
     )
 }
