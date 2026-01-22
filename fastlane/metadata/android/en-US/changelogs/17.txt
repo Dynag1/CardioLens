@@ -1,8 +1,8 @@
-Feature:
-- New Backup System: Use any folder (including Google Drive, Dropbox, Local Storage) without complex API setup.
-- Automatic daily backups to your chosen folder.
-- Manual backup button now exports directly to the chosen Cloud folder.
+Nouveautés :
+- Système de sauvegarde universel : Sauvegardez vos données dans n'importe quel dossier local ou Cloud.
+- Actualisation automatique : Vos données sont à jour dès l'ouverture de l'application.
 
-Improvements:
-- Removed requirement for Google Cloud Project configuration.
-- Simplified "Backup / Restore" UI.
+Corrections critiques :
+- Persistance des données : Vos entrées d'humeur et données sont désormais conservées lors des mises à jour.
+- Sauvegardes : Les entrées d'humeur sont correctement incluses dans les fichiers de sauvegarde.
+- Synchronisation : Bug de mise à jour de la fréquence cardiaque corrigé.

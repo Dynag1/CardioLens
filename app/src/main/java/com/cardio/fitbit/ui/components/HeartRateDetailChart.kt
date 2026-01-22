@@ -234,7 +234,14 @@ fun HeartRateDetailChart(
                     else -> aggregatedData     // Normal view: use 5-minute aggregated data
                 }
                 
-
+                // OPTIMIZATION: Check tag
+                val dataHash = (activeList.hashCode() + scaleX.toInt()).toString() + "_" + selectedPoint?.hashCode()
+                
+                if (chart.tag == dataHash) {
+                     return@AndroidView
+                }
+                chart.tag = dataHash
+                
                 
                 val combinedData = CombinedData()
 
@@ -244,13 +251,14 @@ fun HeartRateDetailChart(
                 chart.axisLeft.axisMaximum = finalYMax
                 val zoneHeight = 40f + (finalYMax - 40f) * 0.75f // Cover 75% of height (taller)
 
-                // Helper function to convert time string to index (1-minute granularity)
+                // Helper function to convert time string to index (float minutes)
                 fun timeToIndex(time: String): Float {
                     val parts = time.split(":")
                     if (parts.size < 2) return 0f
                     val hours = parts[0].toInt()
                     val minutes = parts[1].toInt()
-                    return (hours * 60 + minutes).toFloat()
+                    val seconds = if (parts.size > 2) parts[2].toInt() else 0
+                    return (hours * 60 + minutes + seconds / 60f)
                 }
 
                 // 1. HR Bars (With Fluid Gradient)
@@ -263,11 +271,11 @@ fun HeartRateDetailChart(
                 }
 
                 fun interpolateColor(color1: Int, color2: Int, fraction: Float): Int {
-                    val a = (Color.alpha(color1) + (Color.alpha(color2) - Color.alpha(color1)) * fraction).toInt()
+                    // Force Alpha to 255 (Opaque)
                     val r = (Color.red(color1) + (Color.red(color2) - Color.red(color1)) * fraction).toInt()
                     val g = (Color.green(color1) + (Color.green(color2) - Color.green(color1)) * fraction).toInt()
                     val b = (Color.blue(color1) + (Color.blue(color2) - Color.blue(color1)) * fraction).toInt()
-                    return Color.argb(a, r, g, b)
+                    return Color.argb(255, r, g, b)
                 }
 
                 fun getHeartRateColor(bpm: Float): Int {
@@ -355,7 +363,38 @@ fun HeartRateDetailChart(
 
                 // Combine both in BarData (Order: HR first, then Steps on top)
                 val barData = BarData(hrDataSet, stepDataSet)
-                barData.barWidth = 0.9f
+                
+                // Dynamic Bar Width
+                // Scan a subset to find minimum interval (e.g. 1sec vs 1min)
+                // If we have mixed data, we must use the smallest interval to avoid overlaps.
+                val interval = if (activeList.size > 1) {
+                    // Check first 20 points to find min delta
+                    val checkCount = minOf(activeList.size, 20)
+                    var minDelta = 100f // Start large
+                    
+                    for (i in 0 until checkCount - 1) {
+                        val t1 = timeToIndex(activeList[i].time)
+                        val t2 = timeToIndex(activeList[i+1].time)
+                        val delta = (t2 - t1)
+                        if (delta > 0.0001f && delta < minDelta) {
+                            minDelta = delta
+                        }
+                    }
+                    // 1 second is ~0.0166 min. 
+                    minDelta.coerceAtLeast(0.016f)
+                } else 1f
+                
+                // Dynamic Bar Width
+                // Use 1.0f (exact) or slightly less to allow spacing?
+                // For high precision (dense), we want them to touch -> 1.0f
+                // For 1min with 1min gap -> 0.9f looks better?
+                // Complication: If we set width to 0.016 (1 sec) but have 1min gap elsewhere, those 1min bars will be very thin.
+                // WE WANT THIN BARS for accuracy or VARIABLE WIDTH?
+                // BarChart doesn't support variable width per entry easily in one dataset.
+                // So if we have mixed resolution, the low-res (1min) points will appear as thin lines (1sec width).
+                // This is actually Desired Behavior per plan: "1-minute data points may appear thinner... compared to the dense... workout data"
+                
+                barData.barWidth = (interval * 1.0f)
 
                 // --- Zone Rendering Logic (Sleep & Activity) ---
                 

@@ -1,6 +1,7 @@
 package com.cardio.fitbit.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -11,7 +12,13 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,13 +27,18 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cardio.fitbit.ui.components.TrendsChart
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TrendsScreen(
     viewModel: TrendsViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToDashboard: (java.util.Date) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var selectedMetrics by remember { mutableStateOf(setOf(
+        com.cardio.fitbit.ui.components.TrendMetric.NIGHT, 
+        com.cardio.fitbit.ui.components.TrendMetric.DAY
+    )) }
 
     Scaffold(
         topBar = {
@@ -133,13 +145,20 @@ fun TrendsScreen(
                                         color = Color(0xFF4CAF50) // Green title
                                     )
                                     Spacer(Modifier.height(16.dp))
-                                    Row(
+                                    androidx.compose.foundation.lazy.LazyRow(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp)
                                     ) {
-                                        val dateFormat = java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault())
-                                        state.data.forEach { point ->
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        val dateFormat = java.text.SimpleDateFormat("dd/MM", java.util.Locale.getDefault())
+                                        items(state.data.size) { index ->
+                                            val point = state.data[index]
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier.clickable { 
+                                                    onNavigateToDashboard(point.date) 
+                                                }
+                                            ) {
                                                 val emoji = when (point.moodRating) {
                                                     1 -> "😫"
                                                     2 -> "😞"
@@ -162,89 +181,55 @@ fun TrendsScreen(
                             }
                         }
 
-                        // Card 1: Night RHR
+                        // Unified Trends Chart
                         Card(
-                            modifier = Modifier.fillMaxWidth().height(300.dp),
+                            modifier = Modifier.fillMaxWidth().height(450.dp), // Taller for unified
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                    text = "Nuit (Sommeil)",
+                                    text = "Graphique Combiné",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1565C0) // Blue title
+                                    fontWeight = FontWeight.Bold
                                 )
                                 Spacer(Modifier.height(8.dp))
+                                
+                                // Metric Toggles (Capsules)
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                ) {
+                                    val availableMetrics = listOf(
+                                        com.cardio.fitbit.ui.components.TrendMetric.NIGHT to "Nuit (Repos)",
+                                        com.cardio.fitbit.ui.components.TrendMetric.DAY to "Jour (Repos)",
+                                        com.cardio.fitbit.ui.components.TrendMetric.AVG to "Moyenne",
+                                        com.cardio.fitbit.ui.components.TrendMetric.HRV to "HRV",
+                                        com.cardio.fitbit.ui.components.TrendMetric.STEPS to "Pas",
+                                        com.cardio.fitbit.ui.components.TrendMetric.WORKOUTS to "Entraînements"
+                                    )
+                                    
+                                    availableMetrics.forEach { (metric, label) ->
+                                        FilterChip(
+                                            selected = selectedMetrics.contains(metric),
+                                            onClick = {
+                                                selectedMetrics = if (selectedMetrics.contains(metric)) {
+                                                    if (selectedMetrics.size > 1) selectedMetrics - metric else selectedMetrics
+                                                } else {
+                                                    selectedMetrics + metric
+                                                }
+                                            },
+                                            label = { Text(label) },
+                                            leadingIcon = if (selectedMetrics.contains(metric)) {
+                                                { Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                                            } else null
+                                        )
+                                    }
+                                }
+                                
                                 TrendsChart(
                                     data = state.data,
-                                    type = com.cardio.fitbit.ui.components.TrendsChartType.NIGHT,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-
-                        // Card 2: Day RHR
-                        Card(
-                            modifier = Modifier.fillMaxWidth().height(300.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Jour (Repos)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFB8C00) // Orange title
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                TrendsChart(
-                                    data = state.data,
-                                    type = com.cardio.fitbit.ui.components.TrendsChartType.DAY,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-
-                        // Card 3: Average RHR
-                        Card(
-                            modifier = Modifier.fillMaxWidth().height(300.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Moyenne Globale",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF7B1FA2) // Purple title
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                TrendsChart(
-                                    data = state.data,
-                                    type = com.cardio.fitbit.ui.components.TrendsChartType.AVERAGE,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-
-                        // Card 4: HRV Trends
-                        Card(
-                            modifier = Modifier.fillMaxWidth().height(300.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Variabilité Cardiaque (HRV)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFE91E63) // Pink title
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                TrendsChart(
-                                    data = state.data,
-                                    type = com.cardio.fitbit.ui.components.TrendsChartType.HRV,
+                                    selectedMetrics = selectedMetrics,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }

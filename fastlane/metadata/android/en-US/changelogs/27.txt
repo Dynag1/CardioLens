@@ -1,0 +1,4 @@
+Optimisations majeures du cache :
+- Utilisation du cache local pour l'historique des tendances (réduction drastique des appels API).
+- Conservation illimitée des données de santé.
+- Correction du workflow de déploiement.

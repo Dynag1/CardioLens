@@ -46,40 +46,113 @@ class FitbitHealthProvider @Inject constructor(
     override suspend fun getIntradayData(date: Date): Result<IntradayData?> {
          try {
             val dateString = DateUtils.formatForApi(date)
-            val hrResponse = apiClient.fitbitApi.getIntradayHeartRate(dateString)
-            val stepsResponse = apiClient.fitbitApi.getIntradaySteps(dateString)
-
-            if (!hrResponse.isSuccessful) {
-                if (hrResponse.code() == 429) {
-                     return Result.failure(com.cardio.fitbit.data.api.RateLimitException("Limite d'API Fitbit atteinte.", 3600))
-                }
-                return Result.failure(Exception("Fitbit Intraday HR Error"))
+            
+            // 1. Fetch Activities to identify high-precision windows
+            var activities: List<Activity> = emptyList()
+            val activityResult = getActivityData(date)
+            if (activityResult.isSuccess) {
+                activities = activityResult.getOrNull()?.activities ?: emptyList()
             }
 
-            // Steps parsing is less critical but check success
+            // 2. Fetch Base 1-minute Heart Rate (Whole Day)
+            // Use standard 1min endpoint
+            val baseHrResponse = apiClient.fitbitApi.getIntradayHeartRate(dateString)
             
-            val hrData = hrResponse.body()?.intradayData?.dataset ?: emptyList()
+            if (!baseHrResponse.isSuccessful) {
+                if (baseHrResponse.code() == 429) {
+                     return Result.failure(com.cardio.fitbit.data.api.RateLimitException("Limite d'API Fitbit atteinte.", 3600))
+                }
+                return Result.failure(Exception("Fitbit Intraday HR Error: ${baseHrResponse.code()}"))
+            }
+
+            val baseHrData = baseHrResponse.body()?.intradayData?.dataset ?: emptyList()
+            
+            // 3. Fetch High Precision (1sec) for Activity Periods
+            val highPrecisionData = mutableListOf<IntradayHeartRate>()
+            
+            // Limit to avoid API Rate limits if too many activities? 
+            // Usually user has 1-2 workouts.
+            activities.forEach { activity ->
+                 // Logic to confirm it's a "workout" -> maybe based on type or duration?
+                 // For now, take all recorded activities as workouts worth zooming in.
+                 val startTimeStr = DateUtils.formatTimeForDisplay(activity.startTime)
+                 val endTime = Date(activity.startTime.time + activity.duration)
+                 val endTimeStr = DateUtils.formatTimeForDisplay(endTime)
+                 
+                 // Avoid tiny activities or 0 duration
+                 if (activity.duration > 60000) { 
+                     val activityHrResponse = apiClient.fitbitApi.getIntradayHeartRatePrecisionRange(
+                         date = dateString,
+                         startTime = startTimeStr,
+                         endTime = endTimeStr
+                     )
+                     if (activityHrResponse.isSuccessful) {
+                         val hpData = activityHrResponse.body()?.intradayData?.dataset ?: emptyList()
+                         highPrecisionData.addAll(hpData.map { IntradayHeartRate(it.time, it.value) })
+                     }
+                 }
+            }
+
+            // 4. Fetch Steps (1min)
+            val stepsResponse = apiClient.fitbitApi.getIntradaySteps(dateString)
             val stepsData = stepsResponse.body()?.intradayData?.dataset ?: emptyList()
 
-            val allTimes = (hrData.map { it.time } + stepsData.map { it.time }).distinct()
-            val hrMap = hrData.associateBy { it.time }
-            val stepsMap = stepsData.associateBy { it.time }
+            // 5. Merge Data
+            // We want to prioritize High Precision data.
+            // Map: TimeString -> MinuteData
+            // If TimeString exists in HP data, use it.
+            
+            val mergedMap = mutableMapOf<String, MinuteData>()
+            
+            // Fill with Base 1-min Data
+            baseHrData.forEach { pt ->
+                mergedMap[pt.time] = MinuteData(pt.time, pt.value, 0)
+            }
+            
+            // Overwrite/Add with High Precision Data
+            highPrecisionData.forEach { pt ->
+                // Note: HP data often has "HH:mm:ss" while Base has "HH:mm:00".
+                // If Base has "12:00:00" and HP has "12:00:00", overwrite.
+                // If HP has "12:00:01", add new.
+                val existingSteps = mergedMap[pt.time]?.steps ?: 0
+                mergedMap[pt.time] = MinuteData(pt.time, pt.value, existingSteps)
+            }
+            
+            // Inject Steps
+            // Steps are usually HH:mm:00.
+            stepsData.forEach { pt ->
+                // We need to attach steps to a MinuteData.
+                // If HR exists at HH:mm:00, add to it.
+                // If NOT, create one.
+                val existing = mergedMap[pt.time]
+                if (existing != null) {
+                    mergedMap[pt.time] = existing.copy(steps = pt.value.toInt())
+                } else {
+                    mergedMap[pt.time] = MinuteData(pt.time, 0, pt.value.toInt())
+                }
+            }
+            
+            val finalSortedList = mergedMap.values.sortedBy { it.time }
 
-            val minuteData = allTimes.map { timeRaw ->
-                // Normalize time to HH:mm (Fitbit returns HH:mm:ss)
-                val time = if (timeRaw.length >= 5) timeRaw.substring(0, 5) else timeRaw
-                
-                MinuteData(
-                    time = time,
-                    heartRate = hrMap[timeRaw]?.value ?: 0,
-                    steps = stepsMap[timeRaw]?.value ?: 0
-                )
-            }.sortedBy { it.time }
-
-            return Result.success(IntradayData(date, minuteData))
+            return Result.success(IntradayData(date, finalSortedList))
         } catch (e: Exception) {
             return Result.failure(e)
         }
+    }
+
+    override suspend fun getIntradayHistory(startDate: Date, endDate: Date): Result<List<IntradayData>> {
+        val list = mutableListOf<IntradayData>()
+        val cal = java.util.Calendar.getInstance()
+        cal.time = startDate
+        while (!cal.time.after(endDate)) {
+            val result = getIntradayData(cal.time)
+            if (result.isSuccess) {
+                result.getOrNull()?.let { list.add(it) }
+            }
+            // Use try-catch or failure check? If one fails, do we fail all? Best effort is better for trends.
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        return Result.success(list)
     }
 
     override suspend fun getSleepData(date: Date): Result<List<SleepData>> {
@@ -144,6 +217,22 @@ class FitbitHealthProvider @Inject constructor(
         }
     }
 
+
+
+    override suspend fun getActivityHistory(startDate: Date, endDate: Date): Result<List<ActivityData>> {
+        val list = mutableListOf<ActivityData>()
+        val cal = java.util.Calendar.getInstance()
+        cal.time = startDate
+        while (!cal.time.after(endDate)) {
+            val result = getActivityData(cal.time)
+            if (result.isSuccess) {
+                result.getOrNull()?.let { list.add(it) }
+            }
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        return Result.success(list)
+    }
+
     override suspend fun getUserProfile(): Result<UserProfile?> {
         try {
             val response = apiClient.fitbitApi.getUserProfile()
@@ -151,6 +240,52 @@ class FitbitHealthProvider @Inject constructor(
                 return Result.success(mapUserProfileResponse(response.body()!!))
             }
             return Result.failure(Exception("Fitbit Profile Error"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getHeartRateHistory(startDate: Date, endDate: Date): Result<List<HeartRateData>> {
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            val response = apiClient.fitbitApi.getHeartRateRange(startStr, endStr)
+            
+            if (response.isSuccessful && response.body() != null) {
+                // Fitbit returns activities-heart list
+                val list = response.body()!!.activitiesHeart.mapNotNull { daily ->
+                    val date = DateUtils.parseApiDate(daily.dateTime) ?: return@mapNotNull null
+                    
+                    // Construct minimal HeartRateData (no intraday, just daily summary)
+                    val zones = daily.value.heartRateZones.map { zone ->
+                        HeartRateZone(zone.name, zone.min, zone.max, zone.minutes, zone.caloriesOut)
+                    }
+                    
+                    HeartRateData(
+                        date = date,
+                        restingHeartRate = daily.value.restingHeartRate,
+                        heartRateZones = zones,
+                        intradayData = null
+                    )
+                }
+                return Result.success(list)
+            }
+            return Result.failure(Exception("Fitbit HR History Error: ${response.code()}"))
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    override suspend fun getSleepHistory(startDate: Date, endDate: Date): Result<List<SleepData>> {
+        try {
+            val startStr = DateUtils.formatForApi(startDate)
+            val endStr = DateUtils.formatForApi(endDate)
+            val response = apiClient.fitbitApi.getSleepRange(startStr, endStr)
+            
+            if (response.isSuccessful && response.body() != null) {
+                return Result.success(mapSleepResponse(response.body()!!))
+            }
+            return Result.failure(Exception("Fitbit Sleep History Error"))
         } catch (e: Exception) {
             return Result.failure(e)
         }

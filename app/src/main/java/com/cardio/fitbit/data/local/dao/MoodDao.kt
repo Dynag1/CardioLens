@@ -22,4 +22,6 @@ interface MoodDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: MoodEntry)
+
+
 }

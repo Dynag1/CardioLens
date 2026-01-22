@@ -19,10 +19,11 @@ object HeartRateAnalysisUtils {
         intraday: List<MinuteData>,
         sleep: List<SleepData>,
         activity: ActivityData?,
-        preMidnightHeartRates: List<Int> = emptyList()
+        preMidnightHeartRates: List<Int> = emptyList(),
+        nativeRhr: Int? = null
     ): RhrResult {
         if (intraday.isEmpty()) {
-            return RhrResult(null, null, null)
+            return RhrResult(nativeRhr, null, nativeRhr)
         }
 
         // Helper to get timestamp from HH:mm or HH:mm:ss string for THIS date
@@ -31,13 +32,31 @@ object HeartRateAnalysisUtils {
             val c = Calendar.getInstance().apply { time = date }
             c.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
             c.set(Calendar.MINUTE, parts[1].toInt())
-            c.set(Calendar.SECOND, 0)
+            c.set(Calendar.SECOND, 0) // Always normalise to 00 seconds for aggregation
             c.set(Calendar.MILLISECOND, 0)
             return c.timeInMillis
         }
 
+        // AGGREGATION: Normalize to 1-minute buckets to maintain algorithm consistency (window sizes etc)
+        // This handles cases where we might have second-by-second data mixed in.
+        val aggregatedMinutes = intraday
+            .groupBy { 
+                // key by HH:mm
+                if (it.time.length >= 5) it.time.substring(0, 5) else it.time
+            }
+            .map { (timePrefix, samples) ->
+                // Average valid heart rates
+                val validHrs = samples.map { it.heartRate }.filter { it > 0 }
+                val avgHr = if (validHrs.isNotEmpty()) validHrs.average().toInt() else 0
+                
+                // Sum steps (if any sample has steps, the minute has steps)
+                val totalSteps = samples.sumOf { it.steps }
+                
+                MinuteData(timePrefix, avgHr, totalSteps)
+            }
+
         // Parse and Sort Intraday Data
-        val sortedMinutes = intraday.map { data -> 
+        val sortedMinutes = aggregatedMinutes.map { data -> 
             val ts = getTimestamp(data.time)
             Triple(data, ts, data.heartRate)
         }.sortedBy { it.second }
@@ -71,9 +90,15 @@ object HeartRateAnalysisUtils {
             val isLoggedActivity = activityRanges.any { range -> ts in range }
             val isStepActivity = data.steps > 0
             
-            if (isLoggedActivity || isStepActivity) {
-                // Trigger Cooldown
+            if (isLoggedActivity) {
+                // Trigger Cooldown for Logged Activity
                 cooldownUntil = ts + COOLDOWN_MS
+                return@forEachIndexed
+            }
+
+            if (isStepActivity) {
+                // Just skip this minute if moving, but don't trigger long cooldown unless high intensity?
+                // For now, just strict skip.
                 return@forEachIndexed
             }
 
@@ -100,50 +125,39 @@ object HeartRateAnalysisUtils {
             nightHeartRates.average().toInt()
         } else null
 
-        // 4. Calculate Day RHR (Sliding Window on Valid Minutes)
-        // Scientific Standard: Lowest stable 10-minute average (matches Trends logic)
-        val windowAverages = mutableListOf<Double>()
-        val WINDOW_SIZE_MINUTES = 10
-        
-        // Iterate through minutes to find 10-min valid blocks
-        for (i in 0..sortedMinutes.size - WINDOW_SIZE_MINUTES) {
-            // Optimization: Skip if start is invalid
-            if (!validMinutesMask[i]) continue
+        // 4. Calculate Day RHR (Sedentary Blocks > 5 mins + 10th Percentile)
+        // New algorithm: 
+        // 1. Identify contiguous blocks of valid sedentary minutes.
+        // 2. Filter for blocks > 5 minutes.
+        // 3. Take 10th percentile of each block.
+        // 4. Take 10th percentile of those block values.
 
-            val startTs = sortedMinutes[i].second
-            val endTsTarget = startTs + (WINDOW_SIZE_MINUTES * 60 * 1000L)
-            
-            var sampleCount = 0
-            var sumHr = 0.0
-            var isValidWindow = true
-            
-            // Scan forward 
-            for (j in i until sortedMinutes.size) {
-                val currTs = sortedMinutes[j].second
-                if (currTs >= endTsTarget) break // Window full
-                
-                // Strict Contiguity: Any invalid minute taints the window
-                if (!validMinutesMask[j]) {
-                    isValidWindow = false
-                    break
+        val blockRepresentativeValues = mutableListOf<Int>()
+        var currentBlock = mutableListOf<Int>()
+
+        for (i in 0 until sortedMinutes.size) {
+            if (validMinutesMask[i]) {
+                currentBlock.add(sortedMinutes[i].third)
+            } else {
+                // End of a block
+                if (currentBlock.size >= 5) {
+                    // Calculate 20th percentile of this block
+                    blockRepresentativeValues.add(calculatePercentile(currentBlock, 20.0))
                 }
-                
-                sumHr += sortedMinutes[j].third
-                sampleCount++
-            }
-
-            // Require density (at least 8 samples for a 10m window)
-            if (isValidWindow && sampleCount >= 8) {
-                windowAverages.add(sumHr / sampleCount)
+                currentBlock.clear()
             }
         }
+        // Check final block
+        if (currentBlock.size >= 5) {
+             blockRepresentativeValues.add(calculatePercentile(currentBlock, 20.0))
+        }
 
-        // 5. Select Resting Baseline (Median of Valid Windows) - Matches Trends Logic
-        val rhrDay = if (windowAverages.isNotEmpty()) {
-            val sorted = windowAverages.sorted()
-            val mid = sorted.size / 2
-            if (sorted.size % 2 == 0) ((sorted[mid-1] + sorted[mid]) / 2).toInt() else sorted[mid].toInt()
+        // 5. Final RHR Calculation
+        val rhrDayComputed = if (blockRepresentativeValues.isNotEmpty()) {
+            calculatePercentile(blockRepresentativeValues, 20.0)
         } else null
+
+        val rhrDay = rhrDayComputed ?: nativeRhr
         
         // 6. Calculate Average (Simple average of available metrics)
         val rhrAvg = when {
@@ -154,5 +168,13 @@ object HeartRateAnalysisUtils {
         }
 
         return RhrResult(rhrDay, rhrNight, rhrAvg)
+    }
+
+    // Helper for Percentile Calculation (Nearest Rank method)
+    private fun calculatePercentile(data: List<Int>, percentile: Double): Int {
+        if (data.isEmpty()) return 0
+        val sorted = data.sorted()
+        val index = kotlin.math.ceil((percentile / 100.0) * sorted.size).toInt() - 1
+        return sorted[index.coerceIn(0, sorted.lastIndex)]
     }
 }

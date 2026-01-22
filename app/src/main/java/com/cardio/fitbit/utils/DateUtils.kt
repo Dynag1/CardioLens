@@ -205,4 +205,47 @@ object DateUtils {
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
     }
+    
+    /**
+     * Parse time string (HH:mm or HH:mm:ss) to Date (Today)
+     */
+    fun parseTimeToday(timeString: String): Date? {
+        try {
+            val parts = timeString.split(":")
+            if (parts.size >= 2) {
+                val cal = Calendar.getInstance()
+                cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
+                cal.set(Calendar.MINUTE, parts[1].toInt())
+                val seconds = if (parts.size > 2) parts[2].toInt() else 0
+                cal.set(Calendar.SECOND, seconds)
+                cal.set(Calendar.MILLISECOND, 0)
+                return cal.time
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
+    }
+
+    /**
+     * Combine YMD from date and HMS from timeMillis
+     */
+    fun combineDateAndTime(date: Date, timeMillis: Long): Long {
+        val dateCal = Calendar.getInstance()
+        dateCal.time = date
+        
+        val timeCal = Calendar.getInstance()
+        timeCal.timeInMillis = timeMillis
+        
+        val resultCal = Calendar.getInstance() // set current date first
+        resultCal.time = date // set YMD
+        
+        // Override time parts
+        resultCal.set(Calendar.HOUR_OF_DAY, timeCal.get(Calendar.HOUR_OF_DAY))
+        resultCal.set(Calendar.MINUTE, timeCal.get(Calendar.MINUTE))
+        resultCal.set(Calendar.SECOND, timeCal.get(Calendar.SECOND))
+        resultCal.set(Calendar.MILLISECOND, timeCal.get(Calendar.MILLISECOND))
+        
+        return resultCal.timeInMillis
+    }
 }
