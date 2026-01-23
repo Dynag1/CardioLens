@@ -1,0 +1,30 @@
+Categories:
+  - Sports & Health
+License: Apache-2.0
+SourceCode: https://github.com/Dynag1/CardioLens
+IssueTracker: https://github.com/Dynag1/CardioLens/issues
+Changelog: https://github.com/Dynag1/CardioLens/blob/master/CHANGELOG.md
+
+AutoName: CardioLens
+Summary: Visualize health data from multiple sources
+Description: |-
+  CardioLens connects to health data providers to retrieve and visualize your fitness information.
+
+RepoType: git
+Repo: https://github.com/Dynag1/CardioLens
+
+Builds:
+  - versionName: 1.2.3
+    versionCode: 31
+    commit: e45b6ff25b947c13b23b68da4e5d6e64820cba42
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+CurrentVersion: 1.2.3
+CurrentVersionCode: 31
+
+AntiFeatures:
+  - NonFreeNet
