@@ -1,5 +1,9 @@
 # Historique des Versions (Changelog)
 
+## Version 32 (v1.2.4) - 2026-01-24
+### Corrections
+- **Calcul du Pouls Nuit (Night RHR)** : Correction logique pour exclure strictement le sommeil commençant tard le soir même (après 22h) du calcul du jour courant. Prend désormais correctement en compte uniquement le sommeil se terminant le matin.
+
 ## Version 25 (v1.1.25) - 2026-01-19
 ### Corrections
 - **Fitbit RHR** : Correction du calcul du pouls au repos (Jour/Nuit). Les données sont maintenant récupérées avec plus de précision et la tolérance aux mouvements a été ajustée pour ne pas bloquer le calcul lors de simples pas.
