@@ -1,5 +1,11 @@
 # Historique des Versions (Changelog)
 
+## Version 33 (v1.2.5) - 2026-01-24
+### Améliorations Graphiques
+- **Visualisation des Pas** : Regroupement des pas par blocs de 10 minutes pour une meilleure lisibilité.
+- **Indicateur d'Intensité** : Les barres de pas utilisent un dégradé de couleur (Violet) indiquant l'intensité de l'activité.
+- **Infobulle Intelligente** : Le clic sur un bloc de pas affiche le total cumulé pour les 10 minutes.
+
 ## Version 32 (v1.2.4) - 2026-01-24
 ### Corrections
 - **Calcul du Pouls Nuit (Night RHR)** : Correction logique pour exclure strictement le sommeil commençant tard le soir même (après 22h) du calcul du jour courant. Prend désormais correctement en compte uniquement le sommeil se terminant le matin.

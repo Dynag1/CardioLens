@@ -62,7 +62,8 @@ object HeartRateAnalysisUtils {
         }.sortedBy { it.second }
 
         // 1. Identify Activity & Sleep Ranges
-        val sleepRanges = sleep.map { it.startTime.time..it.endTime.time }
+        val allSleepSessions = sleep
+        
         val activityRanges = activity?.activities?.map { 
             it.startTime.time..(it.startTime.time + it.duration) 
         } ?: emptyList()
@@ -74,15 +75,35 @@ object HeartRateAnalysisUtils {
 
         val nightHeartRates = preMidnightHeartRates.toMutableList()
 
+        // Define Noon of relevant day. Sleep ending after noon is considered Nap or Next Night.
+        val cal = Calendar.getInstance().apply { time = date }
+        cal.set(Calendar.HOUR_OF_DAY, 12)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        val noonToday = cal.timeInMillis
+
         sortedMinutes.forEachIndexed { index, triple ->
             val data = triple.first
             val ts = triple.second
             val hr = triple.third
             
             // A. Sleep Check
-            val isSleep = sleepRanges.any { range -> ts in range }
+            val sleepSession = allSleepSessions.find { session -> ts in session.startTime.time..session.endTime.time }
+            val isSleep = sleepSession != null
+            
             if (isSleep) {
-                if (hr > 0) nightHeartRates.add(hr) // Collect Night HR
+                // Only contribute to Night RHR if the sleep session ends before Noon of this day.
+                // This covers:
+                // 1. Sleep starting yesterday and ending this morning (Contributes).
+                // 2. Sleep starting early morning and ending this morning (Contributes).
+                // Excludes:
+                // 3. Naps in afternoon (Ends > Noon).
+                // 4. Sleep starting tonight (Ends > Noon, likely next day).
+                val endsBeforeNoon = sleepSession!!.endTime.time <= noonToday
+                
+                if (endsBeforeNoon && hr > 0) {
+                     nightHeartRates.add(hr) 
+                }
                 return@forEachIndexed // Exclude from Day RHR
             }
 

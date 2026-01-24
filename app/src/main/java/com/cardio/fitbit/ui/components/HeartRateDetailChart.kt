@@ -218,6 +218,37 @@ fun HeartRateDetailChart(
                     // Right Y (Steps) - Scaled
                     axisRight.isEnabled = false 
                     axisRight.axisMinimum = 0f
+                    
+                    // Value Selected Listener
+                    setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
+                        override fun onValueSelected(e: Entry?, h: Highlight?) {
+                            if (e == null) return
+                            
+                            val data = e.data
+                            if (data is com.cardio.fitbit.data.models.MinuteData) {
+                                selectedPoint = data
+                            } else if (data is Int) {
+                                // It's a Step Entry with total steps
+                                // We need to construct a pseudo-MinuteData or handle it.
+                                // Reconstruct time string from X value
+                                val totalMinutes = e.x.toInt()
+                                val hours = totalMinutes / 60
+                                val minutes = totalMinutes % 60
+                                val timeStr = String.format("%02d:%02d:00", hours, minutes)
+                                
+                                // Create a dummy MinuteData with the total steps
+                                selectedPoint = com.cardio.fitbit.data.models.MinuteData(
+                                    time = timeStr,
+                                    heartRate = 0, // No HR for step bar
+                                    steps = data
+                                )
+                            }
+                        }
+
+                        override fun onNothingSelected() {
+                            selectedPoint = null
+                        }
+                    })
                 }
             },
             update = { chart ->
@@ -334,21 +365,62 @@ fun HeartRateDetailChart(
                     isHighlightEnabled = true
                 }
 
-                // 2. Steps (As BarDataSet superimposed on the BPM bars)
-                // Height is fixed to 10f if steps > 0 to be visible but not cover the whole bar
-                val stepEntries = activeList.mapNotNull { data ->
-                    if (data.steps > 0) {
-                        BarEntry(timeToIndex(data.time), 20f, data) // Taller bars (20f)
-                    } else {
-                        null
+                // 2. Steps (As grouped BarDataSet)
+                // Group data into 10-minute buckets
+                val groupedSteps = activeList
+                    .groupBy { 
+                        // Calculate 10-minute bucket key
+                        val totalMinutes = (timeToIndex(it.time)).toInt()
+                        totalMinutes / 10 
                     }
-                }
+                    .flatMap { (bucketIndex, entries) ->
+                        // Sum steps for the bucket
+                        val totalSteps = entries.sumOf { it.steps }
+                        
+                        if (totalSteps > 0) {
+                            // Generate 10 entries (one per minute) to create a visual "block" of 10 minutes width
+                            val startMinute = bucketIndex * 10
+                            (0 until 10).map { offset ->
+                                val timePos = (startMinute + offset).toFloat()
+                                // Store total steps in data for color/tooltip
+                                // Use fixed height (20f) as requested, color indicates intensity
+                                BarEntry(timePos, 20f, totalSteps)
+                            }
+                        } else {
+                            emptyList()
+                        }
+                    }
 
-                val stepDataSet = BarDataSet(stepEntries, "Steps").apply {
-                    color = Color.parseColor("#9C27B0") // Purple
-                    setDrawValues(false)
-                    axisDependency = YAxis.AxisDependency.RIGHT // Use Right Axis for Steps
-                    isHighlightEnabled = false // Highlight HR dataset only
+                val maxStepsInView = groupedSteps.maxByOrNull { it.data as Int }?.data as? Int ?: 1
+
+                val stepDataSet = BarDataSet(groupedSteps, "Steps").apply {
+                     setDrawValues(false)
+                    axisDependency = YAxis.AxisDependency.RIGHT
+                    isHighlightEnabled = false
+                    
+                    // Dynamic Gradient Colors (Solid opacity)
+                    val stepColors = groupedSteps.map { entry ->
+                        val steps = entry.data as Int
+                        val fraction = (steps.toFloat() / maxStepsInView).coerceIn(0f, 1f)
+                        
+                        // Light Purple: #E1BEE7 (RGB: 225, 190, 231)
+                        // Deep Purple:  #4A148C (RGB: 74, 20, 140)
+                        
+                        val startR = 225
+                        val startG = 190
+                        val startB = 231
+                        
+                        val endR = 74
+                        val endG = 20
+                        val endB = 140
+                        
+                        val r = (startR + (endR - startR) * fraction).toInt()
+                        val g = (startG + (endG - startG) * fraction).toInt()
+                        val b = (startB + (endB - startB) * fraction).toInt()
+                        
+                        Color.rgb(r, g, b)
+                    }
+                    setColors(stepColors)
                 }
                 
                 // Configure Right Axis for Steps (Hidden, 0-500 scale)
@@ -358,7 +430,7 @@ fun HeartRateDetailChart(
                     setDrawGridLines(false) // Hide grid
                     setDrawAxisLine(false) // Hide line
                     axisMinimum = 0f
-                    axisMaximum = 400f // 20f bars will take 5% of height (Very small)
+                    axisMaximum = 400f // Fixed scale: 20f bars will take 5% of height
                 }
 
                 // Combine both in BarData (Order: HR first, then Steps on top)
@@ -576,18 +648,6 @@ fun HeartRateDetailChart(
             modifier = modifier
         )
         
-        // Tooltip / Selection Info
-        selectedPoint?.let { data ->
-             Card(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) { 
-                Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceAround) {
-                     Text("Heure: ${data.time}")
-                     Text("❤️ ${data.heartRate} BPM")
-                     Text("👟 ${data.steps} pas")
-                }
-            }
-        }
+
     }
 }
