@@ -1,75 +1,152 @@
-# ❤️ CardioLens - Votre Santé, Clarifiée.
+# Cardio - Application Android Fitbit
 
-**CardioLens** est une application Android moderne et performante conçue pour centraliser, visualiser et analyser vos données de santé (Fitbit & Health Connect). 
-Avec une interface **Jetpack Compose** fluide et un moteur de données intelligent, redécouvrez vos métriques vitales sous un nouveau jour.
+Application Android moderne qui se connecte à Fitbit pour récupérer et afficher vos données de santé dans des graphiques interactifs.
 
----
+## 📱 Fonctionnalités
 
-## ✨ Fonctionnalités Clés
+- ✅ **Authentification OAuth 2.0** avec Fitbit (PKCE)
+- ❤️ **Rythme cardiaque**: Visualisation du rythme cardiaque au repos et des zones de fréquence
+- 😴 **Sommeil**: Analyse détaillée des phases de sommeil (profond, léger, REM, éveillé)
+- 👟 **Pas**: Suivi quotidien et statistiques hebdomadaires
+- 🏃 **Activités**: Résumé des exercices et calories brûlées
+- 🎨 **Interface moderne**: Design sombre avec Material 3 et Jetpack Compose
+- 💾 **Stockage sécurisé**: Tokens OAuth chiffrés avec EncryptedSharedPreferences
 
-### 📊 Tableau de Bord (Dashboard)
-Une vue d'ensemble complète de votre journée :
-- **Multi-Sources** : Basculez instantanément entre **Fitbit** et **Health Connect** (Google Fit).
-- **Rythme Cardiaque** :
-    - Données en temps réel et graphique intraday précis.
-    - **Analyse RHR Avancée** : Distinction scientifique entre le pouls au repos de jour vs nuit.
-- **Métriques Avancées** :
-    - **Variabilité Cardiaque (HRV)** : Suivez votre stress et votre récupération (RMSSD).
-    - **SpO2** : Saturation en oxygène du sang.
-- **Sommeil & Activité** :
-    - Analyse détaillée des phases de sommeil.
-    - Jauges d'activité visuelles et suivi des pas.
+## 🛠️ Technologies utilisées
 
-### 🎭 Suivi de l'Humeur
-Parce que la santé mentale est indissociable de la santé physique :
-- **Journal Quotidien** : Une interface simple ("Comment allez-vous ?") pour noter votre humeur du jour.
-- **Corrélation** : Visualisez l'impact de votre sommeil et de votre activité sur votre moral dans l'onglet Tendances.
+- **Kotlin** - Langage de programmation
+- **Jetpack Compose** - UI moderne et déclarative
+- **Material 3** - Design system
+- **Hilt** - Injection de dépendances
+- **Retrofit** - Client HTTP pour l'API Fitbit
+- **Room** - Base de données locale (prévu pour le cache)
+- **Coroutines** - Programmation asynchrone
+- **Chrome Custom Tabs** - Authentification OAuth
 
-### 📈 Tendances & Analyse
-Ne regardez pas seulement aujourd'hui, comprenez votre évolution :
-- Graphiques interactifs sur **7, 15 ou 30 jours**.
-- Comparaison des moyennes vs médianes pour éviter les faux positifs.
-- Détection automatique des anomalies.
+## 📋 Prérequis
 
-### 💾 Sauvegarde & Sécurité
-Vos données vous appartiennent :
-- **Sauvegarde Universelle** : Exportez vos données (Humeur, Cache, Préférences) vers **n'importe quel dossier** (Local, Google Drive, Dropbox...).
-- **Mode Hors-Ligne** : "Smart Caching" complet. Consultez tout votre historique sans connexion.
-- **Confidentialité** : Les tokens sont chiffrés (`EncryptedSharedPreferences`) et aucune donnée ne part vers un serveur tiers inconnu.
+1. **Compte développeur Fitbit**
+   - Créez un compte sur [dev.fitbit.com](https://dev.fitbit.com)
+   - Créez une nouvelle application
 
-### ⚡ Expérience Utilisateur
-- **Actualisation Automatique** : Vos données sont fraîches dès l'ouverture de l'application.
-- **Dark Mode** natif et respectueux de la batterie.
-- **Performance** : Moteur de synchronisation incrémentale (ne télécharge que ce qui manque).
+2. **Configuration de l'application Fitbit**
+   - **OAuth 2.0 Application Type**: Client ou Personal
+   - **Callback URL**: `cardioapp://fitbit-auth`
+   - **Scopes**: activity, heartrate, sleep, profile
 
----
+3. **Android Studio**
+   - Version: Arctic Fox ou supérieure
+   - SDK minimum: API 26 (Android 8.0)
+   - SDK cible: API 34 (Android 14)
 
-## 🛠️ Stack Technique
+## 🚀 Installation
 
-Construit avec les dernières technologies Android pour robustesse et maintenabilité :
+### 1. Cloner le projet
 
-- **Langage** : 100% [Kotlin](https://kotlinlang.org/)
-- **UI** : [Jetpack Compose](https://developer.android.com/jetpack/compose) + Material Design 3
-- **Architecture** : Clean Architecture + MVVM
-- **Injection** : [Hilt](https://dagger.dev/hilt/)
-- **Données** : 
-  - [Room](https://developer.android.com/training/data-storage/room) (SQLite) pour la persistance locale complexe.
-  - [Retrofit](https://square.github.io/retrofit/) & OkHttp pour l'API Fitbit.
-- **Tâches de fond** : [WorkManager](https://developer.android.com/topic/libraries/architecture/workmanager) pour les synchronisations périodiques.
+Le projet est déjà créé dans: `/home/hemge/Clood/021 - Programmation/Android/Cardio`
 
----
+### 2. Configuration API (Deux options)
 
-## 🚀 Installation & Configuration
+#### Option A: Mode "Bring Your Own Keys" (BYOK) - Recommandé
+L'application demandera à chaque utilisateur ses propres clés Fitbit au démarrage.
+1.  L'utilisateur va sur [dev.fitbit.com](https://dev.fitbit.com)
+2.  Crée une app **"Personal"**
+3.  Utilise ces clés dans l'application.
+    *   ✅ Graphiques détaillés (Intraday) activés.
+    *   ❌ Nécessite une configuration par l'utilisateur.
 
-### Prérequis
-- Android 8.0 (Oreo) ou supérieur.
+#### Option B: Mode "Server" (Public)
+Pour éviter la configuration à l'utilisateur :
+1.  Configurez votre app sur Fitbit en type **"Server"**.
+2.  Intégrez vos clés directement dans l'application (nécessite modification du code pour retirer l'écran de setup).
+3.  **Important** : Par défaut, Fitbit **bloque** les données Intraday pour les apps Server.
+    *   Vous devez remplir le **[Formulaire de demande Intraday](https://dev.fitbit.com/build/reference/web-api/intraday-requests/)**.
+    *   Sans validation, les utilisateurs n'auront que les statistiques journalières.
 
-### Configuration API
-1. **Fitbit** : Créez une application "Personal" sur [dev.fitbit.com](https://dev.fitbit.com) avec l'URL de callback `cardioapp://fitbit-auth`.
-2. **Health Connect** : Installez simplement l'application Google Health Connect (intégrée sur Android 14+).
+### 3. Synchroniser le projet
 
----
+Ouvrez le projet dans Android Studio et laissez Gradle synchroniser les dépendances.
+
+### 4. Compiler l'application
+
+#### Mode Debug (pour tester)
+```bash
+cd /home/hemge/Clood/021\ -\ Programmation/Android/Cardio
+./gradlew assembleDebug
+```
+
+L'APK sera généré dans: `app/build/outputs/apk/debug/app-debug.apk`
+
+#### Mode Release (pour production)
+```bash
+./gradlew assembleRelease
+```
+
+L'APK sera généré dans: `app/build/outputs/apk/release/app-release.apk`
+
+### 5. Installer sur un appareil
+
+```bash
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+## 📱 Utilisation
+
+1. **Lancer l'application**
+2. **Cliquer sur "Se connecter avec Fitbit"**
+3. **S'authentifier** avec vos identifiants Fitbit dans le navigateur
+4. **Autoriser l'accès** aux données demandées
+5. **Profiter** de vos données de santé visualisées !
+
+## 🏗️ Architecture
+
+```
+app/
+├── src/main/java/com/cardio/fitbit/
+│   ├── auth/                    # Authentification OAuth
+│   │   └── FitbitAuthManager.kt
+│   ├── data/
+│   │   ├── api/                 # Client API Retrofit
+│   │   ├── models/              # Modèles de données
+│   │   └── repository/          # Repository pattern
+│   ├── ui/
+│   │   ├── components/          # Composants UI réutilisables
+│   │   ├── screens/             # Écrans de l'application
+│   │   ├── theme/               # Thème Material 3
+│   │   └── navigation/          # Navigation Compose
+│   └── utils/                   # Utilitaires
+└── res/                         # Ressources (strings, themes, etc.)
+```
+
+## 🔐 Sécurité
+
+- Les tokens OAuth sont stockés de manière chiffrée avec `EncryptedSharedPreferences`
+- Utilisation de PKCE (Proof Key for Code Exchange) pour l'OAuth
+- Rafraîchissement automatique des tokens expirés
+- Pas de stockage de credentials en clair
+
+## 🐛 Dépannage
+
+### Erreur "Client ID not found"
+Vérifiez que vous avez bien configuré les credentials dans `strings.xml`
+
+### Erreur d'authentification
+- Vérifiez que le Callback URL dans l'app Fitbit correspond exactement à `cardioapp://fitbit-auth`
+- Assurez-vous que les scopes sont correctement configurés
+
+### Pas de données affichées
+- Vérifiez que votre compte Fitbit contient des données
+- Vérifiez la connexion internet
+- Consultez les logs avec `adb logcat`
 
 ## 📄 Licence
-Ce projet est développé dans un but éducatif et personnel.
-Code source disponible sur [GitHub](https://github.com/Dynag1/CardioLens).
+
+Ce projet est un exemple éducatif. Consultez les conditions d'utilisation de l'API Fitbit.
+
+## 🤝 Contribution
+
+Projet personnel - Pas de contributions externes pour le moment.
+
+## 📞 Support
+
+Pour toute question concernant l'API Fitbit, consultez la [documentation officielle](https://dev.fitbit.com/build/reference/web-api/).
