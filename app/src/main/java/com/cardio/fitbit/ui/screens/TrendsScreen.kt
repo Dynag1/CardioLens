@@ -62,7 +62,10 @@ fun TrendsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF5F5F5)
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -134,7 +137,7 @@ fun TrendsScreen(
                         if (state.data.any { it.moodRating != null }) {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
@@ -142,7 +145,7 @@ fun TrendsScreen(
                                         text = "Humeur",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF4CAF50) // Green title
+                                        color = Color(0xFF4CAF50) // Green title is okay
                                     )
                                     Spacer(Modifier.height(16.dp))
                                     androidx.compose.foundation.lazy.LazyRow(
@@ -172,7 +175,7 @@ fun TrendsScreen(
                                                 Text(
                                                     text = dateFormat.format(point.date),
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = Color.Gray
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
@@ -183,8 +186,8 @@ fun TrendsScreen(
 
                         // Unified Trends Chart
                         Card(
-                            modifier = Modifier.fillMaxWidth().height(450.dp), // Taller for unified
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            modifier = Modifier.fillMaxWidth().height(450.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -235,7 +238,6 @@ fun TrendsScreen(
                             }
                         }
 
-                        
                         Spacer(Modifier.height(16.dp))
                     }
                 }
