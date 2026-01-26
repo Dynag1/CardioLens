@@ -1,5 +1,11 @@
 # Historique des Versions (Changelog)
 
+## Version 34 (v1.2.6) - 2026-01-26
+### Améliorations de l'Interface (UI)
+- **Thème Sombre** : Correction de l'arrière-plan blanc qui rendait l'application illisible en mode sombre.
+- **Barre de Statut** : Les icônes de la barre de statut s'adaptent désormais correctement (Noires sur fond blanc pour le thème clair, Blanches sur fond noir pour le thème sombre) pour garantir une visibilité parfaite.
+- **Paramètres Santé** : Les paramètres de seuils cardiaques, notifications et date de naissance ont été déplacés dans un nouveau menu dédié "Paramètres Santé" (accessible sous "Tendances") pour une meilleure organisation.
+
 ## Version 33 (v1.2.5) - 2026-01-24
 ### Améliorations Graphiques
 - **Visualisation des Pas** : Regroupement des pas par blocs de 10 minutes pour une meilleure lisibilité.

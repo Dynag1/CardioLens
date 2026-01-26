@@ -2,6 +2,8 @@ package com.cardio.fitbit.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
@@ -16,23 +18,15 @@ import androidx.compose.ui.res.stringResource
 import com.cardio.fitbit.R
 import androidx.compose.material.icons.filled.CalendarToday
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(
     onDismiss: () -> Unit,
-    notificationsEnabled: Boolean,
-    onNotificationsChange: (Boolean) -> Unit,
-    highThreshold: Int,
-    onHighThresholdChange: (Int) -> Unit,
-    lowThreshold: Int,
-    onLowThresholdChange: (Int) -> Unit,
     syncInterval: Int,
     onSyncIntervalChange: (Int) -> Unit,
     currentLanguage: String,
-
     onLanguageChange: (String) -> Unit,
-    dateOfBirthState: Long?,
-    onDateOfBirthChange: (Long) -> Unit
+    currentTheme: String,
+    onThemeChange: (String) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -40,52 +34,44 @@ fun SettingsDialog(
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
             ) {
-                // Notifications Switch
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(stringResource(R.string.settings_notifications))
-                    Switch(
-                        checked = notificationsEnabled,
-                        onCheckedChange = onNotificationsChange,
-                        thumbContent = {
-                            Icon(
-                                imageVector = if (notificationsEnabled) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
-                                contentDescription = null,
-                                modifier = Modifier.size(SwitchDefaults.IconSize)
-                            )
+                // Appearance Selector
+                Column {
+                    Text("Apparence", style = MaterialTheme.typography.bodyMedium)
+                    
+                    val themes = listOf(
+                        "system" to "Système",
+                        "light" to "Clair",
+                        "dark" to "Sombre"
+                    )
+                    
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        themes.forEach { (code, label) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clickable { onThemeChange(code) },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = currentTheme == code,
+                                    onClick = { onThemeChange(code) }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
-                    )
-                }
-                
-                Divider()
-
-                // High Threshold Slider
-                Column {
-                    Text(stringResource(R.string.settings_high_threshold, highThreshold), style = MaterialTheme.typography.bodyMedium)
-                    Slider(
-                        value = highThreshold.toFloat(),
-                        onValueChange = { onHighThresholdChange(it.toInt()) },
-                        valueRange = 100f..200f,
-                        steps = 19 // (200-100)/5 - 1 ? No, steps = ticks in between
-                    )
+                    }
                 }
 
-                // Low Threshold Slider
-                Column {
-                    Text(stringResource(R.string.settings_low_threshold, lowThreshold), style = MaterialTheme.typography.bodyMedium)
-                    Slider(
-                        value = lowThreshold.toFloat(),
-                        onValueChange = { onLowThresholdChange(it.toInt()) },
-                        valueRange = 30f..100f,
-                        steps = 13
-                    )
-                }
-                
                 Divider()
                 
                 // Sync Interval
@@ -172,67 +158,6 @@ fun SettingsDialog(
                         }
                     }
                 }
-                
-                Divider()
-                
-                // Date of Birth Selector
-                Column {
-                    Text("Date de naissance", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    val dateOfBirth = dateOfBirthState // Renamed from parameter
-                    val displayText = if (dateOfBirth != null && dateOfBirth > 0) {
-                         com.cardio.fitbit.utils.DateUtils.formatForDisplay(java.util.Date(dateOfBirth))
-                    } else {
-                        "Non définie"
-                    }
-                    
-                    var showDatePicker by remember { mutableStateOf(false) }
-
-                    OutlinedButton(
-                        onClick = { showDatePicker = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(androidx.compose.material.icons.Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(displayText)
-                    }
-                    
-                    if (showDatePicker) {
-                        val datePickerState = rememberDatePickerState(
-                            initialSelectedDateMillis = if (dateOfBirth != null && dateOfBirth > 0) dateOfBirth else null,
-                            yearRange = 1900..java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-                        )
-                        
-                        DatePickerDialog(
-                            onDismissRequest = { showDatePicker = false },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        datePickerState.selectedDateMillis?.let { onDateOfBirthChange(it) }
-                                        showDatePicker = false
-                                    }
-                                ) {
-                                    Text("OK")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { showDatePicker = false }) {
-                                    Text("Annuler")
-                                }
-                            }
-                        ) {
-                            DatePicker(state = datePickerState)
-                        }
-                    }
-                }
-
-
-
-
-
-
-
             }
         },
         confirmButton = {

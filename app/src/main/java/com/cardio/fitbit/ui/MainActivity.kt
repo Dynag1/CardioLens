@@ -6,6 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.cardio.fitbit.ui.navigation.AppNavigation
 import com.cardio.fitbit.ui.theme.CardioTheme
@@ -49,17 +51,16 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Fix Status Bar - Explicitly set to Indigo
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        window.statusBarColor = Color.parseColor("#6366F1")
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
+        // Status bar handled in Theme.kt
 
         checkNotificationPermission()
         setupPeriodicSync()
         observeAppLanguage()
 
         setContent {
-            CardioTheme {
+            val appTheme = userPreferencesRepository.appTheme.collectAsState(initial = "system")
+            val themeMode by appTheme
+            CardioTheme(themeMode = themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

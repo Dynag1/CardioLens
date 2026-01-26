@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
@@ -92,11 +93,13 @@ fun DashboardScreen(
     val syncInterval by viewModel.syncIntervalMinutes.collectAsState(initial = 15)
     val currentProviderId by viewModel.currentProviderId.collectAsState()
     val appLanguage by viewModel.appLanguage.collectAsState(initial = "system")
+    val currentTheme by viewModel.appTheme.collectAsState(initial = "system")
     val dateOfBirth by viewModel.dateOfBirth.collectAsState(initial = null)
     val userMaxHr by viewModel.userMaxHr.collectAsState(initial = 220)
 
 
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showHealthSettingsDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -138,17 +141,25 @@ fun DashboardScreen(
     if (showSettingsDialog) {
         SettingsDialog(
             onDismiss = { showSettingsDialog = false },
-            highThreshold = highThreshold,
-            lowThreshold = lowThreshold,
-            notificationsEnabled = notificationsEnabled,
             syncInterval = syncInterval,
-            onHighThresholdChange = viewModel::updateHighHrThreshold,
-            onLowThresholdChange = viewModel::updateLowHrThreshold,
-            onNotificationsChange = viewModel::toggleNotifications,
             onSyncIntervalChange = viewModel::updateSyncInterval,
 
             currentLanguage = appLanguage,
             onLanguageChange = viewModel::updateAppLanguage,
+            currentTheme = currentTheme,
+            onThemeChange = viewModel::updateAppTheme
+        )
+    }
+
+    if (showHealthSettingsDialog) {
+        HealthSettingsDialog(
+            onDismiss = { showHealthSettingsDialog = false },
+            notificationsEnabled = notificationsEnabled,
+            onNotificationsChange = viewModel::toggleNotifications,
+            highThreshold = highThreshold,
+            onHighThresholdChange = viewModel::updateHighHrThreshold,
+            lowThreshold = lowThreshold,
+            onLowThresholdChange = viewModel::updateLowHrThreshold,
             dateOfBirthState = dateOfBirth,
             onDateOfBirthChange = viewModel::setDateOfBirth
         )
@@ -271,6 +282,16 @@ fun DashboardScreen(
                         onNavigateToTrends()
                     }
                 )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
+                    label = { Text("Paramètres Santé") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        showHealthSettingsDialog = true
+                    }
+                )
                 
                 // Push Settings, Backup, About, Logout to bottom
                 Spacer(Modifier.weight(1f))
@@ -325,7 +346,7 @@ fun DashboardScreen(
                 TopAppBar(
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.Black)
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     },
                     title = {
@@ -334,12 +355,12 @@ fun DashboardScreen(
                                 text = "CardioLens",
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.Black
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = DateUtils.formatForDisplay(selectedDate),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Black.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                         }
                     },
@@ -352,29 +373,29 @@ fun DashboardScreen(
                             Text(
                                 text = "Sync: $timeStr",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                         }
 
                         IconButton(onClick = { viewModel.changeDate(-1) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Précédent", tint = Color.Black)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Précédent", tint = MaterialTheme.colorScheme.onSurface)
                         }
                         IconButton(onClick = { viewModel.changeDate(1) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Suivant", tint = Color.Black)
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Suivant", tint = MaterialTheme.colorScheme.onSurface)
                         }
                         IconButton(onClick = { viewModel.loadAllData(forceRefresh = true) }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = Color.Black)
+                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color(0xFFF5F5F5),
-                        titleContentColor = Color.Black,
-                        actionIconContentColor = Color.Black
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
             },
-            containerColor = androidx.compose.ui.graphics.Color.White
+            containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
             Box(
                 modifier = Modifier
