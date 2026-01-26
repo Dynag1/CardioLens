@@ -20,6 +20,8 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import java.text.SimpleDateFormat
 import java.util.Locale
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.toArgb
 
 @Composable
 fun TrendsChart(
@@ -27,6 +29,9 @@ fun TrendsChart(
     selectedMetrics: Set<TrendMetric> = setOf(TrendMetric.NIGHT, TrendMetric.DAY),
     modifier: Modifier = Modifier
 ) {
+    val labelColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f).toArgb()
+
     AndroidView(
         modifier = modifier,
         factory = { context ->
@@ -76,6 +81,17 @@ fun TrendsChart(
             // X-Axis Labels
             chart.xAxis.valueFormatter = IndexAxisValueFormatter(dateLabels)
             chart.xAxis.labelCount = data.size
+
+
+
+            chart.xAxis.textColor = labelColor
+            chart.axisLeft.textColor = labelColor
+            chart.axisRight.textColor = labelColor
+            chart.legend.textColor = labelColor
+            
+            chart.axisLeft.gridColor = gridColor
+            chart.xAxis.gridColor = gridColor
+
 
             // Data Sets
             val combinedData = CombinedData()

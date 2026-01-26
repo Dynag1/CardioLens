@@ -90,14 +90,14 @@ fun BackupScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF5F5F5),
-                    titleContentColor = Color.Black,
-                    navigationIconContentColor = Color.Black
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Color.White
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -121,7 +121,7 @@ fun BackupScreen(
                     Text(
                         text = "Vous pouvez exporter toutes vos données (rythme cardiaque, sommeil, humeur, etc.) dans un fichier JSON pour les sauvegarder ou les transférer vers un autre appareil.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
 
@@ -177,7 +177,7 @@ fun BackupScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Sauvegarde Automatique", style = MaterialTheme.typography.titleMedium, color = Color.Black)
+                                    Text("Sauvegarde Automatique", style = MaterialTheme.typography.titleMedium)
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text("Dans un dossier local ou Cloud (Drive, etc.)", style = MaterialTheme.typography.bodyLarge)
                                 }
@@ -200,7 +200,7 @@ fun BackupScreen(
                             Text(
                                 text = "Sauvegarde vos données une fois par jour dans le dossier choisi. Fonctionne avec Google Drive si l'application Drive est installée.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             
                             if (driveEnabled && !backupUri.isNullOrBlank()) {

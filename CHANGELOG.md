@@ -3,6 +3,7 @@
 ## Version 34 (v1.2.6) - 2026-01-26
 ### Améliorations de l'Interface (UI)
 - **Thème Sombre** : Correction de l'arrière-plan blanc qui rendait l'application illisible en mode sombre.
+- **Pages Tendances & Sauvegarde** : Ajustement complet des couleurs pour le mode sombre (Menu, Graphiques, Arrière-plans).
 - **Barre de Statut** : Les icônes de la barre de statut s'adaptent désormais correctement (Noires sur fond blanc pour le thème clair, Blanches sur fond noir pour le thème sombre) pour garantir une visibilité parfaite.
 - **Paramètres Santé** : Les paramètres de seuils cardiaques, notifications et date de naissance ont été déplacés dans un nouveau menu dédié "Paramètres Santé" (accessible sous "Tendances") pour une meilleure organisation.
 
