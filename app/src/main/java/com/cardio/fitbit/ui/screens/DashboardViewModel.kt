@@ -66,6 +66,7 @@ class DashboardViewModel @Inject constructor(
     val notificationsEnabled = userPreferencesRepository.notificationsEnabled
     val syncIntervalMinutes = userPreferencesRepository.syncIntervalMinutes
     val appLanguage = userPreferencesRepository.appLanguage
+    val appTheme = userPreferencesRepository.appTheme
     
     // Dynamic HR Zones
     val dateOfBirth = userPreferencesRepository.dateOfBirth
@@ -458,6 +459,12 @@ class DashboardViewModel @Inject constructor(
     fun updateAppLanguage(languageCode: String) {
         viewModelScope.launch {
             userPreferencesRepository.setAppLanguage(languageCode)
+        }
+    }
+
+    fun updateAppTheme(theme: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAppTheme(theme)
         }
     }
     

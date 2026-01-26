@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.graphics.toArgb
 import com.cardio.fitbit.data.models.ActivityData
 import com.cardio.fitbit.data.models.MinuteData
 import com.cardio.fitbit.data.models.SleepData
@@ -45,6 +46,10 @@ fun HeartRateDetailChart(
     // but swapping data requires clearing chart. 
     // Let's rely on `scaleX` inside the view update simply.
 
+    // Resolve colors from Theme (Must be outside AndroidView update)
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f).toArgb()
+
     Column {
         AndroidView(
             factory = { context ->
@@ -54,7 +59,7 @@ fun HeartRateDetailChart(
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                     
-                    setBackgroundColor(Color.WHITE)
+                    setBackgroundColor(Color.TRANSPARENT)
                     description.isEnabled = false
                     legend.isEnabled = false
                     
@@ -206,14 +211,7 @@ fun HeartRateDetailChart(
                     // X-Axis
                     xAxis.position = XAxis.XAxisPosition.BOTTOM
                     xAxis.setDrawGridLines(false)
-                    xAxis.textColor = Color.DKGRAY
-                    xAxis.textSize = 10f
-                    
-                    // Left Y (HR)
-                    axisLeft.textColor = Color.DKGRAY
-                    axisLeft.axisMinimum = 40f
                     axisLeft.setDrawGridLines(true)
-                    axisLeft.gridColor = Color.parseColor("#EEEEEE")
                     
                     // Right Y (Steps) - Scaled
                     axisRight.isEnabled = false 
@@ -257,6 +255,10 @@ fun HeartRateDetailChart(
                     return@AndroidView
                 }
 
+                chart.xAxis.textColor = textColor
+                chart.axisLeft.textColor = textColor
+                chart.axisLeft.gridColor = gridColor
+                
                 // Detect zoom level and choose appropriate data granularity
                 val scaleX = chart.scaleX
                 val activeList = when {

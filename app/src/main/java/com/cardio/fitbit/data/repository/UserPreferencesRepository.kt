@@ -25,6 +25,7 @@ class UserPreferencesRepository @Inject constructor(
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val SYNC_INTERVAL_MINUTES = intPreferencesKey("sync_interval_minutes")
         val APP_LANGUAGE = androidx.datastore.preferences.core.stringPreferencesKey("app_language")
+        val APP_THEME = androidx.datastore.preferences.core.stringPreferencesKey("app_theme")
         // BYOK Credentials
         val CLIENT_ID = androidx.datastore.preferences.core.stringPreferencesKey("client_id")
         val CLIENT_SECRET = androidx.datastore.preferences.core.stringPreferencesKey("client_secret")
@@ -61,6 +62,10 @@ class UserPreferencesRepository @Inject constructor(
 
     val appLanguage: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[PreferencesKeys.APP_LANGUAGE] ?: "system" // Default system
+    }
+
+    val appTheme: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.APP_THEME] ?: "system" // Default system
     }
 
     // BYOK Flows
@@ -105,6 +110,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setAppLanguage(languageCode: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.APP_LANGUAGE] = languageCode
+        }
+    }
+
+    suspend fun setAppTheme(theme: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.APP_THEME] = theme
         }
     }
 
