@@ -116,6 +116,7 @@ fun TrendsChart(
                         valueTextSize = 10f
                         mode = LineDataSet.Mode.CUBIC_BEZIER
                         axisDependency = YAxis.AxisDependency.LEFT
+                        valueTextColor = labelColor
                     }
                     lineData.addDataSet(nightSet)
                     hasLeftAxisData = true
@@ -138,6 +139,7 @@ fun TrendsChart(
                         valueTextSize = 10f
                         mode = LineDataSet.Mode.CUBIC_BEZIER
                         axisDependency = YAxis.AxisDependency.LEFT
+                        valueTextColor = labelColor
                     }
                     lineData.addDataSet(daySet)
                     hasLeftAxisData = true
@@ -161,6 +163,7 @@ fun TrendsChart(
                         valueTextSize = 10f
                         mode = LineDataSet.Mode.LINEAR
                         axisDependency = YAxis.AxisDependency.LEFT
+                        valueTextColor = labelColor
                     }
                     lineData.addDataSet(avgSet)
                     hasLeftAxisData = true
@@ -183,6 +186,7 @@ fun TrendsChart(
                         valueTextSize = 10f
                         mode = LineDataSet.Mode.CUBIC_BEZIER
                         axisDependency = YAxis.AxisDependency.LEFT
+                        valueTextColor = labelColor
                     }
                     lineData.addDataSet(hrvSet)
                     hasLeftAxisData = true
@@ -226,7 +230,7 @@ fun TrendsChart(
                         color = Color.parseColor("#66D32F2F") // Transparent Red
                         setDrawValues(true)
                         valueTextSize = 10f
-                        valueTextColor = Color.BLACK
+                        valueTextColor = labelColor
                         axisDependency = YAxis.AxisDependency.RIGHT // Move to Right Axis
                         
                         // Custom formatter to divide by 100 and append "min"

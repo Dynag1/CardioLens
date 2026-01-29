@@ -203,8 +203,8 @@ fun HeartRateDetailChart(
                     marker = markerView
 
                     drawOrder = arrayOf(
+                        CombinedChart.DrawOrder.LINE, // Zones (Background)
                         CombinedChart.DrawOrder.BAR,  // HR bars (Data first)
-                        CombinedChart.DrawOrder.LINE, // Zones on top (Foreground)
                         CombinedChart.DrawOrder.SCATTER // Bubbles on very top
                     )
 
@@ -282,6 +282,7 @@ fun HeartRateDetailChart(
                 val maxHr = activeList.maxOfOrNull { it.heartRate } ?: 100
                 val finalYMax = (maxHr + 10).toFloat().coerceAtLeast(110f) // Min 110 to ensure zones visible
                 chart.axisLeft.axisMaximum = finalYMax
+                chart.axisLeft.axisMinimum = 0f // Force 0 baseline to align with Steps
                 val zoneHeight = 40f + (finalYMax - 40f) * 0.75f // Cover 75% of height (taller)
 
                 // Helper function to convert time string to index (float minutes)
@@ -385,8 +386,8 @@ fun HeartRateDetailChart(
                             (0 until 10).map { offset ->
                                 val timePos = (startMinute + offset).toFloat()
                                 // Store total steps in data for color/tooltip
-                                // Use fixed height (20f) as requested, color indicates intensity
-                                BarEntry(timePos, 20f, totalSteps)
+                                // Use fixed height (30f) as requested (was 20f), color indicates intensity
+                                BarEntry(timePos, 30f, totalSteps)
                             }
                         } else {
                             emptyList()
