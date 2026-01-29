@@ -1,5 +1,10 @@
 # Historique des Versions (Changelog)
 
+## Version 36 (v1.2.7) - 2026-01-29
+### Corrections
+- **Health Connect** : Amélioration de la récupération des données de sommeil et du rythme cardiaque pour le calcul du RHR (élargissement de la plage de recherche).
+
+
 ## Version 34 (v1.2.6) - 2026-01-26
 ### Améliorations de l'Interface (UI)
 - **Thème Sombre** : Correction de l'arrière-plan blanc qui rendait l'application illisible en mode sombre.

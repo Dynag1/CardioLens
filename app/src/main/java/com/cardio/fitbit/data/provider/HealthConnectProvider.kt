@@ -251,13 +251,16 @@ class HealthConnectProvider @Inject constructor(
     override suspend fun getIntradayHistory(startDate: Date, endDate: Date): Result<List<IntradayData>> {
         try {
             // 1. Fetch ALL HR records for range
+            // Expand search start to capture previous night's sleep heart rates (same as getSleepHistory)
+            val searchStart = Date(startDate.time - (24 * 60 * 60 * 1000))
+            
             val allHrRecords = mutableListOf<HeartRateRecord>()
             var hrPageToken: String? = null
             do {
                 val response = healthConnectClient.readRecords(
                     ReadRecordsRequest(
                         HeartRateRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startDate.toInstant(), endDate.toInstant()),
+                        timeRangeFilter = TimeRangeFilter.between(searchStart.toInstant(), endDate.toInstant()),
                         pageSize = 5000,
                         pageToken = hrPageToken
                     )
@@ -626,11 +629,15 @@ class HealthConnectProvider @Inject constructor(
     override suspend fun getSleepHistory(startDate: Date, endDate: Date): Result<List<SleepData>> {
          try {
              // Similar to single day but range
+             // Search from 24 hours before the start date to catch sleep sessions starting the previous evening
+             // This ensures we capture the sleep session that contributes to the RHR of 'startDate'
+             val searchStart = Date(startDate.time - (24 * 60 * 60 * 1000))
+
              val response = healthConnectClient.readRecords(
                 ReadRecordsRequest(
                     SleepSessionRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
-                        startDate.toInstant(),
+                        searchStart.toInstant(),
                         endDate.toInstant()
                     )
                 )
@@ -639,7 +646,7 @@ class HealthConnectProvider @Inject constructor(
             val list = response.records.map { record ->
                  val durationMs = record.endTime.toEpochMilli() - record.startTime.toEpochMilli()
                  SleepData(
-                     date = Date.from(record.startTime), // Using start time as date anchor for now
+                     date = DateUtils.getStartOfDay(Date.from(record.endTime)), // Use End Time (Morning) as the date anchor
                      duration = durationMs,
                      efficiency = 90,
                      startTime = Date.from(record.startTime),

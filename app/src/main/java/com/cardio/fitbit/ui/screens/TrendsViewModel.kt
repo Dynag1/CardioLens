@@ -9,6 +9,8 @@ import com.cardio.fitbit.data.repository.HealthRepository
 import com.cardio.fitbit.utils.DateUtils
 import com.cardio.fitbit.utils.HeartRateAnalysisUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,12 +53,13 @@ class TrendsViewModel @Inject constructor(
             _uiState.value = TrendsUiState.Loading
             try {
                 val calendar = Calendar.getInstance()
-                val endDate = calendar.time
+                // End at end of today to capture all of today's data
+                val endDate = DateUtils.getEndOfDay(calendar.time)
                 
-                // Calculate Start Date
+                // Calculate Start Date (N days ago, starting at 00:00)
                 val startCalendar = Calendar.getInstance()
                 startCalendar.add(Calendar.DAY_OF_YEAR, -(days - 1))
-                val startDate = startCalendar.time
+                val startDate = DateUtils.getStartOfDay(startCalendar.time)
                 
                 // 1. Fetch History Data in Bulk (Parallelizable, but sequential is fine for now)
                 
@@ -110,6 +113,7 @@ class TrendsViewModel @Inject constructor(
                 } catch (e: Exception) { /* Ignore */ }
 
                 val trendPoints = mutableListOf<TrendPoint>()
+                val repairCandidates = mutableListOf<Date>()
                 
                 // Iterate to build points
                 val processingCalendar = Calendar.getInstance()
@@ -131,10 +135,6 @@ class TrendsViewModel @Inject constructor(
                     val nativeRhr = dailyHr?.restingHeartRate
                     
 
-                    // --- RESTORED LOGIC: Calculate "True" Day RHR using Intraday ----
-                    // This uses the custom algorithm (Lowest 10-min sedentary avg)
-                    // Using 'nativeRhr' as the fallback if calculation fails (e.g. no data)
-                    
                     val rhrResult = HeartRateAnalysisUtils.calculateDailyRHR(
                         date = targetDate,
                         intraday = dailyIntraday,
@@ -143,6 +143,15 @@ class TrendsViewModel @Inject constructor(
                         preMidnightHeartRates = emptyList(), 
                         nativeRhr = nativeRhr
                     )
+
+                    // Repair Check
+                    // Aggressive: If we have no Intraday data for a past day, try to fetch it.
+                    // This covers cases where we have NO data at all (nativeRhr is null) or just summary.
+                    // Accessing 'steps' to verify if the user was active could be smart, but 'forceRefresh' 
+                    // on missing Intraday is the robust way to ensure we have tried everything.
+                    if (dailyIntraday.isEmpty()) {
+                        repairCandidates.add(targetDate)
+                    }
 
                     val dailySteps = stepsMap[dateStr]?.steps
 
@@ -172,8 +181,28 @@ class TrendsViewModel @Inject constructor(
                 // Sort by date ascending
                 _uiState.value = TrendsUiState.Success(trendPoints.sortedBy { it.date }, days)
                 
+                if (repairCandidates.isNotEmpty()) {
+                    repairMissingData(repairCandidates, days)
+                }
+                
             } catch (e: Exception) {
                 _uiState.value = TrendsUiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    private fun repairMissingData(candidates: List<Date>, daysToReload: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                candidates.forEach { date ->
+                    healthRepository.getIntradayData(date, forceRefresh = true)
+                    healthRepository.getSleepData(date, forceRefresh = true) // Also repair Sleep
+                }
+                withContext(Dispatchers.Main) {
+                    loadTrends(daysToReload)
+                }
+            } catch (e: Exception) {
+               // Silent fail
             }
         }
     }
