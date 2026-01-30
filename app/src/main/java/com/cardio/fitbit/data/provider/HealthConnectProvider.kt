@@ -405,6 +405,22 @@ class HealthConnectProvider @Inject constructor(
             return Result.success(
                 filteredRecords.map { record ->
                     val durationMs = record.endTime.toEpochMilli() - record.startTime.toEpochMilli()
+                    val stages = record.stages
+                    val levelsList = stages.map { stage ->
+                        SleepLevel(
+                            dateTime = Date.from(stage.startTime),
+                            level = when (stage.stage) {
+                                SleepSessionRecord.STAGE_TYPE_AWAKE -> "wake"
+                                SleepSessionRecord.STAGE_TYPE_LIGHT -> "light"
+                                SleepSessionRecord.STAGE_TYPE_DEEP -> "deep"
+                                SleepSessionRecord.STAGE_TYPE_REM -> "rem"
+                                SleepSessionRecord.STAGE_TYPE_OUT_OF_BED -> "wake" // Treat out of bed as wake
+                                else -> "unknown"
+                            },
+                            seconds = (stage.endTime.toEpochMilli() - stage.startTime.toEpochMilli()).toInt() / 1000
+                        )
+                    }
+
                     SleepData(
                         date = date,
                         duration = durationMs,
@@ -412,9 +428,14 @@ class HealthConnectProvider @Inject constructor(
                         startTime = Date.from(record.startTime),
                         endTime = Date.from(record.endTime),
                         minutesAsleep = (durationMs / 60000).toInt(),
-                        minutesAwake = 0,
-                        stages = null,
-                        levels = emptyList()
+                        minutesAwake = levelsList.filter { it.level == "wake" }.sumOf { it.seconds } / 60,
+                        stages = SleepStages(
+                            deep = levelsList.filter { it.level == "deep" }.sumOf { it.seconds } / 60,
+                            light = levelsList.filter { it.level == "light" }.sumOf { it.seconds } / 60,
+                            rem = levelsList.filter { it.level == "rem" }.sumOf { it.seconds } / 60,
+                            wake = levelsList.filter { it.level == "wake" }.sumOf { it.seconds } / 60
+                        ),
+                        levels = levelsList
                     )
                 }
             )
