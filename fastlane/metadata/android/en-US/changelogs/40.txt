@@ -1,0 +1,3 @@
+Amélioration de la visibilité des entraînements.
+Graphique sur 24h fixe.
+Correction du calcul du pouls au repos (exclusion des siestes).

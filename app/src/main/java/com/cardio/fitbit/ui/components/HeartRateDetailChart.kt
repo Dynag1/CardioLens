@@ -203,14 +203,16 @@ fun HeartRateDetailChart(
                     marker = markerView
 
                     drawOrder = arrayOf(
-                        CombinedChart.DrawOrder.LINE, // Zones (Background)
                         CombinedChart.DrawOrder.BAR,  // HR bars (Data first)
+                        CombinedChart.DrawOrder.LINE, // Zones (Foreground)
                         CombinedChart.DrawOrder.SCATTER // Bubbles on very top
                     )
 
                     // X-Axis
                     xAxis.position = XAxis.XAxisPosition.BOTTOM
                     xAxis.setDrawGridLines(false)
+                    xAxis.axisMinimum = 0f
+                    xAxis.axisMaximum = 1440f // Full 24 hours (24 * 60)
                     axisLeft.setDrawGridLines(true)
                     
                     // Right Y (Steps) - Scaled
@@ -256,6 +258,8 @@ fun HeartRateDetailChart(
                 }
 
                 chart.xAxis.textColor = textColor
+                chart.xAxis.axisMinimum = 0f
+                chart.xAxis.axisMaximum = 1440f
                 chart.axisLeft.textColor = textColor
                 chart.axisLeft.gridColor = gridColor
                 
@@ -506,48 +510,40 @@ fun HeartRateDetailChart(
                 val sleepLineData = LineData()
                 
                 if (sleepSessions.isNotEmpty()) {
-                    val sleepEntries = mutableListOf<Entry>()
-                    sleepEntries.add(Entry(0f, 0f))
-                    
                     sleepSessions.sortedBy { it.startTime }.forEach { session ->
                         val range = getClampedRange(session.startTime.time, session.endTime.time)
                         if (range != null) {
                             val (start, end) = range
                             
-                            // Visual "Rounding" using Trapezoid shape (Slanted edges)
-                            // Slant is 5 minutes or max 30% of duration to avoid crossing
                             val duration = end - start
                             val slant = minOf(5f, duration * 0.3f)
                             
-                            sleepEntries.add(Entry(start, 0f))
-                            sleepEntries.add(Entry(start + slant, zoneHeight)) // Slant up
-                            sleepEntries.add(Entry(end - slant, zoneHeight))   // Slant down
-                            sleepEntries.add(Entry(end, 0f))
+                            val sleepEntries = listOf(
+                                Entry(start, 0f),
+                                Entry(start + slant, zoneHeight),
+                                Entry(end - slant, zoneHeight),
+                                Entry(end, 0f)
+                            )
+
+                            val sleepDataSet = LineDataSet(sleepEntries, "Sommeil").apply {
+                                setDrawCircles(false)
+                                setDrawValues(false)
+                                mode = LineDataSet.Mode.LINEAR 
+                                setDrawFilled(true)
+                                fillColor = Color.parseColor("#42A5F5") // Solid Blue for sleep
+                                color = Color.parseColor("#1565C0")
+                                fillAlpha = 40
+                                lineWidth = 0f
+                                isHighlightEnabled = false
+                            }
+                            sleepLineData.addDataSet(sleepDataSet)
                         }
-                    }
-                    
-                    sleepEntries.add(Entry(1440f, 0f))
-                    
-                    if (sleepEntries.size > 2) {
-                         val sleepDataSet = LineDataSet(sleepEntries, "Sommeil").apply {
-                            setDrawCircles(false)
-                            setDrawValues(false)
-                            mode = LineDataSet.Mode.LINEAR 
-                            setDrawFilled(true)
-                            fillColor = Color.parseColor("#42A5F5") // Solid Blue for sleep
-                            color = Color.parseColor("#1565C0")
-                            fillAlpha = 60
-                            lineWidth = 0f
-                            isHighlightEnabled = false
-                        }
-                        sleepLineData.addDataSet(sleepDataSet)
                     }
                 }
                 
                 // 4. Activity/Exercise Zones (Purple background, 50% height)
+                // 4. Activity/Exercise Zones (Purple background, 50% height)
                 if (activityData != null && activityData.activities.isNotEmpty()) {
-                    val activityEntries = mutableListOf<Entry>()
-                    activityEntries.add(Entry(0f, 0f))
                     
                     activityData.activities.sortedBy { it.startTime }.forEach { activity ->
                         val startTs = activity.startTime.time
@@ -557,32 +553,29 @@ fun HeartRateDetailChart(
                         if (range != null) {
                             val (start, end) = range
                             
-                            // Visual "Rounding" using Trapezoid shape
                             val duration = end - start
                             val slant = minOf(5f, duration * 0.3f)
 
-                            activityEntries.add(Entry(start, 0f))
-                            activityEntries.add(Entry(start + slant, zoneHeight))
-                            activityEntries.add(Entry(end - slant, zoneHeight))
-                            activityEntries.add(Entry(end, 0f))
+                            val activityEntries = listOf(
+                                Entry(start, 0f),
+                                Entry(start + slant, zoneHeight),
+                                Entry(end - slant, zoneHeight),
+                                Entry(end, 0f)
+                            )
+                            
+                            val activityZoneDataSet = LineDataSet(activityEntries, "Activité").apply {
+                                setDrawCircles(false)
+                                setDrawValues(false)
+                                mode = LineDataSet.Mode.LINEAR
+                                setDrawFilled(true)
+                                fillColor = Color.parseColor("#AB47BC") // Lighter Purple
+                                color = Color.parseColor("#7B1FA2")
+                                fillAlpha = 50 // Slightly transparent fill
+                                lineWidth = 1.5f // Thinner solid border (was 3f)
+                                isHighlightEnabled = false
+                            }
+                            sleepLineData.addDataSet(activityZoneDataSet)
                         }
-                    }
-                    
-                    activityEntries.add(Entry(1440f, 0f))
-                    
-                    if (activityEntries.size > 2) {
-                        val activityZoneDataSet = LineDataSet(activityEntries, "Activité").apply {
-                            setDrawCircles(false)
-                            setDrawValues(false)
-                            mode = LineDataSet.Mode.LINEAR
-                            setDrawFilled(true)
-                            fillColor = Color.parseColor("#AB47BC") // Lighter Purple
-                            color = Color.parseColor("#7B1FA2")
-                            fillAlpha = 60
-                            lineWidth = 0f
-                            isHighlightEnabled = false
-                        }
-                        sleepLineData.addDataSet(activityZoneDataSet)
                     }
                 }
                 
