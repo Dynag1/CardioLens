@@ -40,7 +40,8 @@ fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
     onLogout: () -> Unit,
     onNavigateToTrends: () -> Unit,
-    onNavigateToBackup: () -> Unit
+    onNavigateToBackup: () -> Unit,
+    onNavigateToSleep: (java.util.Date) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val sleepData by viewModel.sleepData.collectAsState()
@@ -280,6 +281,17 @@ fun DashboardScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         onNavigateToTrends()
+                    }
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Bedtime, contentDescription = null) },
+                    label = { Text("Sommeil") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        // Navigate to selected date's sleep
+                        onNavigateToSleep(selectedDate)
                     }
                 )
 
@@ -573,13 +585,13 @@ fun DashboardScreen(
                                             // Min/Max
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Text(
-                                                    text = "${minHr ?: "--"} / ${maxHr ?: "--"}",
+                                                    text = "${minHr?.heartRate ?: "--"} / ${maxHr?.heartRate ?: "--"}",
                                                     style = MaterialTheme.typography.titleLarge,
                                                     fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
                                                 Text(
-                                                    text = stringResource(R.string.label_min_max),
+                                                    text = "${minHr?.time?.take(5) ?: "--"} / ${maxHr?.time?.take(5) ?: "--"}", // Show time (HH:mm)
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )

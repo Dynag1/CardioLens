@@ -1,0 +1,2 @@
+- Amélioration affichage Min/Max Dashboard (avec heure)
+- Nettoyage graphique sommeil

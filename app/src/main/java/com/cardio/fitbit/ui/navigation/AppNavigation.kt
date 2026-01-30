@@ -24,6 +24,7 @@ sealed class Screen(val route: String) {
     object HealthConnectPermissions : Screen("health_connect_permissions")
     object ProviderSelection : Screen("provider_selection")
     object Backup : Screen("backup")
+    object Sleep : Screen("sleep")
 }
 
 @Composable
@@ -137,6 +138,10 @@ fun AppNavigation() {
                 },
                 onNavigateToBackup = {
                     navController.navigate(Screen.Backup.route)
+                },
+                onNavigateToSleep = { date ->
+                    val timestamp = date.time
+                    navController.navigate("${Screen.Sleep.route}?date=$timestamp")
                 }
             )
         }
@@ -156,6 +161,26 @@ fun AppNavigation() {
 
         composable(Screen.Backup.route) {
             com.cardio.fitbit.ui.screens.BackupScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = "${Screen.Sleep.route}?date={date}",
+            arguments = listOf(
+                navArgument("date") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                }
+            )
+        ) { backStackEntry ->
+            val dateArg = backStackEntry.arguments?.getLong("date") ?: -1L
+            val date = if (dateArg != -1L) java.util.Date(dateArg) else java.util.Date()
+            
+            com.cardio.fitbit.ui.screens.SleepScreen(
+                date = date,
                 onNavigateBack = {
                     navController.popBackStack()
                 }

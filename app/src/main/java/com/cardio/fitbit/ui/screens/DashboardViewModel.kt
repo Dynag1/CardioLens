@@ -94,10 +94,10 @@ class DashboardViewModel @Inject constructor(
     val aggregatedMinuteData = _aggregatedMinuteData.asStateFlow()
 
     // Daily Min/Max HR
-    private val _minHr = MutableStateFlow<Int?>(null)
+    private val _minHr = MutableStateFlow<MinuteData?>(null)
     val minHr = _minHr.asStateFlow()
 
-    private val _maxHr = MutableStateFlow<Int?>(null)
+    private val _maxHr = MutableStateFlow<MinuteData?>(null)
     val maxHr = _maxHr.asStateFlow()
 
     // Current Provider ID (for showing the appropriate icon on logout button)
@@ -294,10 +294,10 @@ class DashboardViewModel @Inject constructor(
 
               // Aggregation & Min/Max
               _aggregatedMinuteData.value = intraday.sortedBy { it.time }
-              val allHrValues = intraday.map { it.heartRate }.filter { it > 0 }
-              if (allHrValues.isNotEmpty()) {
-                  _minHr.value = allHrValues.minOrNull()
-                  _maxHr.value = allHrValues.maxOrNull()
+              val validData = intraday.filter { it.heartRate > 0 }
+              if (validData.isNotEmpty()) {
+                  _minHr.value = validData.minByOrNull { it.heartRate }
+                  _maxHr.value = validData.maxByOrNull { it.heartRate }
               } else {
                   _minHr.value = null
                   _maxHr.value = null
