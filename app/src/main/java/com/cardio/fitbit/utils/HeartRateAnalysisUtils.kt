@@ -92,16 +92,18 @@ object HeartRateAnalysisUtils {
             val isSleep = sleepSession != null
             
             if (isSleep) {
-                // Only contribute to Night RHR if the sleep session ends before Noon of this day.
+                // Only contribute to Night RHR if the sleep session ends before Noon of this day AND is long enough (> 3h).
                 // This covers:
                 // 1. Sleep starting yesterday and ending this morning (Contributes).
                 // 2. Sleep starting early morning and ending this morning (Contributes).
                 // Excludes:
                 // 3. Naps in afternoon (Ends > Noon).
                 // 4. Sleep starting tonight (Ends > Noon, likely next day).
+                // 5. Short naps (< 3h) even if in morning.
                 val endsBeforeNoon = sleepSession!!.endTime.time <= noonToday
-                
-                if (endsBeforeNoon && hr > 0) {
+                val isLongSleep = sleepSession.duration >= (3 * 60 * 60 * 1000L)
+
+                if (endsBeforeNoon && isLongSleep && hr > 0) {
                      nightHeartRates.add(hr) 
                 }
                 return@forEachIndexed // Exclude from Day RHR
