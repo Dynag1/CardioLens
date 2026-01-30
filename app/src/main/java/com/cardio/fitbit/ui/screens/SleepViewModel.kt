@@ -21,7 +21,7 @@ sealed class SleepUiState {
 
 @HiltViewModel
 class SleepViewModel @Inject constructor(
-    private val healthDataProvider: HealthDataProvider
+    private val healthRepository: com.cardio.fitbit.data.repository.HealthRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<SleepUiState>(SleepUiState.Loading)
@@ -57,9 +57,9 @@ class SleepViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = SleepUiState.Loading
             
-            // Re-fetch sleep data from provider
+            // Re-fetch sleep data from repository (handles provider selection)
             // We could rely on MainViewModel but independent fetch is reliable for a detail screen
-            val result = healthDataProvider.getSleepData(date)
+            val result = healthRepository.getSleepData(date)
             
             result.onSuccess { list ->
                 // Usually we care about the "main" sleep (longest)
@@ -67,7 +67,7 @@ class SleepViewModel @Inject constructor(
                 
                 var hrData: List<MinuteData>? = null
                  if (mainSleep != null) {
-                     val hrResult = healthDataProvider.getHeartRateSeries(mainSleep.startTime, mainSleep.endTime)
+                     val hrResult = healthRepository.getHeartRateSeries(mainSleep.startTime, mainSleep.endTime)
                      hrData = hrResult.getOrNull()
                  }
 
