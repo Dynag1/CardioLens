@@ -18,7 +18,16 @@ class CustomMarkerView(context: Context, layoutResource: Int) : MarkerView(conte
 
         if (e.data is MinuteData) {
             val data = e.data as MinuteData
-            tvContent.text = "${data.time}\n${context.getString(R.string.marker_hr)}: ${data.heartRate} BPM\n${context.getString(R.string.marker_steps)}: ${data.steps}"
+            tvContent.text = "${data.time}\n${context.getString(R.string.marker_hr)}: ${data.heartRate} BPM\n${context.getString(R.string.marker_steps)}: ${data.displaySteps}"
+        } else if (e.data is Int) {
+            // Handle Steps Bar Entry (Data is Total Steps Int)
+            val steps = e.data as Int
+            val totalMinutes = e.x.toInt()
+            val hour = totalMinutes / 60
+            val minute = totalMinutes % 60
+            val timeStr = String.format("%02d:%02d", hour, minute)
+            
+            tvContent.text = "$timeStr\n${context.getString(R.string.marker_steps)}: $steps"
         } else {
              // Fallback if data is not attached (e.g. sleep bubble)
              val yVal = e.y.toInt()

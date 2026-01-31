@@ -432,7 +432,10 @@ class HealthRepository @Inject constructor(
             val result = getProvider().getSleepData(date)
             
             if (result.isSuccess) {
-                val data = result.getOrNull() ?: emptyList()
+                val rawData = result.getOrNull() ?: emptyList()
+                // Strict Filter: Only keep sleep logs that match the requested date
+                val data = rawData.filter { DateUtils.formatForApi(it.date) == dateString }
+                
                 // Cache
                 if (data.isNotEmpty()) {
                     val json = com.google.gson.Gson().toJson(data)
@@ -443,7 +446,11 @@ class HealthRepository @Inject constructor(
                             timestamp = System.currentTimeMillis()
                         )
                     )
-                }
+                } 
+                // If data is empty after filter, it means no sleep found for THIS day 
+                // even if API returned something (e.g. yesterday's sleep).
+                // Returning empty list is correct.
+                
                 Result.success(data)
             } else {
                 // Fallback to cache if API fails (e.g. 429)

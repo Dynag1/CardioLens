@@ -229,16 +229,38 @@ class HealthConnectProvider @Inject constructor(
                 }
             }
 
+            // Calculate Total Steps per Minute for Display
+            val stepsPerMinute = mutableMapOf<String, Int>()
             allStepsRecords.forEach { record ->
                 val time = record.startTime.atZone(ZoneId.systemDefault())
-                // Steps are often aggregated, but we assign them to the second they start
-                // For simplified minute-by-minute visualization, usually steps are fine at minute level.
-                // We map them to HH:mm:00 if possible to align with base data, OR exact time if in workout?
-                // Visualizer usually sums steps. 
-                // Let's stick to minute bucket for Steps to avoid clutter.
+                val minuteKey = String.format("%02d:%02d", time.hour, time.minute)
+                stepsPerMinute[minuteKey] = (stepsPerMinute[minuteKey] ?: 0) + record.count.toInt()
+            }
+
+            allStepsRecords.forEach { record ->
+                val time = record.startTime.atZone(ZoneId.systemDefault())
                 val timeKey = String.format("%02d:%02d:00", time.hour, time.minute)
-                val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0)
-                minuteDataMap[timeKey] = existing.copy(steps = existing.steps + record.count.toInt())
+                val minuteKey = String.format("%02d:%02d", time.hour, time.minute)
+                val minuteTotal = stepsPerMinute[minuteKey] ?: 0
+                
+                val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0, minuteTotal)
+                minuteDataMap[timeKey] = existing.copy(
+                    steps = existing.steps + record.count.toInt(),
+                    displaySteps = minuteTotal
+                )
+            }
+            
+            // Backfill displaySteps for HR entries that might have been created before Steps (or purely HR)
+            // This ensures "0 steps" entries still get the "Minute Total" for display if steps exist for that minute
+            minuteDataMap.keys.toList().forEach { key ->
+                 val data = minuteDataMap[key] ?: return@forEach
+                 if (data.displaySteps == 0) {
+                     val minuteKey = key.substring(0, 5) // HH:mm
+                     val total = stepsPerMinute[minuteKey] ?: 0
+                     if (total > 0) {
+                         minuteDataMap[key] = data.copy(displaySteps = total)
+                     }
+                 }
             }
 
             val minuteDataList = minuteDataMap.values.sortedBy { it.time }

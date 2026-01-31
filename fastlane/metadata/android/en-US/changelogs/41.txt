@@ -1,0 +1,4 @@
+Découpage des Phases de Sommeil : Un nouveau graphique fait son apparition ! Visualisez la répartition de votre sommeil (Éveil, REM, Léger, Profond) en un coup d'œil sur la carte de résumé.
+Correction des Pas : L'infobulle du graphique détaillé affiche maintenant le nombre de pas correct, même en glissant le doigt rapidement.
+Actualisation Forcée : Tirer pour rafraîchir force désormais une mise à jour réelle depuis les serveurs, garantissant des données toujours fraîches.
+Plus de doublons : Correction d'un bug rare qui affichait deux fois les données de sommeil pour la même nuit.

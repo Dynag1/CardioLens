@@ -1,5 +1,14 @@
 # Historique des Versions (Changelog)
 
+## Version 41 (v1.2.12) - 2026-01-31
+### Nouveautés
+- **Graphique de Sommeil** : Un diagramme circulaire montre désormais la répartition de vos phases de sommeil.
+- **Actualisation** : Le geste "Tirer pour rafraîchir" force une mise à jour complète des données.
+
+### Corrections
+- **Pas sur Graphique** : L'infobulle affiche correctement les pas lors de l'interaction avec le graphique détaillé.
+- **Données en Double** : Correction de la duplication des logs de sommeil.
+
 ## Version 36 (v1.2.7) - 2026-01-29
 ### Corrections
 - **Health Connect** : Amélioration de la récupération des données de sommeil et du rythme cardiaque pour le calcul du RHR (élargissement de la plage de recherche).
