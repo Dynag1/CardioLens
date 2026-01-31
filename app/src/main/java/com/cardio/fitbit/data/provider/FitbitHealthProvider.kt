@@ -100,35 +100,51 @@ class FitbitHealthProvider @Inject constructor(
             // 5. Merge Data
             // We want to prioritize High Precision data.
             // Map: TimeString -> MinuteData
-            // If TimeString exists in HP data, use it.
             
             val mergedMap = mutableMapOf<String, MinuteData>()
             
+            // Helper map to store Total Steps per Minute (HH:mm -> Steps)
+            // We use this to populate 'displaySteps' for high-precision seconds
+            val stepsPerMinute = mutableMapOf<String, Int>()
+            stepsData.forEach { pt ->
+                // pt.time is "HH:mm:00" usually, strip to "HH:mm"
+                val minuteKey = pt.time.substring(0, 5) 
+                stepsPerMinute[minuteKey] = (stepsPerMinute[minuteKey] ?: 0) + pt.value.toInt()
+            }
+            
             // Fill with Base 1-min Data
             baseHrData.forEach { pt ->
-                mergedMap[pt.time] = MinuteData(pt.time, pt.value, 0)
+                mergedMap[pt.time] = MinuteData(pt.time, pt.value, 0, stepsPerMinute[pt.time.substring(0,5)] ?: 0)
             }
             
             // Overwrite/Add with High Precision Data
             highPrecisionData.forEach { pt ->
-                // Note: HP data often has "HH:mm:ss" while Base has "HH:mm:00".
-                // If Base has "12:00:00" and HP has "12:00:00", overwrite.
-                // If HP has "12:00:01", add new.
+                // pt.time is HH:mm:ss
+                val minuteKey = pt.time.substring(0, 5)
+                val totalStepsForMinute = stepsPerMinute[minuteKey] ?: 0
+                
                 val existingSteps = mergedMap[pt.time]?.steps ?: 0
-                mergedMap[pt.time] = MinuteData(pt.time, pt.value, existingSteps)
+                
+                // Existing logic: preserve explicit steps if we already merged them (unlikely here as we just started)
+                // New logic: Set displaySteps to the minute's total
+                mergedMap[pt.time] = MinuteData(
+                    time = pt.time, 
+                    heartRate = pt.value, 
+                    steps = existingSteps, 
+                    displaySteps = totalStepsForMinute
+                )
             }
             
-            // Inject Steps
-            // Steps are usually HH:mm:00.
+            // Inject Steps (Explicit 1-min entries)
             stepsData.forEach { pt ->
-                // We need to attach steps to a MinuteData.
-                // If HR exists at HH:mm:00, add to it.
-                // If NOT, create one.
                 val existing = mergedMap[pt.time]
+                val minuteKey = pt.time.substring(0, 5)
+                val totalSteps = stepsPerMinute[minuteKey] ?: pt.value.toInt()
+                
                 if (existing != null) {
-                    mergedMap[pt.time] = existing.copy(steps = pt.value.toInt())
+                    mergedMap[pt.time] = existing.copy(steps = pt.value.toInt(), displaySteps = totalSteps)
                 } else {
-                    mergedMap[pt.time] = MinuteData(pt.time, 0, pt.value.toInt())
+                    mergedMap[pt.time] = MinuteData(pt.time, 0, pt.value.toInt(), totalSteps)
                 }
             }
             

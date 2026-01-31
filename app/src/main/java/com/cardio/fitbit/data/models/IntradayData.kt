@@ -8,9 +8,10 @@ import kotlinx.parcelize.Parcelize
  */
 @Parcelize
 data class MinuteData(
-    val time: String,        // "HH:mm"
+    val time: String,        // "HH:mm" or "HH:mm:ss"
     val heartRate: Int,      // BPM (0 if no data)
-    val steps: Int           // Number of steps in this minute
+    val steps: Int,           // Number of steps in this minute (sparse)
+    val displaySteps: Int = steps // Total steps for the minute (for display purposes)
 ) : Parcelable
 
 @Parcelize

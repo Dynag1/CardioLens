@@ -201,6 +201,23 @@ fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?) {
                 
                 val totalMin = data.minutesAsleep + data.minutesAwake
                 if (totalMin > 0) {
+                    // Pie Chart
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        SleepPhasesPieChart(
+                            stages = data.stages,
+                            minutesAwake = data.minutesAwake,
+                            totalMinutes = totalMin,
+                            modifier = Modifier.size(180.dp)
+                        )
+                    }
+                    
+                    Spacer(Modifier.height(16.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -588,5 +605,91 @@ fun HypnogramChart(
              height,
              paint
         )
+    }
+}
+
+@Composable
+fun SleepPhasesPieChart(
+    stages: com.cardio.fitbit.data.models.SleepStages?,
+    minutesAwake: Int,
+    totalMinutes: Int, // Kept for signature compatibility but we'll re-sum for the chart
+    modifier: Modifier = Modifier
+) {
+    val wakeColor = Color(0xFFFFEB3B)
+    val remColor = Color(0xFF00BCD4)
+    val lightColor = Color(0xFF2196F3)
+    val deepColor = Color(0xFF3F51B5)
+
+    val wakeMinutes = minutesAwake
+    val remMinutes = stages?.rem ?: 0
+    val lightMinutes = stages?.light ?: 0
+    val deepMinutes = stages?.deep ?: 0
+
+    val slices = listOf(
+        Triple(wakeMinutes, wakeColor, "wake"),
+        Triple(remMinutes, remColor, "rem"),
+        Triple(lightMinutes, lightColor, "light"),
+        Triple(deepMinutes, deepColor, "deep")
+    ).filter { it.first > 0 }
+    
+    // Normalize total to avoid gaps if totalMinutes doesn't match sum
+    val chartTotal = slices.sumOf { it.first }.toFloat()
+    if (chartTotal == 0f) return
+
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val radius = width / 2f
+        val center = Offset(width / 2f, size.height / 2f)
+        
+        var startAngle = -90f // Start from top
+
+        slices.forEach { (minutes, color, _) ->
+            val sweepAngle = (minutes / chartTotal) * 360f
+            
+            // Draw slice
+            drawArc(
+                color = color,
+                startAngle = startAngle,
+                sweepAngle = sweepAngle,
+                useCenter = true,
+                size = size
+            )
+            
+            // Draw separator line
+            drawArc(
+                color = Color.White,
+                startAngle = startAngle,
+                sweepAngle = sweepAngle,
+                useCenter = true,
+                style = Stroke(width = 2.dp.toPx())
+            )
+            
+            // Draw Percentage
+            val percentage = (minutes / chartTotal * 100).toInt()
+            if (percentage > 4) { // Only show if significant enough space
+                val angleRad = Math.toRadians((startAngle + sweepAngle / 2).toDouble())
+                val labelRadius = radius * 0.65f // Position at 65% of radius
+                
+                val x = center.x + (labelRadius * Math.cos(angleRad)).toFloat()
+                val y = center.y + (labelRadius * Math.sin(angleRad)).toFloat()
+                
+                val textColor = if (color == deepColor || color == lightColor) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+                
+                drawContext.canvas.nativeCanvas.drawText(
+                    "$percentage%",
+                    x,
+                    y + 10f, // minor vertical adjustment for centering
+                    android.graphics.Paint().apply {
+                        this.color = textColor
+                        textSize = 32f
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        isFakeBoldText = true
+                        setShadowLayer(5f, 0f, 0f, android.graphics.Color.GRAY) // Drop shadow for legibility
+                    }
+                )
+            }
+
+            startAngle += sweepAngle
+        }
     }
 }

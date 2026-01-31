@@ -50,16 +50,16 @@ class SleepViewModel @Inject constructor(
     }
 
     fun refresh() {
-        loadSleepData(_selectedDate.value)
+        loadSleepData(_selectedDate.value, forceRefresh = true)
     }
 
-    private fun loadSleepData(date: Date) {
+    private fun loadSleepData(date: Date, forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = SleepUiState.Loading
             
             // Re-fetch sleep data from repository (handles provider selection)
             // We could rely on MainViewModel but independent fetch is reliable for a detail screen
-            val result = healthRepository.getSleepData(date)
+            val result = healthRepository.getSleepData(date, forceRefresh)
             
             result.onSuccess { list ->
                 // Usually we care about the "main" sleep (longest)
