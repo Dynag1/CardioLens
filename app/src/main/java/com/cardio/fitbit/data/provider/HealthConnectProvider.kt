@@ -265,7 +265,7 @@ class HealthConnectProvider @Inject constructor(
 
             val minuteDataList = minuteDataMap.values.sortedBy { it.time }
             
-            return Result.success(IntradayData(date, minuteDataList))
+            return Result.success(IntradayData(date, minuteDataList, null))
         } catch (e: Exception) {
             return Result.failure(e)
         }
@@ -352,7 +352,7 @@ class HealthConnectProvider @Inject constructor(
                 }
                 
                 val minuteDataList = minuteDataMap.values.sortedBy { it.time }
-                resultList.add(IntradayData(currentDay, minuteDataList))
+                resultList.add(IntradayData(currentDay, minuteDataList, null))
                 
                 cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
             }

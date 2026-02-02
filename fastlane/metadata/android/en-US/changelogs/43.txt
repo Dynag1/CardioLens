@@ -1,0 +1,3 @@
+Correction de l'échelle des graphiques :
+- Graphique principal : affiche désormais strictement les données minute par minute pour une meilleure lisibilité et économie de données.
+- Graphique d'activité : affiche les données haute précision (seconde par seconde) pour une analyse détaillée des entraînements.
