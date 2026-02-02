@@ -75,20 +75,44 @@ class FitbitHealthProvider @Inject constructor(
             activities.forEach { activity ->
                  // Logic to confirm it's a "workout" -> maybe based on type or duration?
                  // For now, take all recorded activities as workouts worth zooming in.
-                 val startTimeStr = DateUtils.formatTimeForDisplay(activity.startTime)
-                 val endTime = Date(activity.startTime.time + activity.duration)
-                 val endTimeStr = DateUtils.formatTimeForDisplay(endTime)
+                 val startTimeStr = DateUtils.formatTimeWithSeconds(activity.startTime)
+                 
+                 // Handle Activity end time
+                 // IF activity ends on NEXT day, we must clamp request to TODAY'S 23:59
+                 // Cap duration to 4 hours (14400000 ms) to avoid accidental "All Day" activities draining quota
+                 val maxDuration = 4 * 60 * 60 * 1000L
+                 val effectiveDuration = if (activity.duration > maxDuration) maxDuration else activity.duration
+
+                 val activityEnd = Date(activity.startTime.time + effectiveDuration)
+                 val endOfDay = DateUtils.getEndOfDay(date)
+                 
+                 val effectiveEnd = if (activityEnd.after(endOfDay)) {
+                     endOfDay
+                 } else {
+                     activityEnd
+                 }
+                 
+                 val endTimeStr = DateUtils.formatTimeWithSeconds(effectiveEnd)
                  
                  // Avoid tiny activities or 0 duration
-                 if (activity.duration > 60000) { 
-                     val activityHrResponse = apiClient.fitbitApi.getIntradayHeartRatePrecisionRange(
-                         date = dateString,
-                         startTime = startTimeStr,
-                         endTime = endTimeStr
-                     )
-                     if (activityHrResponse.isSuccessful) {
-                         val hpData = activityHrResponse.body()?.intradayData?.dataset ?: emptyList()
-                         highPrecisionData.addAll(hpData.map { IntradayHeartRate(it.time, it.value) })
+                 // Also avoid invalid range (start >= end) which causes 400
+                 // Use 1 min minimum to be safe
+                 if (activity.duration > 60000 && effectiveEnd.time > activity.startTime.time) { 
+                     try {
+                         val activityHrResponse = apiClient.fitbitApi.getIntradayHeartRatePrecisionRange(
+                             date = dateString,
+                             startTime = startTimeStr,
+                             endTime = endTimeStr
+                         )
+                         if (activityHrResponse.isSuccessful) {
+                             val hpData = activityHrResponse.body()?.intradayData?.dataset ?: emptyList()
+                             highPrecisionData.addAll(hpData.map { IntradayHeartRate(it.time, it.value) })
+                         } else {
+                             // Log error but continue
+                             android.util.Log.e("FitbitHealthProvider", "Failed to fetch precision HR: ${activityHrResponse.code()} - $startTimeStr to $endTimeStr")
+                         }
+                     } catch (e: Exception) {
+                         android.util.Log.e("FitbitHealthProvider", "Error fetching precision HR", e)
                      }
                  }
             }

@@ -66,6 +66,13 @@ object DateUtils {
     }
 
     /**
+     * Format time for API (HH:mm:ss)
+     */
+    fun formatTimeWithSeconds(date: Date): String {
+        return SimpleDateFormat("HH:mm:ss", Locale.FRANCE).format(date)
+    }
+
+    /**
      * Get start of today
      */
     fun getToday(): Date {
