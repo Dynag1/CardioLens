@@ -232,7 +232,22 @@ class DashboardViewModel @Inject constructor(
                 
                 // Update Last Sync Time (only if we actually refreshed or loaded successfully)
                 // We consider a successful loadAllData as a sync point
-                userPreferencesRepository.setLastSyncTimestamp(System.currentTimeMillis())
+                // Use the timestamp of the LATEST valid data retrieved (HR > 0)
+                // If checking "Today", getting current time is annoying if watch hasn't synced.
+                // We want the actual last point.
+                
+                val intraday = _intradayData.value?.minuteData ?: emptyList()
+                val latestPoint = intraday.filter { it.heartRate > 0 || it.steps > 0 }.maxByOrNull { it.time }
+                
+                val latestDataTime = latestPoint?.let { point ->
+                    DateUtils.parseFitbitTimeOrDateTime(point.time, selectedDate)?.time
+                } ?: System.currentTimeMillis() // Fallback only if ABSOLUTELY no data found (rare for today if using app)
+                
+                // If we found data, use it. If not, keeping old sync time might be better? 
+                // But for now, user asked for "last info recovered". if no info, current time of check seems okay-ish, or maybe 0?
+                // Let's stick to calculated time.
+                
+                userPreferencesRepository.setLastSyncTimestamp(latestDataTime)
             } catch (e: Exception) {
                 _uiState.value = DashboardUiState.Error(e.message ?: "Unknown error")
             }

@@ -1,0 +1,2 @@
+Correction de la récupération des données Fitbit (limitation à la durée de l'entraînement).
+Correction de l'affichage de l'heure de dernière synchronisation.
