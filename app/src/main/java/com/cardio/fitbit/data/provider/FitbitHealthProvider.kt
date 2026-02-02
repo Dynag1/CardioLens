@@ -75,7 +75,8 @@ class FitbitHealthProvider @Inject constructor(
             activities.forEach { activity ->
                  // Logic to confirm it's a "workout" -> maybe based on type or duration?
                  // For now, take all recorded activities as workouts worth zooming in.
-                 val startTimeStr = DateUtils.formatTimeWithSeconds(activity.startTime)
+                 // Use HH:mm format as API might not support seconds for range
+                 val startTimeStr = DateUtils.formatTimeForDisplay(activity.startTime)
                  
                  // Handle Activity end time
                  // IF activity ends on NEXT day, we must clamp request to TODAY'S 23:59
@@ -86,13 +87,23 @@ class FitbitHealthProvider @Inject constructor(
                  val activityEnd = Date(activity.startTime.time + effectiveDuration)
                  val endOfDay = DateUtils.getEndOfDay(date)
                  
-                 val effectiveEnd = if (activityEnd.after(endOfDay)) {
+                 // Round UP to the next minute to ensure we cover the seconds
+                 val cal = java.util.Calendar.getInstance()
+                 cal.time = activityEnd
+                 if (cal.get(java.util.Calendar.SECOND) > 0 || cal.get(java.util.Calendar.MILLISECOND) > 0) {
+                     cal.add(java.util.Calendar.MINUTE, 1)
+                     cal.set(java.util.Calendar.SECOND, 0)
+                     cal.set(java.util.Calendar.MILLISECOND, 0)
+                 }
+                 val roundedEnd = cal.time
+
+                 val effectiveEnd = if (roundedEnd.after(endOfDay)) {
                      endOfDay
                  } else {
-                     activityEnd
+                     roundedEnd
                  }
                  
-                 val endTimeStr = DateUtils.formatTimeWithSeconds(effectiveEnd)
+                 val endTimeStr = DateUtils.formatTimeForDisplay(effectiveEnd)
                  
                  // Avoid tiny activities or 0 duration
                  // Also avoid invalid range (start >= end) which causes 400
@@ -121,25 +132,49 @@ class FitbitHealthProvider @Inject constructor(
             val stepsResponse = apiClient.fitbitApi.getIntradaySteps(dateString)
             val stepsData = stepsResponse.body()?.intradayData?.dataset ?: emptyList()
 
-            // 5. Merge Data
-            // We want to prioritize High Precision data.
-            // Map: TimeString -> MinuteData
-            
-            val mergedMap = mutableMapOf<String, MinuteData>()
+            // 5. Merge Data Logic Split
             
             // Helper map to store Total Steps per Minute (HH:mm -> Steps)
-            // We use this to populate 'displaySteps' for high-precision seconds
+            // We usethis to populate 'displaySteps' for high-precision seconds
             val stepsPerMinute = mutableMapOf<String, Int>()
             stepsData.forEach { pt ->
                 // pt.time is "HH:mm:00" usually, strip to "HH:mm"
                 val minuteKey = pt.time.substring(0, 5) 
                 stepsPerMinute[minuteKey] = (stepsPerMinute[minuteKey] ?: 0) + pt.value.toInt()
             }
-            
-            // Fill with Base 1-min Data
+
+            // List A: Standard Minute Data (Pure)
+            val standardMinuteList = mutableListOf<MinuteData>()
             baseHrData.forEach { pt ->
-                mergedMap[pt.time] = MinuteData(pt.time, pt.value, 0, stepsPerMinute[pt.time.substring(0,5)] ?: 0)
+                // pt.time is "HH:mm:00" usually, strip to "HH:mm"
+                val minuteKey = pt.time.substring(0, 5) 
+                val displaySteps = stepsPerMinute[minuteKey] ?: 0
+                
+                standardMinuteList.add(MinuteData(pt.time, pt.value, 0, displaySteps))
             }
+            
+            // Inject Steps into Standard List
+            // Note: baseHrData might miss some minutes where only steps exist
+            val standardMap = standardMinuteList.associateBy { it.time }.toMutableMap()
+            stepsData.forEach { pt ->
+                val existing = standardMap[pt.time]
+                val minuteKey = pt.time.substring(0, 5)
+                val totalSteps = stepsPerMinute[minuteKey] ?: pt.value.toInt()
+                
+                if (existing != null) {
+                    standardMap[pt.time] = existing.copy(steps = pt.value.toInt(), displaySteps = totalSteps)
+                } else {
+                    standardMap[pt.time] = MinuteData(pt.time, 0, pt.value.toInt(), totalSteps)
+                }
+            }
+            val finalStandardList = standardMap.values.sortedBy { it.time }
+
+            // List B: High Precision Data (Merged) - Used for preciseData
+            // Use standard list as base, then overwrite with 1sec data
+            val mergedMap = mutableMapOf<String, MinuteData>()
+            
+            // Populate with Standard first (providing the backdrop)
+            finalStandardList.forEach { mergedMap[it.time] = it }
             
             // Overwrite/Add with High Precision Data
             highPrecisionData.forEach { pt ->
@@ -147,34 +182,19 @@ class FitbitHealthProvider @Inject constructor(
                 val minuteKey = pt.time.substring(0, 5)
                 val totalStepsForMinute = stepsPerMinute[minuteKey] ?: 0
                 
-                val existingSteps = mergedMap[pt.time]?.steps ?: 0
-                
-                // Existing logic: preserve explicit steps if we already merged them (unlikely here as we just started)
-                // New logic: Set displaySteps to the minute's total
+                // We don't have 1-sec steps, so we use 0 for specific second, but carry over displaySteps
                 mergedMap[pt.time] = MinuteData(
                     time = pt.time, 
                     heartRate = pt.value, 
-                    steps = existingSteps, 
+                    steps = 0, // Individual second steps unknown, 0
                     displaySteps = totalStepsForMinute
                 )
             }
             
-            // Inject Steps (Explicit 1-min entries)
-            stepsData.forEach { pt ->
-                val existing = mergedMap[pt.time]
-                val minuteKey = pt.time.substring(0, 5)
-                val totalSteps = stepsPerMinute[minuteKey] ?: pt.value.toInt()
-                
-                if (existing != null) {
-                    mergedMap[pt.time] = existing.copy(steps = pt.value.toInt(), displaySteps = totalSteps)
-                } else {
-                    mergedMap[pt.time] = MinuteData(pt.time, 0, pt.value.toInt(), totalSteps)
-                }
-            }
-            
-            val finalSortedList = mergedMap.values.sortedBy { it.time }
+            // Ensure we didn't lose step-only entries (already in standardList added to mergedMap)
+            val finalPreciseList = mergedMap.values.sortedBy { it.time }
 
-            return Result.success(IntradayData(date, finalSortedList))
+            return Result.success(IntradayData(date, finalStandardList, finalPreciseList))
         } catch (e: Exception) {
             return Result.failure(e)
         }

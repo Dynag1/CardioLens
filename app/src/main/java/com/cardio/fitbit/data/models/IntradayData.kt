@@ -17,5 +17,6 @@ data class MinuteData(
 @Parcelize
 data class IntradayData(
     val date: java.util.Date,
-    val minuteData: List<MinuteData>
+    val minuteData: List<MinuteData>,
+    val preciseData: List<MinuteData>? = null
 ) : Parcelable

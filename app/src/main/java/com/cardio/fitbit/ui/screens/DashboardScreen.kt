@@ -652,12 +652,12 @@ fun DashboardScreen(
                             }
                         }
 
-                        // Activity Detail Cards (Moved to the bottom)
+                            // Activity Detail Cards (Moved to the bottom)
                         activityData?.activities?.forEach { activity ->
                             item {
                                 ActivityDetailCard(
                                     activity = activity,
-                                    allMinuteData = intradayData?.minuteData ?: emptyList(),
+                                    allMinuteData = intradayData?.preciseData ?: intradayData?.minuteData ?: emptyList(),
                                     selectedDate = selectedDate,
                                     dateOfBirth = dateOfBirth
                                 )
