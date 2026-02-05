@@ -103,7 +103,7 @@ class FitbitHealthProvider @Inject constructor(
                      roundedEnd
                  }
                  
-                 val endTimeStr = DateUtils.formatTimeForDisplay(effectiveEnd)
+                 val endTimeStr = if (DateUtils.formatTimeForDisplay(effectiveEnd) == "00:00") "23:59" else DateUtils.formatTimeForDisplay(effectiveEnd)
                  
                  // Avoid tiny activities or 0 duration
                  // Also avoid invalid range (start >= end) which causes 400
@@ -118,9 +118,14 @@ class FitbitHealthProvider @Inject constructor(
                          if (activityHrResponse.isSuccessful) {
                              val hpData = activityHrResponse.body()?.intradayData?.dataset ?: emptyList()
                              highPrecisionData.addAll(hpData.map { IntradayHeartRate(it.time, it.value) })
+                             android.util.Log.d("FitbitHealthProvider", "Precision HR fetched: ${hpData.size} points for $startTimeStr-$endTimeStr")
                          } else {
                              // Log error but continue
-                             android.util.Log.e("FitbitHealthProvider", "Failed to fetch precision HR: ${activityHrResponse.code()} - $startTimeStr to $endTimeStr")
+                             if (activityHrResponse.code() == 403) {
+                                 android.util.Log.w("FitbitHealthProvider", "Precision HR Forbidden (403) - App requires 'Personal' type.")
+                             } else {
+                                 android.util.Log.e("FitbitHealthProvider", "Failed to fetch precision HR: ${activityHrResponse.code()} - $startTimeStr to $endTimeStr")
+                             }
                          }
                      } catch (e: Exception) {
                          android.util.Log.e("FitbitHealthProvider", "Error fetching precision HR", e)
@@ -181,12 +186,14 @@ class FitbitHealthProvider @Inject constructor(
                 // pt.time is HH:mm:ss
                 val minuteKey = pt.time.substring(0, 5)
                 val totalStepsForMinute = stepsPerMinute[minuteKey] ?: 0
+                val existingSteps = mergedMap[pt.time]?.steps ?: 0
                 
-                // We don't have 1-sec steps, so we use 0 for specific second, but carry over displaySteps
+                // We don't have 1-sec steps, so we use 0 for specific second unless it aligns with a minute we already had info for
+                // (though usually minute data steps are for the whole minute, attributing to :00 is standard approx)
                 mergedMap[pt.time] = MinuteData(
                     time = pt.time, 
                     heartRate = pt.value, 
-                    steps = 0, // Individual second steps unknown, 0
+                    steps = existingSteps, 
                     displaySteps = totalStepsForMinute
                 )
             }

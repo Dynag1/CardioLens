@@ -1,0 +1,2 @@
+Ajout de la prise en charge des données seconde par seconde pour les graphiques d'entraînement (disponible selon le type d'application Fitbit).
+Amélioration de la gestion des limites de débit de l'API.
