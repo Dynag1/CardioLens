@@ -137,6 +137,15 @@ fun ActivityDetailCard(
                             text = "Moyenne",
                             style = MaterialTheme.typography.labelSmall
                         )
+                        // Precision Indicator
+                        val isHighPrecision = continuousMinutes.size > durationMinutes + 2 // Heuristic: more points than minutes
+                        if (isExpanded) {
+                             Text(
+                                text = if (isHighPrecision) "Précision: 1s" else "Précision: 1min",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isHighPrecision) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                            )
+                        }
                     }
                 }
             }
@@ -482,15 +491,15 @@ fun ActivityHeartRateChart(
                     highLightColor = Color.GRAY
                 }
                 val barData = BarData(hrDataSet)
-                // Bar width optimization for visibility
-                val interval = if (activityMinutes.size > 1) {
-                    val t1 = (DateUtils.parseTimeToday(activityMinutes[0].time)?.time ?: 0)
-                    val t2 = (DateUtils.parseTimeToday(activityMinutes[1].time)?.time ?: 0)
-                    ((t2 - t1) / 60000f).coerceAtLeast(0.001f)
-                } else 0.016f // Default 1 sec
                 
-                // Use slightly wider bars to prevent gaps/antialiasing fade
-                barData.barWidth = interval * 1.0f 
+                // Optimized Bar Width
+                // If we have high density data (approx > 1 point per minute), use thin bars (1 sec = ~0.016 min)
+                // If low density (1 point per min), use wide bars (0.8 min)
+                val isHighDensity = activityMinutes.size > (cutoffIndex * 2) 
+                
+                // Use slightly wider bars than mathematical 0.016 to ensure visibility/overlap (0.02)
+                barData.barWidth = if (isHighDensity) 0.02f else 0.8f
+                
                 combinedData.setData(barData)
             }
 
