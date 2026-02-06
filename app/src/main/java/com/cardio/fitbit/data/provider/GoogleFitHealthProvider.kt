@@ -124,7 +124,7 @@ class GoogleFitHealthProvider @Inject constructor(
         )
     }
 
-    override suspend fun getIntradayData(date: Date): Result<IntradayData?> {
+    override suspend fun getIntradayData(date: Date, forceRefresh: Boolean): Result<IntradayData?> {
         try {
             val startOfDay = DateUtils.getStartOfDay(date).time
             val endOfDay = DateUtils.getEndOfDay(date).time

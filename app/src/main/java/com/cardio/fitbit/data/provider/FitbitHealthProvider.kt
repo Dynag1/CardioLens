@@ -11,7 +11,9 @@ import javax.inject.Singleton
 @Singleton
 class FitbitHealthProvider @Inject constructor(
     private val apiClient: ApiClient,
-    private val authManager: FitbitAuthManager
+    private val authManager: FitbitAuthManager,
+    private val activityDetailsDao: com.cardio.fitbit.data.local.dao.ActivityDetailsDao,
+    private val gson: com.google.gson.Gson
 ) : HealthDataProvider {
 
     override val providerId = "FITBIT"
@@ -43,7 +45,7 @@ class FitbitHealthProvider @Inject constructor(
         }
     }
 
-    override suspend fun getIntradayData(date: Date): Result<IntradayData?> {
+    override suspend fun getIntradayData(date: Date, forceRefresh: Boolean): Result<IntradayData?> {
          try {
             val dateString = DateUtils.formatForApi(date)
             
@@ -75,9 +77,9 @@ class FitbitHealthProvider @Inject constructor(
             activities.forEach { activity ->
                  // Logic to confirm it's a "workout" -> maybe based on type or duration?
                  // For now, take all recorded activities as workouts worth zooming in.
-                 // Use HH:mm format as API might not support seconds for range
-                 // Use HH:mm:ss format for 1sec precision
-                 val startTimeStr = DateUtils.formatTimeWithSeconds(activity.startTime)
+                 // Use Locale.US for API consistency
+                 val apiTimeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+                 val startTimeStr = apiTimeFormat.format(activity.startTime)
                  
                  // Handle Activity end time
                  // IF activity ends on NEXT day, we must clamp request to TODAY'S 23:59:59
@@ -94,33 +96,73 @@ class FitbitHealthProvider @Inject constructor(
                      activityEnd
                  }
                  
-                 val endTimeStr = if (DateUtils.formatTimeForDisplay(effectiveEnd) == "00:00" && effectiveEnd.time > date.time) "23:59:59" else DateUtils.formatTimeWithSeconds(effectiveEnd)
+                 // Fix: Ensure 23:59:59 formatting is correct
+                 val endTimeStr = if (DateUtils.formatTimeForDisplay(effectiveEnd) == "00:00" && effectiveEnd.time > date.time) "23:59:59" else apiTimeFormat.format(effectiveEnd)
                  
+                 android.util.Log.d("FitbitHealthProvider", "Processing Activity: ${activity.activityName} ($startTimeStr - $endTimeStr) ID: ${activity.activityId}")
+
                  // Avoid tiny activities or 0 duration
                  // Also avoid invalid range (start >= end) which causes 400
                  // Use 1 min minimum to be safe
                  if (activity.duration > 60000 && effectiveEnd.time > activity.startTime.time) { 
                      try {
-                         val activityHrResponse = apiClient.fitbitApi.getIntradayHeartRatePrecisionRange(
-                             date = dateString,
-                             startTime = startTimeStr,
-                             endTime = endTimeStr
-                         )
-                         if (activityHrResponse.isSuccessful) {
-                             val hpData = activityHrResponse.body()?.intradayData?.dataset ?: emptyList()
-                             highPrecisionData.addAll(hpData.map { IntradayHeartRate(it.time, it.value) })
-                             android.util.Log.d("FitbitHealthProvider", "Precision HR fetched: ${hpData.size} points for $startTimeStr-$endTimeStr")
+                         // CACHE CHECK
+                         val activityId = activity.activityId.toString()
+                         // Check cache first (Suspend function)
+                         var cached: com.cardio.fitbit.data.local.entities.ActivityDetailsEntity? = null
+                         
+                         if (!forceRefresh) {
+                             cached = activityDetailsDao.getActivityDetails(activityId)
+                         }
+                         
+                         if (cached != null) {
+                              val type = object : com.google.gson.reflect.TypeToken<List<IntradayHeartRate>>() {}.type
+                              val cachedList: List<IntradayHeartRate> = gson.fromJson(cached.data, type)
+                              highPrecisionData.addAll(cachedList)
+                              android.util.Log.d("FitbitHealthProvider", "Precision HR loaded from CACHE: ${cachedList.size} points for $activityId")
                          } else {
-                             // Log error but continue
-                             if (activityHrResponse.code() == 403) {
-                                 android.util.Log.w("FitbitHealthProvider", "Precision HR Forbidden (403) - App requires 'Personal' type.")
-                             } else {
-                                 android.util.Log.e("FitbitHealthProvider", "Failed to fetch precision HR: ${activityHrResponse.code()} - $startTimeStr to $endTimeStr")
-                             }
+                              android.util.Log.d("FitbitHealthProvider", "Fetching Precision HR API for $activityId (Force: $forceRefresh)")
+                              
+                              // Add explicit delay to be gentle with API and ensure sequence
+                              if (activities.indexOf(activity) > 0) {
+                                  kotlinx.coroutines.delay(500)
+                              }
+
+                              // FETCH FROM API
+                              val activityHrResponse = apiClient.fitbitApi.getIntradayHeartRatePrecisionRange(
+                                  date = dateString,
+                                  startTime = startTimeStr,
+                                  endTime = endTimeStr
+                              )
+                              if (activityHrResponse.isSuccessful) {
+                                  val hpData = activityHrResponse.body()?.intradayData?.dataset?.map { IntradayHeartRate(it.time, it.value) } ?: emptyList()
+                                  highPrecisionData.addAll(hpData)
+                                  android.util.Log.d("FitbitHealthProvider", "Precision HR fetched: ${hpData.size} points for $startTimeStr-$endTimeStr")
+                                  
+                                  // CACHE WRITE
+                                  if (hpData.isNotEmpty()) {
+                                      val json = gson.toJson(hpData)
+                                      val entity = com.cardio.fitbit.data.local.entities.ActivityDetailsEntity(
+                                          activityId = activityId,
+                                          data = json,
+                                          timestamp = System.currentTimeMillis()
+                                      )
+                                      activityDetailsDao.insertActivityDetails(entity)
+                                  }
+                              } else {
+                                  // Log error but continue
+                                  if (activityHrResponse.code() == 403) {
+                                      android.util.Log.w("FitbitHealthProvider", "Precision HR Forbidden (403) - App requires 'Personal' type.")
+                                  } else {
+                                      android.util.Log.e("FitbitHealthProvider", "Failed to fetch precision HR: ${activityHrResponse.code()} - $startTimeStr to $endTimeStr")
+                                  }
+                              }
                          }
                      } catch (e: Exception) {
                          android.util.Log.e("FitbitHealthProvider", "Error fetching precision HR", e)
                      }
+                 } else {
+                     android.util.Log.d("FitbitHealthProvider", "Skipping Activity: Too short or invalid range")
                  }
             }
 

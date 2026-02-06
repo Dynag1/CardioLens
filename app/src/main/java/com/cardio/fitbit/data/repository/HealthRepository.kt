@@ -803,7 +803,7 @@ class HealthRepository @Inject constructor(
             }
             
             // Fetch from Provider
-            val result = getProvider().getIntradayData(date)
+            val result = getProvider().getIntradayData(date, forceRefresh)
             
             if (result.isSuccess) {
                 val data = result.getOrNull()

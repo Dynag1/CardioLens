@@ -33,6 +33,14 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import java.util.*
 
 @Composable
@@ -150,14 +158,80 @@ fun ActivityDetailCard(
                 }
             }
             
+            // --- Zones Distribution (New) ---
+            if (avgHr > 0) {
+                 val maxHr = userMaxHr.toFloat()
+                 val zoneStart = maxHr * 0.30f
+                 val zone1End = maxHr * 0.40f
+                 val zone2End = maxHr * 0.50f
+                 val zone3End = maxHr * 0.65f
+                 val zone4End = maxHr * 0.80f
+                 
+                 // Calculate time in each zone
+                 var z0 = 0 // < 30% (Sedentary/Rest)
+                 var z1 = 0 // 30-40% 
+                 var z2 = 0 // 40-50% (Fat Burn)
+                 var z3 = 0 // 50-65% (Cardio)
+                 var z4 = 0 // 65-80% (Peak)
+                 var z5 = 0 // > 80% (Max) - Sometimes merged with Peak
+                 
+                 continuousMinutes.forEach { 
+                     val hr = it.heartRate
+                     if (hr > 0) {
+                         when {
+                             hr < zoneStart -> z0++
+                             hr < zone1End -> z1++
+                             hr < zone2End -> z2++
+                             hr < zone3End -> z3++
+                             hr < zone4End -> z4++
+                             else -> z5++
+                         }
+                     }
+                 }
+                 
+                 val total = (z0+z1+z2+z3+z4+z5).coerceAtLeast(1)
+                 
+                 if (isExpanded) {
+                     Spacer(modifier = Modifier.height(12.dp))
+                     Text("Zones Cardiaques", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                     Spacer(modifier = Modifier.height(4.dp))
+                     
+                     Row(modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp))) {
+                         // Drawing Segments
+                         val weights = listOf(z0, z1, z2, z3, z4, z5)
+                         val colors = listOf(
+                             android.graphics.Color.LTGRAY, 
+                             android.graphics.Color.parseColor("#42A5F5"), 
+                             android.graphics.Color.parseColor("#10B981"), 
+                             android.graphics.Color.parseColor("#FFD600"), 
+                             android.graphics.Color.parseColor("#F59E0B"), 
+                             android.graphics.Color.parseColor("#EF4444")
+                         )
+                         
+                         weights.forEachIndexed { index, count ->
+                             if (count > 0) {
+                                 Box(modifier = Modifier.weight(count.toFloat()).fillMaxHeight().background(androidx.compose.ui.graphics.Color(colors[index])))
+                             }
+                         }
+                     }
+                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                         // Only show labels for dominant zones (>10%)
+                         // Simplified Labels underneath
+                         val cardioSum = z3+z4+z5
+                         val fatBurnSum = z1+z2
+                         
+                         val totalF = total.toFloat()
+                         Text("FatBurn ${(fatBurnSum*100/totalF).toInt()}%", style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color(0xFF10B981))
+                         Text("Cardio ${(cardioSum*100/totalF).toInt()}%", style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color(0xFFF59E0B))
+                     }
+                 }
+            }
+            
             Spacer(modifier = Modifier.height(8.dp))
 
+
+
             // --- Basic Stats ---
-            // Sum steps correctly (avoid double counting if high freq data implies density)
-            // But steps are usually 1-min aggregated. If we have multiple points per minute,
-            // we risk summing the SAME 1-min step count multiple times if we merged poorly?
-            // In Provider, we map distinct times. If Step is at 12:00:00, it appears once.
-            // If HR is 12:00:01, Step is 0. So summing is safe.
             val calculatedSteps = continuousMinutes.sumOf { it.steps }
             val displaySteps = if (activity.steps != null && activity.steps > 0) activity.steps else calculatedSteps
 
@@ -165,35 +239,28 @@ fun ActivityDetailCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem(label = "Pas", value = displaySteps.toString())
-                StatItem(label = "Calories", value = "${activity.calories} kcal")
-                // DEBUG: Force showing Distance even if null/0 for diagnosis
+                StatItem(label = "Pas", value = displaySteps.toString(), icon = Icons.Filled.DirectionsRun)
+                StatItem(label = "Calories", value = "${activity.calories}", icon = Icons.Filled.LocalFireDepartment)
                 val distStr = if (activity.distance != null) String.format("%.2f km", activity.distance) else "N/A"
-                StatItem(label = "Distance", value = distStr)
+                StatItem(label = "Distance", value = distStr, icon = Icons.Filled.Straighten)
             }
 
-            // --- Speed Stats (Any activity with Distance) ---
-            // DEBUG: Relax condition to debug why it might fail. 
-            // If distance is explicitly 0 or null, it won't be calculated, but we want to see if we satisfy display conditions.
-            
+            // --- Speed Stats ---
             if (activity.distance != null && activity.distance > 0.0 && durationMinutes > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Calculations
                 val hours = durationMs / 3600000.0
                 val avgSpeedKmph = activity.distance / hours
                 val paceMinPerKm = if (avgSpeedKmph > 0) 60 / avgSpeedKmph else 0.0
                 val paceSeconds = ((paceMinPerKm - paceMinPerKm.toInt()) * 60).toInt()
 
-                // Max Speed Estimation (Only if Expanded or if we have data)
+                // Max Speed Estimation
                 val maxSpeedKmph = if (continuousMinutes.isNotEmpty()) {
                     val avgStrideLengthM = if (displaySteps > 0) (activity.distance * 1000) / displaySteps else 0.0
-                    // Max steps needs 1-min window aggregation if data is 1sec!
-                    // We should bucket relevantData by minute to find max steps per minute.
                     val maxStepsPerMin = continuousMinutes
-                        .groupBy { it.time.substring(0, 5) } // Group by HH:mm
+                        .groupBy { it.time.substring(0, 5) }
                         .values
                         .maxOfOrNull { list -> list.sumOf { it.steps } } ?: 0
                     
@@ -204,25 +271,20 @@ fun ActivityDetailCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // Show Both Speed and Pace
-                    StatItem(label = "Vitesse", value = String.format("%.1f km/h", avgSpeedKmph))
-                    StatItem(label = "Allure", value = String.format("%d'%02d\" /km", paceMinPerKm.toInt(), paceSeconds))
+                    StatItem(label = "Vitesse", value = String.format("%.1f", avgSpeedKmph), icon = Icons.Filled.Speed)
+                    StatItem(label = "Allure", value = String.format("%d'%02d\"", paceMinPerKm.toInt(), paceSeconds), icon = Icons.Filled.Timer)
                     if (maxSpeedKmph > 0) {
-                       StatItem(label = "Vitesse Max", value = String.format("%.1f km/h", maxSpeedKmph))
+                       StatItem(label = "V.Max", value = String.format("%.1f", maxSpeedKmph), icon = Icons.Filled.Speed)
                     }
                 }
             } else {
-                 // DEBUG: Show why speed isn't showing
                  if (activity.distance == null || activity.distance == 0.0) {
-                     Text("Pas de données de distance pour le calcul de vitesse.", style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.padding(top = 4.dp))
+                     Text(" ", style = MaterialTheme.typography.bodySmall)
                  }
             }
-            
-            // --- Recovery Stats (Visible only if Expanded or always? User said "graph if click". I will keep stats for now or better, hide everything detailed)
-            // Let's hide detailed stats and chart if not expanded to make it a true summary.
-            
+
+            // --- Recovery Stats ---
             if (isExpanded) {
-                // --- Recovery Stats ---
                 // Calculate HR at End, +1 min, +2 min
                 val endHrEntry = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - (startTimeMs + durationMs))) }
                 
@@ -273,14 +335,13 @@ fun ActivityDetailCard(
                 ) {
                     ActivityHeartRateChart(
                         activityMinutes = continuousMinutes,
-                        activityStartTime = activity.startTime.time, // Pass start time for X-axis ref
-                        cutoffIndex = durationMinutes.toFloat(), // Float minutes
+                        activityStartTime = activity.startTime.time,
+                        cutoffIndex = durationMinutes.toFloat(),
                         userMaxHr = userMaxHr,
                         selectedDate = selectedDate
                     )
                 }
             } else {
-                // Hint to expand
                  Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -298,16 +359,13 @@ fun ActivityDetailCard(
     }
 }
 
-// Hilt Entry Point Interface for UI-injected access (Defining here nicely or it needs to be in a separate file)
-@dagger.hilt.EntryPoint
-@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
-interface NotificationHelperEntryPoint {
-    fun getNotificationHelper(): com.cardio.fitbit.utils.NotificationHelper
-}
-
 @Composable
-fun StatItem(label: String, value: String) {
+fun StatItem(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (icon != null) {
+            Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.height(2.dp))
+        }
         Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
