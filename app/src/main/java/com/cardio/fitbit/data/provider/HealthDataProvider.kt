@@ -26,7 +26,7 @@ interface HealthDataProvider {
 
     suspend fun getHeartRateData(date: Date): Result<HeartRateData?>
     
-    suspend fun getIntradayData(date: Date): Result<IntradayData?>
+    suspend fun getIntradayData(date: Date, forceRefresh: Boolean = false): Result<IntradayData?>
     
     suspend fun getSleepData(date: Date): Result<List<SleepData>>
     suspend fun getSleepHistory(startDate: Date, endDate: Date): Result<List<SleepData>>

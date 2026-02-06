@@ -75,4 +75,9 @@ object DatabaseModule {
     fun provideSymptomDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.SymptomDao {
         return database.symptomDao()
     }
+
+    @Provides
+    fun provideActivityDetailsDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.ActivityDetailsDao {
+        return database.activityDetailsDao()
+    }
 }

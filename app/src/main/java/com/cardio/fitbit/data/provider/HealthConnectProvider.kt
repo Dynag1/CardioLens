@@ -128,22 +128,29 @@ class HealthConnectProvider @Inject constructor(
         }
     }
 
-    override suspend fun getIntradayData(date: Date): Result<IntradayData?> {
+    override suspend fun getIntradayData(date: Date, forceRefresh: Boolean): Result<IntradayData?> {
         try {
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
             
-            // 1. Fetch Exercise Sessions to identify high-precision windows
-            val exerciseResponse = healthConnectClient.readRecords(
-                ReadRecordsRequest(
-                    ExerciseSessionRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(
-                        startOfDay.toInstant(),
-                        endOfDay.toInstant()
+            // 1. Fetch Exercise Sessions to identify high-precision windows (Paginated)
+            val exercises = mutableListOf<ExerciseSessionRecord>()
+            var exPageToken: String? = null
+            do {
+                val exerciseResponse = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        ExerciseSessionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(
+                            startOfDay.toInstant(),
+                            endOfDay.toInstant()
+                        ),
+                        pageToken = exPageToken
                     )
                 )
-            )
-            val exercises = exerciseResponse.records
+                exercises.addAll(exerciseResponse.records)
+                exPageToken = exerciseResponse.pageToken
+            } while (exPageToken != null)
+            
 
             // 2. Paginate Heart Rate Records
             val allHrRecords = mutableListOf<HeartRateRecord>()
@@ -216,7 +223,7 @@ class HealthConnectProvider @Inject constructor(
                     }
                 }
             }
-            
+
             // Process Averages
             pendingAverages.forEach { (key, values) ->
                 val avg = values.average().toInt()

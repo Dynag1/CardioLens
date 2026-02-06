@@ -50,3 +50,11 @@ data class StepsDataEntity(
     val data: String, // JSON serialized StepsData (Daily summary/list wrapper)
     val timestamp: Long
 )
+
+@Entity(tableName = "activity_details")
+data class ActivityDetailsEntity(
+    @PrimaryKey
+    val activityId: String,
+    val data: String, // JSON serialized List<MinuteData> (Basic high precision) or IntradayData
+    val timestamp: Long
+)
