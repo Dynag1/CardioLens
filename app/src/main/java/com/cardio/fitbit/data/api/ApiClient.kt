@@ -93,19 +93,42 @@ class ApiClient @Inject constructor(
     private val googleBaseUrl = "https://www.googleapis.com/fitness/v1/"
 
     private val googleAuthInterceptor = Interceptor { chain ->
-        var request = chain.request()
-        val accessToken = googleFitAuthManager.getAccessToken()
+        val originalRequest = chain.request()
         
-        // Simple auth for now, TODO: add refresh logic similar to fitbit
-        if (accessToken != null) {
-            request = request.newBuilder()
+        // Get access token (synchronous)
+        var accessToken = googleFitAuthManager.getAccessToken()
+        
+        // Add authorization header
+        val request = if (accessToken != null) {
+            originalRequest.newBuilder()
                 .addHeader("Authorization", "Bearer $accessToken")
                 .build()
+        } else {
+            originalRequest
         }
         
-        // TODO: Handle 401 refresh
+        val response = chain.proceed(request)
         
-        chain.proceed(request)
+        // Handle 401 Unauthorized
+        if (response.code == 401) {
+            response.close()
+            
+            // Force refresh
+            runBlocking {
+                val result = googleFitAuthManager.refreshAccessToken()
+                accessToken = result.getOrNull()
+            }
+            
+            // Retry request with new token
+            if (accessToken != null) {
+                val retryRequest = originalRequest.newBuilder()
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .build()
+                return@Interceptor chain.proceed(retryRequest)
+            }
+        }
+        
+        response
     }
 
     private val googleOkHttpClient by lazy {

@@ -1,0 +1,3 @@
+Fixed Google Drive Backup connection issues (Error 400).
+Updated Home Screen Widget: Now more compact (2x1) showing Heart Rate and Sleep.
+Improved stability and performance.

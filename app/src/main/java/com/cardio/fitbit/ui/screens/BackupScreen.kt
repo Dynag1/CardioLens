@@ -8,10 +8,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
+import androidx.compose.material3.ListItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -26,6 +30,7 @@ import java.util.Locale
 @Composable
 fun BackupScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToGoogleSetup: () -> Unit = {},
     viewModel: BackupViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -64,6 +69,12 @@ fun BackupScreen(
                 Toast.makeText(context, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    val signInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        viewModel.handleSignInResult(result.data)
     }
 
     LaunchedEffect(uiState) {
@@ -113,6 +124,79 @@ fun BackupScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.padding(16.dp)
                 ) {
+                    when (uiState) {
+                        is BackupUiState.Error -> {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                            ) {
+                                Text(
+                                    text = (uiState as BackupUiState.Error).message,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
+                        }
+                        is BackupUiState.AuthRequired -> {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Permission Google Drive manquante ou expirée.",
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = { 
+                                            val intent = viewModel.getSignInIntent()
+                                            signInLauncher.launch(intent)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                    ) {
+                                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Reconnecter Drive")
+                                    }
+                                }
+                            }
+                        }
+                        is BackupUiState.MissingCredentials -> {
+                             Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Configuration Google API manquante.",
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = onNavigateToGoogleSetup,
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                                    ) {
+                                         Text("Configurer l'API Google")
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "console.cloud.google.com/apis/credentials",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.clickable {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://console.cloud.google.com/apis/credentials"))
+                                            context.startActivity(intent)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        else -> {}
+                    }
+
                     Text(
                         text = "Gérez vos données locales",
                         style = MaterialTheme.typography.titleLarge
@@ -154,61 +238,135 @@ fun BackupScreen(
                     
                     Divider()
                     
-                    // Cloud Backup Section
+                    // Cloud Backup Section (SAF - Legacy/Check for Auto)
+                    // ... (Keeping SAF section small or renaming it?)
+                    // Let's repurpose this area for the NEW Drive API features mostly.
+                    
+                    val driveFiles by viewModel.driveFiles.collectAsState()
+                    var showRestoreDialog by remember { mutableStateOf(false) }
+
                     Card(
                          colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        val driveEnabled by viewModel.googleDriveBackupEnabled.collectAsState(initial = false)
-                        val backupUri by viewModel.backupUri.collectAsState(initial = null)
-                        
-                        val safLauncher = rememberLauncherForActivityResult(
-                            contract = ActivityResultContracts.OpenDocumentTree()
-                        ) { uri ->
-                            uri?.let { viewModel.setBackupFolder(it) }
-                        }
-                        
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Sauvegarde Automatique", style = MaterialTheme.typography.titleMedium)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text("Dans un dossier local ou Cloud (Drive, etc.)", style = MaterialTheme.typography.bodyLarge)
-                                }
-                                Switch(
-                                    checked = driveEnabled,
-                                    onCheckedChange = { 
-                                        if (it) {
-                                            if (backupUri != null) {
-                                                viewModel.enableCloudBackup()
-                                            } else {
-                                                safLauncher.launch(null)
-                                            }
-                                        } else {
-                                            viewModel.onCloudBackupToggled(false)
-                                        }
-                                    }
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Google Drive", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                             }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // Backup Now Button
+                            Button(
+                                onClick = { viewModel.startDriveApiBackup() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text("Sauvegarder sur Drive maintenant")
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // Load/Restore Button
+                            OutlinedButton(
+                                onClick = { 
+                                    viewModel.loadDriveBackups()
+                                    showRestoreDialog = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Restaurer depuis Drive")
+                            }
+
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Sauvegarde vos données une fois par jour dans le dossier choisi. Fonctionne avec Google Drive si l'application Drive est installée.",
+                                "Nécessite que vous soyez connecté avec votre compte Google dans l'application.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            
-                            if (driveEnabled && !backupUri.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                TextButton(onClick = { safLauncher.launch(null) }) {
-                                    Text("Changer le dossier de sauvegarde")
+                        }
+                    }
+                    
+                    if (showRestoreDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showRestoreDialog = false },
+                            title = { Text("Choisir une sauvegarde") },
+                            text = {
+                                if (driveFiles.isEmpty()) {
+                                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        Text("Aucune sauvegarde trouvée ou chargement...")
+                                    }
+                                } else {
+                                    androidx.compose.foundation.lazy.LazyColumn {
+                                        items(driveFiles.size) { index ->
+                                            val file = driveFiles[index]
+                                            ListItem(
+                                                headlineContent = { Text(file.name) },
+                                                supportingContent = { Text(file.createdTime ?: "") },
+                                                modifier = Modifier.clickable {
+                                                    viewModel.restoreFromDrive(file.id)
+                                                    showRestoreDialog = false
+                                                }
+                                            )
+                                            Divider()
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showRestoreDialog = false }) {
+                                    Text("Fermer")
                                 }
                             }
+                        )
+                    }
+
+                    Divider()
+
+                    // SAF Backup Section (Legacy / Auto Local)
+                    Card(
+                        colors = CardDefaults.cardColors(
+                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                         ),
+                         modifier = Modifier.fillMaxWidth()
+                     ) {
+                         val driveEnabled by viewModel.googleDriveBackupEnabled.collectAsState(initial = false)
+                         val backupUri by viewModel.backupUri.collectAsState(initial = null)
+                         
+                         val safLauncher = rememberLauncherForActivityResult(
+                             contract = ActivityResultContracts.OpenDocumentTree()
+                         ) { uri ->
+                             uri?.let { viewModel.setBackupFolder(it) }
+                         }
+                         
+                         Column(modifier = Modifier.padding(16.dp)) {
+                             Row(
+                                 modifier = Modifier.fillMaxWidth(),
+                                 horizontalArrangement = Arrangement.SpaceBetween,
+                                 verticalAlignment = Alignment.CenterVertically
+                             ) {
+                                 Column(modifier = Modifier.weight(1f)) {
+                                     Text("Sauvegarde Locale Auto", style = MaterialTheme.typography.titleMedium)
+                                     Text("Dossier local spécifique", style = MaterialTheme.typography.bodySmall)
+                                 }
+                                 Switch(
+                                     checked = driveEnabled,
+                                     onCheckedChange = { 
+                                         if (it) {
+                                             if (backupUri != null) {
+                                                 viewModel.enableCloudBackup()
+                                             } else {
+                                                 safLauncher.launch(null)
+                                             }
+                                         } else {
+                                             viewModel.onCloudBackupToggled(false)
+                                         }
+                                     }
+                                 )
+                             }
                         }
                     }
                     

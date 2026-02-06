@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.io.File
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 
 @Singleton
 class GoogleDriveRepository @Inject constructor(
@@ -63,6 +64,95 @@ class GoogleDriveRepository @Inject constructor(
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    // --- API BASED METHODS (Direct Google Drive) ---
+    @Inject
+    lateinit var apiClient: com.cardio.fitbit.data.api.ApiClient
+
+    suspend fun uploadToDriveApi(file: java.io.File): Result<Unit> {
+        return try {
+            val jsonType = "application/json".toMediaTypeOrNull()
+            // 1. Prepare Metadata
+            val metadataJson = "{\"name\": \"${file.name}\", \"mimeType\": \"application/json\", \"parents\": [\"appDataFolder\"]}"
+            val metadataPart = okhttp3.RequestBody.create(jsonType, metadataJson)
+            
+            // 2. Prepare File Content
+            val fileBody = okhttp3.RequestBody.create(jsonType, file)
+            val filePart = okhttp3.MultipartBody.Part.createFormData("file", file.name, fileBody)
+            
+            // 3. Upload
+            val response = apiClient.googleDriveApi.uploadFile(metadataPart, filePart)
+            
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Upload failed: ${response.code()} ${response.message()}"))
+            }
+        } catch (e: Exception) {
+             Result.failure(e)
+        }
+    }
+
+    suspend fun listBackupsFromDriveApi(): Result<List<com.cardio.fitbit.data.api.DriveFile>> {
+        return try {
+            // Query: name contains 'CardioLens' and not trashed
+            // We look in 'appDataFolder' explicitly? Or just 'drive' space?
+            // "spaces" param in API defaults to 'drive'. If we use appDataFolder, we must specify spaces='appDataFolder'.
+            // For now let's try standard drive if we didn't use appDataFolder before.
+            // Actually, in upload I used "parents=['appDataFolder']". So I MUST search in spaces='appDataFolder'.
+            
+            val query = "name contains 'CardioLens' and name contains '.json' and trashed = false"
+            val response = apiClient.googleDriveApi.listFiles(
+                query = query,
+                spaces = "appDataFolder"
+            )
+            
+            if (response.isSuccessful) {
+                Result.success(response.body()?.files ?: emptyList())
+            } else {
+                 Result.failure(Exception("List failed: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    suspend fun downloadFromDriveApi(fileId: String, targetFile: java.io.File): Result<Unit> {
+        return try {
+            val response = apiClient.googleDriveApi.downloadFile(fileId)
+            
+            if (response.isSuccessful && response.body() != null) {
+                val inputStream = response.body()!!.byteStream()
+                targetFile.outputStream().use { output ->
+                    inputStream.copyTo(output)
+                }
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Download failed"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun cleanOldBackupsDriveApi(keepCount: Int = 3) {
+        try {
+            val result = listBackupsFromDriveApi()
+            if (result.isSuccess) {
+                val files = result.getOrNull() ?: emptyList()
+                // Assuming API returns sorted, but safe to re-sort if needed. 
+                // 'createdTime' is RFC 3339 date-time.
+                if (files.size > keepCount) {
+                    val toDelete = files.drop(keepCount)
+                    toDelete.forEach { file ->
+                        apiClient.googleDriveApi.deleteFile(file.id)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

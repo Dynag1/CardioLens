@@ -163,6 +163,9 @@ fun AppNavigation() {
             com.cardio.fitbit.ui.screens.BackupScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToGoogleSetup = {
+                    navController.navigate(Screen.GoogleFitSetup.route)
                 }
             )
         }
