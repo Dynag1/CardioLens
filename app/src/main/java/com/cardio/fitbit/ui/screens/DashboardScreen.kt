@@ -97,6 +97,7 @@ fun DashboardScreen(
     val currentTheme by viewModel.appTheme.collectAsState(initial = "system")
     val dateOfBirth by viewModel.dateOfBirth.collectAsState(initial = null)
     val userMaxHr by viewModel.userMaxHr.collectAsState(initial = 220)
+    val sleepGoalMinutes by viewModel.sleepGoalMinutes.collectAsState(initial = 480)
 
 
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -161,6 +162,8 @@ fun DashboardScreen(
             onHighThresholdChange = viewModel::updateHighHrThreshold,
             lowThreshold = lowThreshold,
             onLowThresholdChange = viewModel::updateLowHrThreshold,
+            sleepGoalMinutes = sleepGoalMinutes,
+            onSleepGoalChange = viewModel::updateSleepGoalMinutes,
             dateOfBirthState = dateOfBirth,
             onDateOfBirthChange = viewModel::setDateOfBirth
         )

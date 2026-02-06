@@ -42,6 +42,7 @@ class UserPreferencesRepository @Inject constructor(
         
         val GOOGLE_DRIVE_BACKUP_ENABLED = booleanPreferencesKey("google_drive_backup_enabled")
         val BACKUP_URI = androidx.datastore.preferences.core.stringPreferencesKey("backup_uri")
+        val SLEEP_GOAL_MINUTES = intPreferencesKey("sleep_goal_minutes")
     }
 
     val highHrThreshold: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -208,6 +209,15 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setBackupUri(uri: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.BACKUP_URI] = uri
+        }
+    }
+    val sleepGoalMinutes: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.SLEEP_GOAL_MINUTES] ?: 480 // Default 8 hours (480 min)
+    }
+
+    suspend fun setSleepGoalMinutes(minutes: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SLEEP_GOAL_MINUTES] = minutes
         }
     }
 }

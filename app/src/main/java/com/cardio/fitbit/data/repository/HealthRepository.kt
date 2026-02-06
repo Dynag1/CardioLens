@@ -65,6 +65,12 @@ class HealthRepository @Inject constructor(
             )
         )
     }
+    
+    suspend fun getSymptomsHistory(startDate: java.util.Date, endDate: java.util.Date): List<com.cardio.fitbit.data.local.entities.SymptomEntry> = withContext(Dispatchers.IO) {
+        val startStr = DateUtils.formatForApi(startDate)
+        val endStr = DateUtils.formatForApi(endDate)
+        symptomDao.getBetweenDates(startStr, endStr)
+    }
 
     suspend fun getMoodHistory(startDate: java.util.Date, endDate: java.util.Date): List<com.cardio.fitbit.data.local.entities.MoodEntry> = withContext(Dispatchers.IO) {
         val startStr = DateUtils.formatForApi(startDate)

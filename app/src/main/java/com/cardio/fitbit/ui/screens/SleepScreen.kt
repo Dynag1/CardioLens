@@ -11,6 +11,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -57,6 +60,7 @@ fun SleepScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
+    val sleepDebtMinutes by viewModel.sleepDebtMinutes.collectAsState()
 
     Scaffold(
         topBar = {
@@ -166,7 +170,7 @@ fun SleepScreen(
                              modifier = Modifier.align(Alignment.Center)
                          )
                      } else {
-                         SleepContent(sleepData, currentUiState.heartRateData)
+                         SleepContent(sleepData, currentUiState.heartRateData, sleepDebtMinutes)
                      }
                  }
              }
@@ -180,7 +184,7 @@ fun SleepScreen(
 }
 
 @Composable
-fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?) {
+fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?, sleepDebtMinutes: Int?) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -188,6 +192,56 @@ fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        
+        // Sleep Debt Card (Last 7 Days)
+        if (sleepDebtMinutes != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Bilan Sommeil (7j)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Différence cumulée vs Objectif",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    val debtHours = kotlin.math.abs(sleepDebtMinutes) / 60
+                    val debtMins = kotlin.math.abs(sleepDebtMinutes) % 60
+                    
+                    val (color, text, icon) = when {
+                        sleepDebtMinutes > 120 -> Triple(MaterialTheme.colorScheme.error, "-${debtHours}h ${debtMins}m", Icons.Default.Warning) // > 2h debt
+                        sleepDebtMinutes > 0 -> Triple(Color(0xFFFF9800), "-${debtHours}h ${debtMins}m", Icons.Default.Info) // Some debt
+                        else -> Triple(Color(0xFF4CAF50), "+${debtHours}h ${debtMins}m", Icons.Default.CheckCircle) // Surplus or met
+                    }
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = color
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Icon(icon, contentDescription = null, tint = color)
+                    }
+                }
+            }
+        }
         
         // Summary Card
         Card(
