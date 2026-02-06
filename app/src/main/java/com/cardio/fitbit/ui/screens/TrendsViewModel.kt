@@ -179,7 +179,7 @@ class TrendsViewModel @Inject constructor(
                         (millis / 1000 / 60).toInt()
                     } ?: 0
 
-                    val dailySleepMinutes = dailySleep.maxByOrNull { it.duration }?.let { it.duration / (1000 * 60) }
+                    val dailySleepMinutes = dailySleep.maxByOrNull { it.duration }?.let { (it.duration / (1000 * 60)).toInt() }
 
                     val point = TrendPoint(
                         date = targetDate,
@@ -223,8 +223,11 @@ class TrendsViewModel @Inject constructor(
         // 1. Mood vs HRV
         val validMoodHrv = points.filter { it.moodRating != null && it.hrv != null }
         if (validMoodHrv.size >= 3) { 
-             val highMood = validMoodHrv.filter { it.moodRating!! >= 4 }
-             val lowMood = validMoodHrv.filter { it.moodRating!! <= 2 } // or <=3?
+             val avgMood = validMoodHrv.map { it.moodRating!! }.average()
+             
+             // Dynamic Pivot: Compare GoodMood Days (>= Avg) vs LowerMood Days (< Avg)
+             val highMood = validMoodHrv.filter { it.moodRating!! >= avgMood } 
+             val lowMood = validMoodHrv.filter { it.moodRating!! < avgMood }
              
              if (highMood.isNotEmpty() && lowMood.isNotEmpty()) {
                  val avgHrvHigh = highMood.map { it.hrv!! }.average()
@@ -235,7 +238,7 @@ class TrendsViewModel @Inject constructor(
                      val percent = ((diff / avgHrvLow) * 100).toInt()
                      val positive = diff > 0
                      
-                     val desc = if (positive) "Meilleure humeur est liée à une VRC plus élevée." else "Humeur basse liée à une meilleure VRC (Inhabituel)."
+                     val desc = if (positive) "Une meilleure humeur est associée à une VRC plus élevée (+${kotlin.math.abs(percent)}%)." else "Étonnamment, votre VRC est plus élevée les jours de moins bonne humeur."
                      
                      results.add(CorrelationResult(
                          title = "Humeur & VRC",
@@ -251,18 +254,20 @@ class TrendsViewModel @Inject constructor(
         val symptomDays = points.filter { !it.symptoms.isNullOrEmpty() && it.sleepMinutes != null }
         val healthyDays = points.filter { it.symptoms.isNullOrEmpty() && it.sleepMinutes != null }
         
+        // Slightly relaxed constraint: allow comparison if we have data for both
         if (symptomDays.isNotEmpty() && healthyDays.isNotEmpty()) {
             val avgSleepSick = symptomDays.map { it.sleepMinutes!! }.average()
             val avgSleepHealthy = healthyDays.map { it.sleepMinutes!! }.average()
             
             val diff = avgSleepSick - avgSleepHealthy
-            if (kotlin.math.abs(diff) > 30) { 
+            if (kotlin.math.abs(diff) > 20) { // Relaxed from 30 to 20 mins
                  val positive = diff > 0 
+                 val diffMins = kotlin.math.abs(diff.toInt())
                  
                  results.add(CorrelationResult(
                      title = "Symptômes & Sommeil",
-                     description = if (diff < 0) "Vos symptômes semblent réduire votre sommeil." else "Vous dormez davantage les jours avec symptômes.",
-                     impact = "${(diff/60).toInt()}h ${kotlin.math.abs(diff.toInt())%60}m",
+                     description = if (diff < 0) "Les symptômes semblent réduire votre sommeil (${diffMins} min en moins)." else "Vous dormez davantage les jours avec symptômes.",
+                     impact = "${(diff/60).toInt()}h ${diffMins%60}m",
                      isPositive = diff > 0
                  ))
             }
@@ -271,19 +276,22 @@ class TrendsViewModel @Inject constructor(
         // 3. Activity (Steps) vs Mood
         val validStepsMood = points.filter { it.steps != null && it.moodRating != null }
          if (validStepsMood.size >= 3) {
-             val highSteps = validStepsMood.filter { it.steps!! > 8000 }
-             val lowSteps = validStepsMood.filter { it.steps!! < 4000 }
+             val avgSteps = validStepsMood.map { it.steps!! }.average()
+             
+             // Dynamic Pivot: Active Days vs Less Active Days
+             val highSteps = validStepsMood.filter { it.steps!! >= avgSteps }
+             val lowSteps = validStepsMood.filter { it.steps!! < avgSteps }
              
              if (highSteps.isNotEmpty() && lowSteps.isNotEmpty()) {
                  val avgMoodActive = highSteps.map { it.moodRating!! }.average()
                  val avgMoodInactive = lowSteps.map { it.moodRating!! }.average()
                  
                  val diff = avgMoodActive - avgMoodInactive // 1-5 scale
-                 if (kotlin.math.abs(diff) > 0.5) {
+                 if (kotlin.math.abs(diff) >= 0.4) { // Relaxed slightly from 0.5
                      val positive = diff > 0
                      results.add(CorrelationResult(
-                         title = "Marche & Moral",
-                         description = if(positive) "L'activité physique semble améliorer votre humeur." else "L'inactivité est liée à une meilleure humeur.",
+                         title = "Activité & Moral",
+                         description = if(positive) "L'activité physique (> ${avgSteps.toInt()} pas) semble booster votre moral." else "Les jours moins actifs sont liés à une meilleure humeur.",
                          impact = "${if(positive) "+" else ""}${String.format("%.1f", diff)} pts",
                          isPositive = positive
                      ))

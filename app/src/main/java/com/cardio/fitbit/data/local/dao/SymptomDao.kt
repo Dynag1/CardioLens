@@ -19,4 +19,6 @@ interface SymptomDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(entries: List<SymptomEntry>)
+    @Query("SELECT * FROM symptoms WHERE date >= :startDate AND date <= :endDate")
+    suspend fun getBetweenDates(startDate: String, endDate: String): List<SymptomEntry>
 }

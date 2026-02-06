@@ -1,0 +1,5 @@
+Ajout de la "Dette de Sommeil" (Objectif 7j).
+Détection intelligente des Corrélations de Santé (Humeur, VRC, Sommeil).
+Amélioration de l'algorithme d'analyse des tendances (seuils dynamiques).
+Génération et export PDF des Rapports de Santé.
+Amélioration de la lisibilité de l'interface (Contraste UI).
