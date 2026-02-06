@@ -7,6 +7,7 @@ import com.cardio.fitbit.data.models.SleepData
 import com.cardio.fitbit.data.provider.HealthDataProvider
 import com.cardio.fitbit.utils.DateUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -90,7 +91,7 @@ class SleepViewModel @Inject constructor(
             val endDate = DateUtils.getStartOfDay(anchorDate)
             val startDate = DateUtils.getDaysAgo(7, endDate)
             
-            val goalMinutes = kotlinx.coroutines.flow.first(userPreferencesRepository.sleepGoalMinutes)
+            val goalMinutes = userPreferencesRepository.sleepGoalMinutes.first()
             var totalDebt = 0
             
             // Fetch history
@@ -111,7 +112,7 @@ class SleepViewModel @Inject constructor(
                  
                  if (sleeps != null) {
                      val totalSleep = sleeps.sumOf { it.duration }
-                     val minutes = totalSleep / (1000 * 60)
+                     val minutes = (totalSleep / (1000 * 60)).toInt()
                      val debt = goalMinutes - minutes
                      totalDebt += debt
                  }
