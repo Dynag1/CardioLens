@@ -188,8 +188,8 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(Color.White)
-                .padding(8.dp) // Reduced padding
+                .background(GlanceTheme.colors.surface)
+                .padding(8.dp)
                 .clickable(
                     actionStartActivity(
                         android.content.Intent(
@@ -205,7 +205,6 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                 // Removed Title "CardioLens" to save space for 2x1
                  
                  Row(
                      horizontalAlignment = Alignment.CenterHorizontally,
@@ -219,7 +218,10 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
                  }
                  
                  // Tiny update time
-                 Text("Maj: ${lastSync.value}", style = TextStyle(fontSize = 10.sp, color = ColorProvider(Color.Gray)))
+                 Text(
+                     text = "Maj: ${lastSync.value}", 
+                     style = TextStyle(fontSize = 10.sp, color = GlanceTheme.colors.onSurfaceVariant)
+                 )
             }
         }
     }
@@ -227,12 +229,25 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
     @Composable
     private fun MetricItem(label: String, value: String, unit: String) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, style = TextStyle(fontSize = 12.sp, color = ColorProvider(Color.Gray)))
+            Text(
+                text = label, 
+                style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
+            )
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 24.sp, color = ColorProvider(Color.Black)))
+                Text(
+                    text = value, 
+                    style = TextStyle(
+                        fontWeight = FontWeight.Bold, 
+                        fontSize = 24.sp, 
+                        color = GlanceTheme.colors.onSurface
+                    )
+                )
                 if (unit.isNotEmpty()) {
                     Spacer(GlanceModifier.width(2.dp))
-                     Text(unit, style = TextStyle(fontSize = 12.sp, color = ColorProvider(Color.Gray)))
+                     Text(
+                         text = unit, 
+                         style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
+                     )
                 }
             }
         }
