@@ -76,10 +76,11 @@ class FitbitHealthProvider @Inject constructor(
                  // Logic to confirm it's a "workout" -> maybe based on type or duration?
                  // For now, take all recorded activities as workouts worth zooming in.
                  // Use HH:mm format as API might not support seconds for range
-                 val startTimeStr = DateUtils.formatTimeForDisplay(activity.startTime)
+                 // Use HH:mm:ss format for 1sec precision
+                 val startTimeStr = DateUtils.formatTimeWithSeconds(activity.startTime)
                  
                  // Handle Activity end time
-                 // IF activity ends on NEXT day, we must clamp request to TODAY'S 23:59
+                 // IF activity ends on NEXT day, we must clamp request to TODAY'S 23:59:59
                  // Cap duration to 4 hours (14400000 ms) to avoid accidental "All Day" activities draining quota
                  val maxDuration = 4 * 60 * 60 * 1000L
                  val effectiveDuration = if (activity.duration > maxDuration) maxDuration else activity.duration
@@ -87,23 +88,13 @@ class FitbitHealthProvider @Inject constructor(
                  val activityEnd = Date(activity.startTime.time + effectiveDuration)
                  val endOfDay = DateUtils.getEndOfDay(date)
                  
-                 // Round UP to the next minute to ensure we cover the seconds
-                 val cal = java.util.Calendar.getInstance()
-                 cal.time = activityEnd
-                 if (cal.get(java.util.Calendar.SECOND) > 0 || cal.get(java.util.Calendar.MILLISECOND) > 0) {
-                     cal.add(java.util.Calendar.MINUTE, 1)
-                     cal.set(java.util.Calendar.SECOND, 0)
-                     cal.set(java.util.Calendar.MILLISECOND, 0)
-                 }
-                 val roundedEnd = cal.time
-
-                 val effectiveEnd = if (roundedEnd.after(endOfDay)) {
+                 val effectiveEnd = if (activityEnd.after(endOfDay)) {
                      endOfDay
                  } else {
-                     roundedEnd
+                     activityEnd
                  }
                  
-                 val endTimeStr = if (DateUtils.formatTimeForDisplay(effectiveEnd) == "00:00") "23:59" else DateUtils.formatTimeForDisplay(effectiveEnd)
+                 val endTimeStr = if (DateUtils.formatTimeForDisplay(effectiveEnd) == "00:00" && effectiveEnd.time > date.time) "23:59:59" else DateUtils.formatTimeWithSeconds(effectiveEnd)
                  
                  // Avoid tiny activities or 0 duration
                  // Also avoid invalid range (start >= end) which causes 400

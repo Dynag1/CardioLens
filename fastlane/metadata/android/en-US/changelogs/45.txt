@@ -1,0 +1,2 @@
+Correction des déconnexions intempestives de Fitbit.
+Récupération des données fréquence cardiaque seconde par seconde pour les entraînements Fitbit.

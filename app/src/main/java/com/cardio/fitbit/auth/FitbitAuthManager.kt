@@ -166,11 +166,22 @@ class FitbitAuthManager @Inject constructor(
         }
     }
 
+    private val refreshMutex = kotlinx.coroutines.sync.Mutex()
+
     /**
      * Refresh access token using refresh token
      */
     suspend fun refreshAccessToken(): Result<String> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        // Use Mutex to prevent multiple concurrent refreshes (Refresh Token Rotation race condition)
+        refreshMutex.lock()
         try {
+            // Check if another thread already refreshed the token while we were waiting
+            val currentToken = getAccessToken()
+            if (currentToken != null) {
+                android.util.Log.d("FitbitAuthManager", "Token already refreshed by another thread. Skipping API call.")
+                return@withContext Result.success(currentToken)
+            }
+
             val refreshToken = getRefreshToken()
                 ?: return@withContext Result.failure(Exception("No refresh token available"))
                 
@@ -214,6 +225,8 @@ class FitbitAuthManager @Inject constructor(
         } catch (e: Exception) {
             _authState.value = AuthState.Error(e.message ?: "Token refresh failed")
             Result.failure(e)
+        } finally {
+            refreshMutex.unlock()
         }
     }
 
