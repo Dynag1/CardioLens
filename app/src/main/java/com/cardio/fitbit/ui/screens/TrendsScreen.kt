@@ -8,7 +8,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cardio.fitbit.ui.components.TrendsChart
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -57,6 +61,28 @@ fun TrendsScreen(
                     }
                 },
                 actions = {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val scope = androidx.compose.runtime.rememberCoroutineScope()
+                    
+                    if (uiState is TrendsUiState.Success) {
+                        IconButton(onClick = { 
+                            scope.launch {
+                                val file = viewModel.generatePdf(context)
+                                if (file != null) {
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "application/pdf"
+                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(intent, "Partager Rapport"))
+                                }
+                            }
+                        }) {
+                             Icon(Icons.Default.Share, contentDescription = "Exporter")
+                        }
+                    }
+
                     IconButton(onClick = { viewModel.loadTrends() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Actualiser")
                     }
@@ -131,6 +157,62 @@ fun TrendsScreen(
                                     { Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
                                 } else null
                             )
+                        }
+
+                        // Insights / Correlations Section
+                        if (state.correlations.isNotEmpty()) {
+                            Text(
+                                text = "Insights & Corrélations",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                state.correlations.forEach { correlation ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (correlation.isPositive) 
+                                                Color(0xFFE8F5E9) // Light Green
+                                            else 
+                                                Color(0xFFFFEBEE) // Light Red
+                                        ),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = if (correlation.isPositive) Icons.Default.CheckCircle else Icons.Default.Info,
+                                                contentDescription = null,
+                                                tint = if (correlation.isPositive) Color(0xFF4CAF50) else Color(0xFFE57373),
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(Modifier.width(16.dp))
+                                            Column {
+                                                Text(
+                                                    text = correlation.title,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = correlation.description,
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    text = "Impact: ${correlation.impact}",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (correlation.isPositive) Color(0xFF4CAF50) else Color(0xFFE57373)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // Mood History

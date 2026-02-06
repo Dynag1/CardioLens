@@ -26,6 +26,8 @@ fun HealthSettingsDialog(
     onHighThresholdChange: (Int) -> Unit,
     lowThreshold: Int,
     onLowThresholdChange: (Int) -> Unit,
+    sleepGoalMinutes: Int,
+    onSleepGoalChange: (Int) -> Unit,
     dateOfBirthState: Long?,
     onDateOfBirthChange: (Long) -> Unit
 ) {
@@ -78,6 +80,21 @@ fun HealthSettingsDialog(
                         onValueChange = { onLowThresholdChange(it.toInt()) },
                         valueRange = 30f..100f,
                         steps = 13
+                    )
+                }
+                
+                Divider()
+
+                // Sleep Goal Slider
+                Column {
+                    val hours = sleepGoalMinutes / 60
+                    val minutes = sleepGoalMinutes % 60
+                    Text("Objectif de Sommeil : ${hours}h ${if (minutes > 0) "${minutes}m" else ""}", style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = sleepGoalMinutes.toFloat(),
+                        onValueChange = { onSleepGoalChange(it.toInt()) },
+                        valueRange = 300f..600f, // 5h to 10h
+                        steps = 9 // (600-300)/30 = 10 intervals = 9 steps (5:00, 5:30, ... 10:00)
                     )
                 }
                 

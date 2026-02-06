@@ -67,6 +67,7 @@ class DashboardViewModel @Inject constructor(
     val syncIntervalMinutes = userPreferencesRepository.syncIntervalMinutes
     val appLanguage = userPreferencesRepository.appLanguage
     val appTheme = userPreferencesRepository.appTheme
+    val sleepGoalMinutes = userPreferencesRepository.sleepGoalMinutes
     
     // Dynamic HR Zones
     val dateOfBirth = userPreferencesRepository.dateOfBirth
@@ -480,6 +481,12 @@ class DashboardViewModel @Inject constructor(
     fun updateAppTheme(theme: String) {
         viewModelScope.launch {
             userPreferencesRepository.setAppTheme(theme)
+        }
+    }
+    
+    fun updateSleepGoalMinutes(minutes: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setSleepGoalMinutes(minutes)
         }
     }
     

@@ -27,12 +27,25 @@ data class TrendPoint(
     val hrv: Int?, // Daily RMSSD
     val moodRating: Int?,
     val steps: Int?,
-    val workoutDurationMinutes: Int?
+    val workoutDurationMinutes: Int?,
+    val symptoms: String?,
+    val sleepMinutes: Int?
+)
+
+data class CorrelationResult(
+    val title: String,
+    val description: String,
+    val impact: String,
+    val isPositive: Boolean
 )
 
 sealed class TrendsUiState {
     object Loading : TrendsUiState()
-    data class Success(val data: List<TrendPoint>, val selectedDays: Int) : TrendsUiState()
+    data class Success(
+        val data: List<TrendPoint>, 
+        val selectedDays: Int,
+        val correlations: List<CorrelationResult> = emptyList()
+    ) : TrendsUiState()
     data class Error(val message: String) : TrendsUiState()
 }
 
@@ -70,6 +83,10 @@ class TrendsViewModel @Inject constructor(
                 // Mood History
                 val moodHistory = healthRepository.getMoodHistory(startDate, endDate)
                 val moodMap = moodHistory.associateBy { it.date }
+                
+                // Symptoms History
+                val symptomsHistory = healthRepository.getSymptomsHistory(startDate, endDate)
+                val symptomsMap = symptomsHistory.associateBy { it.date }
 
                 // Heart Rate History (Daily Summaries - Native RHR Fallback)
                 val hrHistoryResult = healthRepository.getHeartRateHistory(startDate, endDate)
@@ -154,12 +171,15 @@ class TrendsViewModel @Inject constructor(
                     }
 
                     val dailySteps = stepsMap[dateStr]?.steps
+                    val dailySymptoms = symptomsMap[dateStr]?.symptoms
 
                     // Calculate Workout Duration
                     // Sum duration of all activities for the day
                     val workoutDurationMinutes = dailyActivity?.activities?.sumOf { it.duration }?.let { millis ->
                         (millis / 1000 / 60).toInt()
                     } ?: 0
+
+                    val dailySleepMinutes = dailySleep.maxByOrNull { it.duration }?.let { it.duration / (1000 * 60) }
 
                     val point = TrendPoint(
                         date = targetDate,
@@ -169,7 +189,9 @@ class TrendsViewModel @Inject constructor(
                         hrv = hrvValue,
                         moodRating = moodRating,
                         steps = dailySteps,
-                        workoutDurationMinutes = if (workoutDurationMinutes > 0) workoutDurationMinutes else null
+                        workoutDurationMinutes = if (workoutDurationMinutes > 0) workoutDurationMinutes else null,
+                        symptoms = dailySymptoms,
+                        sleepMinutes = dailySleepMinutes
                     )
                     
                     trendPoints.add(point)
@@ -179,7 +201,11 @@ class TrendsViewModel @Inject constructor(
                 }
                 
                 // Sort by date ascending
-                _uiState.value = TrendsUiState.Success(trendPoints.sortedBy { it.date }, days)
+                val sortedPoints = trendPoints.sortedBy { it.date }
+                
+                val correlations = computeCorrelations(sortedPoints)
+                
+                _uiState.value = TrendsUiState.Success(sortedPoints, days, correlations)
                 
                 if (repairCandidates.isNotEmpty()) {
                     repairMissingData(repairCandidates, days)
@@ -189,6 +215,83 @@ class TrendsViewModel @Inject constructor(
                 _uiState.value = TrendsUiState.Error(e.message ?: "Unknown error")
             }
         }
+    }
+
+    private fun computeCorrelations(points: List<TrendPoint>): List<CorrelationResult> {
+        val results = mutableListOf<CorrelationResult>()
+        
+        // 1. Mood vs HRV
+        val validMoodHrv = points.filter { it.moodRating != null && it.hrv != null }
+        if (validMoodHrv.size >= 3) { 
+             val highMood = validMoodHrv.filter { it.moodRating!! >= 4 }
+             val lowMood = validMoodHrv.filter { it.moodRating!! <= 2 } // or <=3?
+             
+             if (highMood.isNotEmpty() && lowMood.isNotEmpty()) {
+                 val avgHrvHigh = highMood.map { it.hrv!! }.average()
+                 val avgHrvLow = lowMood.map { it.hrv!! }.average()
+                 
+                 val diff = avgHrvHigh - avgHrvLow
+                 if (kotlin.math.abs(diff) > 2) { 
+                     val percent = ((diff / avgHrvLow) * 100).toInt()
+                     val positive = diff > 0
+                     
+                     val desc = if (positive) "Meilleure humeur est liée à une VRC plus élevée." else "Humeur basse liée à une meilleure VRC (Inhabituel)."
+                     
+                     results.add(CorrelationResult(
+                         title = "Humeur & VRC",
+                         description = desc,
+                         impact = "${if(positive) "+" else ""}$percent%",
+                         isPositive = positive
+                     ))
+                 }
+             }
+        }
+        
+        // 2. Symptoms (Any) vs Sleep Duration
+        val symptomDays = points.filter { !it.symptoms.isNullOrEmpty() && it.sleepMinutes != null }
+        val healthyDays = points.filter { it.symptoms.isNullOrEmpty() && it.sleepMinutes != null }
+        
+        if (symptomDays.isNotEmpty() && healthyDays.isNotEmpty()) {
+            val avgSleepSick = symptomDays.map { it.sleepMinutes!! }.average()
+            val avgSleepHealthy = healthyDays.map { it.sleepMinutes!! }.average()
+            
+            val diff = avgSleepSick - avgSleepHealthy
+            if (kotlin.math.abs(diff) > 30) { 
+                 val positive = diff > 0 
+                 
+                 results.add(CorrelationResult(
+                     title = "Symptômes & Sommeil",
+                     description = if (diff < 0) "Vos symptômes semblent réduire votre sommeil." else "Vous dormez davantage les jours avec symptômes.",
+                     impact = "${(diff/60).toInt()}h ${kotlin.math.abs(diff.toInt())%60}m",
+                     isPositive = diff > 0
+                 ))
+            }
+        }
+        
+        // 3. Activity (Steps) vs Mood
+        val validStepsMood = points.filter { it.steps != null && it.moodRating != null }
+         if (validStepsMood.size >= 3) {
+             val highSteps = validStepsMood.filter { it.steps!! > 8000 }
+             val lowSteps = validStepsMood.filter { it.steps!! < 4000 }
+             
+             if (highSteps.isNotEmpty() && lowSteps.isNotEmpty()) {
+                 val avgMoodActive = highSteps.map { it.moodRating!! }.average()
+                 val avgMoodInactive = lowSteps.map { it.moodRating!! }.average()
+                 
+                 val diff = avgMoodActive - avgMoodInactive // 1-5 scale
+                 if (kotlin.math.abs(diff) > 0.5) {
+                     val positive = diff > 0
+                     results.add(CorrelationResult(
+                         title = "Marche & Moral",
+                         description = if(positive) "L'activité physique semble améliorer votre humeur." else "L'inactivité est liée à une meilleure humeur.",
+                         impact = "${if(positive) "+" else ""}${String.format("%.1f", diff)} pts",
+                         isPositive = positive
+                     ))
+                 }
+             }
+         }
+
+        return results
     }
 
     private fun repairMissingData(candidates: List<Date>, daysToReload: Int) {
@@ -207,5 +310,11 @@ class TrendsViewModel @Inject constructor(
         }
     }
 
-
+    suspend fun generatePdf(context: android.content.Context): java.io.File? = withContext(Dispatchers.IO) {
+        val state = uiState.value
+        if (state is TrendsUiState.Success) {
+            return@withContext com.cardio.fitbit.utils.ReportGenerator.generateReport(context, state.data, state.selectedDays)
+        }
+        null
+    }
 }

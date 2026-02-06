@@ -21,7 +21,8 @@ sealed class SleepUiState {
 
 @HiltViewModel
 class SleepViewModel @Inject constructor(
-    private val healthRepository: com.cardio.fitbit.data.repository.HealthRepository
+    private val healthRepository: com.cardio.fitbit.data.repository.HealthRepository,
+    private val userPreferencesRepository: com.cardio.fitbit.data.repository.UserPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<SleepUiState>(SleepUiState.Loading)
@@ -29,6 +30,9 @@ class SleepViewModel @Inject constructor(
 
     private val _selectedDate = MutableStateFlow<Date>(Date())
     val selectedDate: StateFlow<Date> = _selectedDate
+    
+    private val _sleepDebtMinutes = MutableStateFlow<Int?>(null)
+    val sleepDebtMinutes: StateFlow<Int?> = _sleepDebtMinutes
 
     fun setDate(date: Date) {
         // Only update if date is different to avoid loops if needed, 
@@ -75,6 +79,47 @@ class SleepViewModel @Inject constructor(
             }.onFailure { e ->
                 _uiState.value = SleepUiState.Error(e.message ?: "Failed to load sleep data")
             }
+            
+            // Calculate Sleep Debt
+            calculateSleepDebt(date)
+        }
+    }
+    
+    private suspend fun calculateSleepDebt(anchorDate: Date) {
+        try {
+            val endDate = DateUtils.getStartOfDay(anchorDate)
+            val startDate = DateUtils.getDaysAgo(7, endDate)
+            
+            val goalMinutes = kotlinx.coroutines.flow.first(userPreferencesRepository.sleepGoalMinutes)
+            var totalDebt = 0
+            
+            // Fetch history
+            val historyResult = healthRepository.getSleepHistory(startDate, endDate)
+            val history = historyResult.getOrNull() ?: emptyList()
+            
+            // Map history by Date
+            val historyMap = history.groupBy { 
+                DateUtils.formatForApi(it.startTime)
+            }
+            
+            val cal = java.util.Calendar.getInstance()
+            cal.time = startDate
+            
+            while (!cal.time.after(endDate)) {
+                 val dStr = DateUtils.formatForApi(cal.time)
+                 val sleeps = historyMap[dStr]
+                 
+                 if (sleeps != null) {
+                     val totalSleep = sleeps.sumOf { it.duration }
+                     val minutes = totalSleep / (1000 * 60)
+                     val debt = goalMinutes - minutes
+                     totalDebt += debt
+                 }
+                 cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            _sleepDebtMinutes.value = totalDebt
+        } catch (e: Exception) {
+             android.util.Log.e("SleepVM", "Error calculating debt", e)
         }
     }
 }
