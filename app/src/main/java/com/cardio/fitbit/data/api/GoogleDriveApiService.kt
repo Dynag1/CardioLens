@@ -27,6 +27,11 @@ interface GoogleDriveApiService {
     suspend fun deleteFile(
         @Path("fileId") fileId: String
     ): Response<ResponseBody>
+
+    @GET("files/{fileId}?alt=media")
+    suspend fun downloadFile(
+        @Path("fileId") fileId: String
+    ): Response<ResponseBody>
 }
 
 data class DriveFile(

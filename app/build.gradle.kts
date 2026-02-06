@@ -14,8 +14,8 @@ android {
         applicationId = "com.cardio.fitbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 49
-        versionName = "1.2.19"
+        versionCode = 50
+        versionName = "1.2.20"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -33,7 +33,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"341329243573-49jk410v4u6jnol1q2rcm477sf3u8kdt.apps.googleusercontent.com\"")
+        }
         release {
+            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"341329243573-ec6kq9i5240apv2i67orm19pbuvk5dru.apps.googleusercontent.com\"")
+            
             val keyFile = file("release-key.jks")
             if (keyFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
@@ -58,6 +63,7 @@ android {
     
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     
     composeOptions {
@@ -139,6 +145,9 @@ dependencies {
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     
+    // Google Sign-In (GMS)
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+    
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
@@ -150,6 +159,10 @@ dependencies {
 
     // DocumentFile (SAF)
     implementation("androidx.documentfile:documentfile:1.0.1")
+
+    // Jetpack Glance (Widgets)
+    implementation("androidx.glance:glance-appwidget:1.1.0")
+    implementation("androidx.glance:glance-material3:1.1.0")
 
     // Testing
 }

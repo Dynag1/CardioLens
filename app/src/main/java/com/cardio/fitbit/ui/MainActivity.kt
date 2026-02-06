@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
 
         checkNotificationPermission()
         setupPeriodicSync()
+        setupCloudBackup()
         observeAppLanguage()
 
         setContent {
@@ -146,6 +147,38 @@ class MainActivity : AppCompatActivity() {
         
 
 
+    }
+
+    private fun setupCloudBackup() {
+        MainScope().launch {
+            userPreferencesRepository.googleDriveBackupEnabled.collect { enabled ->
+                if (enabled) {
+                    scheduleCloudBackup()
+                } else {
+                    WorkManager.getInstance(applicationContext).cancelUniqueWork("CardioCloudBackup")
+                }
+            }
+        }
+    }
+
+    private fun scheduleCloudBackup() {
+        val constraints = androidx.work.Constraints.Builder()
+            .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(true)
+            .build()
+            
+        val workRequest = PeriodicWorkRequest.Builder(
+            com.cardio.fitbit.workers.CloudBackupWorker::class.java,
+            1, TimeUnit.DAYS
+        )
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "CardioCloudBackup",
+            ExistingPeriodicWorkPolicy.UPDATE,
+            workRequest
+        )
     }
 
     private fun observeAppLanguage() {

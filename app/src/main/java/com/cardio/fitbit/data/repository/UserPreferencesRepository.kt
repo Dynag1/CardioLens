@@ -129,7 +129,12 @@ class UserPreferencesRepository @Inject constructor(
     
     // Google Flows
     val googleClientId: Flow<String?> = context.dataStore.data.map { preferences ->
-        preferences[PreferencesKeys.GOOGLE_CLIENT_ID]
+        val pref = preferences[PreferencesKeys.GOOGLE_CLIENT_ID]
+        if (pref.isNullOrBlank()) {
+            com.cardio.fitbit.BuildConfig.GOOGLE_CLIENT_ID
+        } else {
+            pref
+        }
     }
 
     val googleClientSecret: Flow<String?> = context.dataStore.data.map { preferences ->

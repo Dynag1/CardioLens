@@ -20,6 +20,8 @@ sealed class BackupUiState {
     object Loading : BackupUiState()
     object Success : BackupUiState()
     data class Error(val message: String) : BackupUiState()
+    object AuthRequired : BackupUiState()
+    object MissingCredentials : BackupUiState()
 }
 
 @HiltViewModel
@@ -27,8 +29,77 @@ class BackupViewModel @Inject constructor(
     private val backupRepository: BackupRepository,
     private val userPreferencesRepository: com.cardio.fitbit.data.repository.UserPreferencesRepository,
     private val googleDriveRepository: com.cardio.fitbit.data.repository.GoogleDriveRepository,
+    private val googleFitAuthManager: com.cardio.fitbit.auth.GoogleFitAuthManager,
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context
 ) : ViewModel() {
+// ... (keep existing properties) ...
+
+    fun getSignInIntent(): android.content.Intent {
+        return googleFitAuthManager.getSignInIntent()
+    }
+
+    fun handleSignInResult(intent: android.content.Intent?) {
+        viewModelScope.launch {
+            val result = googleFitAuthManager.handleSignInResult(intent)
+            if (result.isSuccess) {
+                 // Refresh backups immediately
+                 loadDriveBackups()
+                 _uiState.value = BackupUiState.Success
+            } else {
+                 _uiState.value = BackupUiState.Error("Connexion échouée: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+    
+    // Deprecated but kept to avoid instant compilation error if UI not updated recursively yet, 
+    // although we will update UI immediately.
+    fun triggerReAuth(context: android.content.Context) {
+        // No-op, UI handles it via Intent
+    }
+
+// ... (keep loadDriveBackups) ...
+
+    fun startDriveApiBackup() {
+        _uiState.value = BackupUiState.Loading
+        viewModelScope.launch {
+            try {
+                 // ... (keep temp file creation) ...
+                 val dateFormat = java.text.SimpleDateFormat("yyyy_MM_dd_HHmmss", java.util.Locale.getDefault())
+                 val timestamp = dateFormat.format(java.util.Date())
+                 val filename = "CardioLens-Cloud-$timestamp.json"
+                 val tempFile = java.io.File(context.cacheDir, filename)
+                 
+                 val fileResult = java.io.FileOutputStream(tempFile).use { fileOut ->
+                     backupRepository.exportData(fileOut)
+                 }
+                 
+                 if (fileResult.isSuccess) {
+                     val uploadResult = googleDriveRepository.uploadToDriveApi(tempFile)
+                     if (uploadResult.isSuccess) {
+                         _uiState.value = BackupUiState.Success
+                         loadDriveBackups() // Refresh list
+                         googleDriveRepository.cleanOldBackupsDriveApi(3)
+                     } else {
+                         val errorMsg = uploadResult.exceptionOrNull()?.message ?: ""
+                         if (errorMsg.contains("401") || errorMsg.contains("403")) {
+                             _uiState.value = BackupUiState.AuthRequired
+                         } else {
+                             _uiState.value = BackupUiState.Error("Upload Failed: $errorMsg")
+                         }
+                     }
+                 } else {
+                     _uiState.value = BackupUiState.Error("Export Failed")
+                 }
+                 tempFile.delete()
+            } catch (e: Exception) {
+                if (e.message?.contains("401") == true || e.message?.contains("403") == true) {
+                     _uiState.value = BackupUiState.AuthRequired
+                } else {
+                    _uiState.value = BackupUiState.Error("Drive Backup Error: ${e.message}")
+                }
+            }
+        }
+    }
 
     private val _uiState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
     val uiState: StateFlow<BackupUiState> = _uiState.asStateFlow()
@@ -126,6 +197,23 @@ class BackupViewModel @Inject constructor(
         }
     }
 
+    // --- Drive API Logic ---
+    private val _driveFiles = MutableStateFlow<List<com.cardio.fitbit.data.api.DriveFile>>(emptyList())
+    val driveFiles = _driveFiles.asStateFlow()
+
+    fun loadDriveBackups() {
+        viewModelScope.launch {
+            if (userPreferencesRepository.googleAccessToken.firstOrNull() != null) {
+                val result = googleDriveRepository.listBackupsFromDriveApi()
+                if (result.isSuccess) {
+                    _driveFiles.value = result.getOrNull() ?: emptyList()
+                } else {
+                    _driveFiles.value = emptyList()
+                }
+            }
+        }
+    }
+
     fun importData(inputStream: InputStream) {
         _uiState.value = BackupUiState.Loading
         viewModelScope.launch {
@@ -134,6 +222,35 @@ class BackupViewModel @Inject constructor(
                 BackupUiState.Success
             } else {
                 BackupUiState.Error(result.exceptionOrNull()?.message ?: "Unknown import error")
+            }
+        }
+    }
+
+
+
+    fun restoreFromDrive(fileId: String) {
+        _uiState.value = BackupUiState.Loading
+        viewModelScope.launch {
+            try {
+                val tempFile = java.io.File(context.cacheDir, "restore_temp.json")
+                val downloadResult = googleDriveRepository.downloadFromDriveApi(fileId, tempFile)
+                
+                if (downloadResult.isSuccess) {
+                    // Import
+                    java.io.FileInputStream(tempFile).use { input ->
+                        val importResult = backupRepository.importData(input)
+                         if (importResult.isSuccess) {
+                            _uiState.value = BackupUiState.Success
+                        } else {
+                            _uiState.value = BackupUiState.Error("Import Failed: ${importResult.exceptionOrNull()?.message}")
+                        }
+                    }
+                } else {
+                     _uiState.value = BackupUiState.Error("Download Failed")
+                }
+                tempFile.delete()
+            } catch (e: Exception) {
+                 _uiState.value = BackupUiState.Error("Restore Error: ${e.message}")
             }
         }
     }
