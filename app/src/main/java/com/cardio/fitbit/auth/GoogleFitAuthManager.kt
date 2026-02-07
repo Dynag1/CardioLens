@@ -91,18 +91,53 @@ class GoogleFitAuthManager @Inject constructor(
     // Attempt silent sign-in to refresh token
     suspend fun refreshAccessToken(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val account = GoogleSignIn.getLastSignedInAccount(context)
+            // 0. Clear old token from GMS cache to force fresh fetch
+            val oldToken = userPreferencesRepository.googleAccessToken.firstOrNull()
+            if (!oldToken.isNullOrBlank()) {
+                try {
+                    GoogleAuthUtil.clearToken(context, oldToken)
+                    android.util.Log.d("GoogleFitAuth", "Cleared old token")
+                } catch (e: Exception) {
+                    android.util.Log.w("GoogleFitAuth", "Failed to clear old token: ${e.message}")
+                }
+            }
+            
+            // First try silentSignIn to refresh the account state if possible
+            val client = GoogleSignIn.getClient(context, fitnessOptions)
+            val task = client.silentSignIn()
+            
+            var account: GoogleSignInAccount? = null
+            try {
+                 // Wait for the Task synchronously
+                 val googleSignInAccount = com.google.android.gms.tasks.Tasks.await(task)
+                 account = googleSignInAccount
+            } catch (e: Exception) {
+                 // Silent sign in failed, fallback to last signed in account
+                 android.util.Log.e("GoogleFitAuth", "Silent sign in failed: ${e.message}")
+                 account = GoogleSignIn.getLastSignedInAccount(context)
+            }
+
             if (account != null && account.account != null) {
+                 // Verify permissions first
+                 if (!GoogleSignIn.hasPermissions(account, *fitnessOptions.scopeArray)) {
+                     android.util.Log.e("GoogleFitAuth", "Missing permissions")
+                     return@withContext Result.failure(Exception("Missing Google Drive permissions (Scope check failed)"))
+                 }
+
                  val scopes = "oauth2:https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.heart_rate.read https://www.googleapis.com/auth/fitness.sleep.read https://www.googleapis.com/auth/fitness.body.read https://www.googleapis.com/auth/drive.file"
-                 // getToken handles refresh automatically if expired
+                 
+                 // getToken handles refresh automatically if expired or fetches new token
+                 // Note: This call blocks network ops, so we are in IO context.
                  val token = GoogleAuthUtil.getToken(context, account.account!!, scopes)
                  
                  userPreferencesRepository.saveGoogleTokens(accessToken = token, refreshToken = "")
                  Result.success(token)
             } else {
+                android.util.Log.e("GoogleFitAuth", "No account found for refresh")
                 Result.failure(Exception("Not signed in"))
             }
         } catch (e: Exception) {
+            android.util.Log.e("GoogleFitAuth", "Refresh failed: ${e.message}")
             Result.failure(e)
         }
     }

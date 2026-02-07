@@ -53,9 +53,9 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
 
         LaunchedEffect(Unit) {
              try {
-                // Helper to fetch and calculate RHR matching DashboardViewModel logic
-                suspend fun tryFetch(date: java.util.Date): Pair<Int?, com.cardio.fitbit.data.models.SleepData?> {
-                     // 1. Fetch Sleep
+                // Helper to fetch Data
+                suspend fun tryFetch(date: java.util.Date): Triple<Int?, Int?, String?> {
+                     // 1. Fetch Sleep (Needed for RHR Calc)
                      var sleep = repository.getSleepData(date, forceRefresh = false).getOrNull()
                      if (sleep.isNullOrEmpty()) {
                          sleep = repository.getSleepData(date, forceRefresh = true).getOrNull()
@@ -63,8 +63,32 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
                      
                      val mainSleep = sleep?.maxByOrNull { it.duration }
                      var computedRhr: Int? = null
+                     var computedLastHr: Int? = null
+                     var computedLastTime: String? = null
                      
-                     // Run RHR Calc safely so it doesn't block Sleep return
+                     // 2. Fetch Intraday (Needed for RHR & Last HR)
+                     // Try Today first with forced refresh if needed? 
+                     // Users expect widget to be kinda fresh.
+                     var intraday = repository.getIntradayData(date, forceRefresh = false).getOrNull()
+                     
+                     // If empty or old, try refresh? Maybe too expensive for widget every time?
+                     // Let's force refresh once if empty.
+                     if (intraday == null || intraday.minuteData.isEmpty()) {
+                          intraday = repository.getIntradayData(date, forceRefresh = true).getOrNull()
+                     }
+
+                     // -- Logic for Last HR --
+                     if (intraday != null && intraday.minuteData.isNotEmpty()) {
+                         // Get the very last data point available
+                         val lastPoint = intraday.minuteData.lastOrNull { it.heartRate > 0 }
+                         if (lastPoint != null) {
+                             computedLastHr = lastPoint.heartRate
+                             computedLastTime = lastPoint.time
+                         }
+                     }
+                     
+                     // -- Logic for RHR --
+                     // Run RHR Calc safely so it doesn't block
                      if (mainSleep != null && mainSleep.duration > 3 * 3600 * 1000) {
                          try {
                              val startPart = mainSleep.startTime
@@ -78,6 +102,10 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
                              val startTimeStr = timeFormatter.format(startPart)
                              val endTimeStr = timeFormatter.format(endPart)
 
+                             // If we have intraday for today, we can use it.
+                             // But RHR calc requires sleep cross-check which might be yesterday.
+                             // Re-using simplified logic from before:
+                             
                              // Case A: Sleep started Yesterday (Cross-Midnight)
                              if (startPart.before(startOfDay)) {
                                  // 1. Fetch Yesterday's FULL Intraday Data
@@ -87,26 +115,16 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
                                      intradayYesterday = repository.getIntradayData(yesterdayDate, forceRefresh = true).getOrNull()
                                  }
                                  
-                                 // Filter: time >= startTimeStr
-                                 // Note: time in DB is usually HH:mm:ss.
                                  if (intradayYesterday != null) {
                                      val filtered = intradayYesterday.minuteData.filter { point -> 
-                                          // Robust compare: "23:00:00" >= "22:30:00"
                                           point.time >= startTimeStr
                                      }
                                      fullHeartRateList.addAll(filtered)
                                  }
 
-                                 // 2. Fetch Today's FULL Intraday Data
-                                 var intradayToday = repository.getIntradayData(date, forceRefresh = false).getOrNull()
-                                 // We use existing call or fetch
-                                 if (intradayToday == null || intradayToday.minuteData.isEmpty()) {
-                                     intradayToday = repository.getIntradayData(date, forceRefresh = true).getOrNull()
-                                 }
-                                 
-                                 // Filter: time <= endTimeStr (midnight to wake)
-                                 if (intradayToday != null) {
-                                     val filtered = intradayToday.minuteData.filter { point -> 
+                                 // 2. Use Today's Intraday Data (already fetched above)
+                                 if (intraday != null) {
+                                     val filtered = intraday.minuteData.filter { point -> 
                                           point.time <= endTimeStr
                                      }
                                      fullHeartRateList.addAll(filtered)
@@ -114,13 +132,8 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
 
                              } else {
                                  // Case B: Sleep started Today
-                                 var intradayToday = repository.getIntradayData(date, forceRefresh = false).getOrNull()
-                                 if (intradayToday == null || intradayToday.minuteData.isEmpty()) {
-                                     intradayToday = repository.getIntradayData(date, forceRefresh = true).getOrNull()
-                                 }
-                                 
-                                 if (intradayToday != null) {
-                                      val filtered = intradayToday.minuteData.filter { point ->
+                                 if (intraday != null) {
+                                      val filtered = intraday.minuteData.filter { point ->
                                           point.time >= startTimeStr && point.time <= endTimeStr
                                       }
                                       fullHeartRateList.addAll(filtered)
@@ -133,54 +146,53 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
                              }
                          } catch (e: Exception) {
                              e.printStackTrace()
-                             // Swallow RHR error to ensure Sleep is returned
                          }
                      }
-                     return Pair(computedRhr, mainSleep)
+                     return Triple(computedRhr, computedLastHr, computedLastTime)
                 }
 
                 var displayRhr: Int? = null
-                var displaySleep: com.cardio.fitbit.data.models.SleepData? = null
+                var displayLastHr: Int? = null
+                var displayLastTime: String? = null
                 
-                // 1. Try Today (Last Night)
+                // 1. Try Today
                 val today = java.util.Date()
                 val resultToday = tryFetch(today)
+                
                 displayRhr = resultToday.first
-                displaySleep = resultToday.second
+                displayLastHr = resultToday.second
+                displayLastTime = resultToday.third
                 
-                // 2. Fallback to Yesterday if RHR is missing AND Sleep missing?
-                // Actually if Today has sleep but NO rhr (failed calc), we might want to try Yesterday?
-                // But usually we prefer Today's sleep even if RHR failed.
-                // But user wants RHR.
-                // Let's say: If RHR is null, check Yesterday completely.
-                
-                if (displayRhr == null) {
+                // 2. Fallback to Yesterday if BOTH missing?
+                // Or if just one missing? Usually if no data today, check yesterday.
+                if (displayRhr == null && displayLastHr == null) {
                     val yesterday = DateUtils.getDaysAgo(1, today)
                     val resultYesterday = tryFetch(yesterday)
                     
-                    if (resultYesterday.first != null) {
-                        displayRhr = resultYesterday.first
-                        // Use yesterday's sleep if we are engaging fallback
-                         if (displaySleep == null) {
-                            displaySleep = resultYesterday.second
-                         }
+                    if (resultYesterday.first != null) displayRhr = resultYesterday.first
+                    if (resultYesterday.second != null) {
+                        displayLastHr = resultYesterday.second
+                        displayLastTime = resultYesterday.third
                     }
                 }
                 
+                // Update State
                 rhr.value = displayRhr
-
-                if (displaySleep != null) {
-                   val hours = displaySleep!!.duration / (1000 * 60 * 60)
-                   val mins = (displaySleep!!.duration / (1000 * 60)) % 60
-                   sleepDuration.value = "${hours}h${mins}m"
+                
+                if (displayLastHr != null) {
+                    // Update Last Sync / Sleep text area to be Last HR
+                    lastSync.value = "$displayLastTime" // We'll put time here
+                    sleepDuration.value = displayLastHr.toString() // Reuse variable or rename? Better reuse to avoid huge diffs, but better logic to rename.
+                    // Actually I will just put the Value in sleepDuration variable for now to minimize state refactor, 
+                    // realizing I should probably rename it in a real refactor but here we are patching.
+                    // Wait, let's just use the state variables as "Slot 1" and "Slot 2".
+                } else {
+                    sleepDuration.value = "--"
+                    lastSync.value = "..."
                 }
                 
-                val now = java.util.Date()
-                val timeFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                lastSync.value = timeFormat.format(now)
-                
              } catch (e: Exception) {
-                 lastSync.value = "Err: ${e.message?.take(5)}"
+                 lastSync.value = "Err"
                  e.printStackTrace()
              }
         }
@@ -212,16 +224,24 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
                  ) {
                      // RHR
                      MetricItem("RHR", rhr.value?.toString() ?: "--", "")
-                     Spacer(GlanceModifier.width(16.dp))
-                     // Sleep
-                     MetricItem("Sommeil", sleepDuration.value ?: "--", "")
+                     
+                     Spacer(GlanceModifier.width(24.dp))
+                     
+                     // Last HR
+                     MetricItem("Dernier", sleepDuration.value ?: "--", "")
                  }
                  
-                 // Tiny update time
+                 Spacer(GlanceModifier.size(4.dp))
+                 
+                 // Time centered below values
                  Text(
-                     text = "Maj: ${lastSync.value}", 
-                     style = TextStyle(fontSize = 10.sp, color = GlanceTheme.colors.onSurfaceVariant)
+                     text = lastSync.value,
+                     style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
                  )
+                 
+                 // Removed separate "Maj" text since it's now integrated in "Dernier" time or redundant.
+                 // Or we could keep "Maj" if we want to know when widget updated?
+                 // User asked "Dernier" value so simpler is better.
             }
         }
     }
@@ -233,22 +253,19 @@ class HealthWidget(private val repository: HealthRepository) : GlanceAppWidget()
                 text = label, 
                 style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
             )
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = value, 
-                    style = TextStyle(
-                        fontWeight = FontWeight.Bold, 
-                        fontSize = 24.sp, 
-                        color = GlanceTheme.colors.onSurface
-                    )
+            Text(
+                text = value, 
+                style = TextStyle(
+                    fontWeight = FontWeight.Bold, 
+                    fontSize = 24.sp, 
+                    color = GlanceTheme.colors.onSurface
                 )
-                if (unit.isNotEmpty()) {
-                    Spacer(GlanceModifier.width(2.dp))
-                     Text(
-                         text = unit, 
-                         style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
-                     )
-                }
+            )
+            if (unit.isNotEmpty()) {
+                 Text(
+                     text = unit, 
+                     style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
+                 )
             }
         }
     }

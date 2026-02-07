@@ -138,13 +138,14 @@ fun BackupScreen(
                             }
                         }
                         is BackupUiState.AuthRequired -> {
+                            val authState = uiState as BackupUiState.AuthRequired
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
-                                        text = "Permission Google Drive manquante ou expirée.",
+                                        text = if (authState.message.isNullOrBlank()) "Permission Google Drive manquante ou expirée." else "Erreur Drive: ${authState.message}",
                                         color = MaterialTheme.colorScheme.onErrorContainer,
                                         style = MaterialTheme.typography.bodyMedium
                                     )
@@ -287,6 +288,26 @@ fun BackupScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            val driveEnabled by viewModel.googleDriveBackupEnabled.collectAsState(initial = false)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Sauvegarde auto quotidienne", style = MaterialTheme.typography.titleMedium)
+                                    Text("Conserve les 3 dernières", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Switch(
+                                    checked = driveEnabled,
+                                    onCheckedChange = { viewModel.toggleAutoBackup(it) }
+                                )
+                            }
                         }
                     }
                     
@@ -333,7 +354,6 @@ fun BackupScreen(
                          ),
                          modifier = Modifier.fillMaxWidth()
                      ) {
-                         val driveEnabled by viewModel.googleDriveBackupEnabled.collectAsState(initial = false)
                          val backupUri by viewModel.backupUri.collectAsState(initial = null)
                          
                          val safLauncher = rememberLauncherForActivityResult(
@@ -349,23 +369,12 @@ fun BackupScreen(
                                  verticalAlignment = Alignment.CenterVertically
                              ) {
                                  Column(modifier = Modifier.weight(1f)) {
-                                     Text("Sauvegarde Locale Auto", style = MaterialTheme.typography.titleMedium)
-                                     Text("Dossier local spécifique", style = MaterialTheme.typography.bodySmall)
+                                     Text("Dossier de sauvegarde locale (Legacy)", style = MaterialTheme.typography.titleMedium)
+                                     Text(if (backupUri != null) "Défini" else "Non défini", style = MaterialTheme.typography.bodySmall)
                                  }
-                                 Switch(
-                                     checked = driveEnabled,
-                                     onCheckedChange = { 
-                                         if (it) {
-                                             if (backupUri != null) {
-                                                 viewModel.enableCloudBackup()
-                                             } else {
-                                                 safLauncher.launch(null)
-                                             }
-                                         } else {
-                                             viewModel.onCloudBackupToggled(false)
-                                         }
-                                     }
-                                 )
+                                 Button(onClick = { safLauncher.launch(null) }) {
+                                     Text("Changer")
+                                 }
                              }
                         }
                     }

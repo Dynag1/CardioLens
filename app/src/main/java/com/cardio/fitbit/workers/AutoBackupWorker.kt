@@ -62,19 +62,23 @@ class AutoBackupWorker @AssistedInject constructor(
                 }
                 
                 // --- Google Drive Backup ---
-                // Check if enabled
+                // Check if enabled (Using the preference we will expose in UI)
                 val driveEnabled = userPreferencesRepository.googleDriveBackupEnabled.firstOrNull() ?: false
                 
                 if (driveEnabled) {
-                     // Try upload
-                     val uploadResult = googleDriveRepository.uploadBackup(backupFile)
+                     // Try upload using Drive API (Root folder)
+                     val uploadResult = googleDriveRepository.uploadToDriveApi(backupFile)
+                     
                      if (uploadResult.isSuccess) {
-                         // Perform rotation on Drive (Keep 3)
-                         googleDriveRepository.cleanOldBackups(3)
+                         // Perform rotation on Drive (Keep 3 as requested)
+                         googleDriveRepository.cleanOldBackupsDriveApi(3)
                      } else {
-                         // We don't fail the whole worker if cloud backup fails, but maybe log it?
-                         // For now, silent fail is acceptable or use Result.retry() if critical.
-                         // Let's not retry indefinitely for network issues to save battery.
+                         // potential retry logic for network failure
+                         if (runAttemptCount < 3) {
+                             return Result.retry()
+                         }
+                         // otherwise fail silently or log
+                         android.util.Log.e("AutoBackupWorker", "Drive Upload Failed: ${uploadResult.exceptionOrNull()?.message}")
                      }
                 }
             }

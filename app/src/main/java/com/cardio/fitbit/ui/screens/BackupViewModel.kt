@@ -20,7 +20,7 @@ sealed class BackupUiState {
     object Loading : BackupUiState()
     object Success : BackupUiState()
     data class Error(val message: String) : BackupUiState()
-    object AuthRequired : BackupUiState()
+    data class AuthRequired(val message: String? = null) : BackupUiState()
     object MissingCredentials : BackupUiState()
 }
 
@@ -81,8 +81,10 @@ class BackupViewModel @Inject constructor(
                          googleDriveRepository.cleanOldBackupsDriveApi(3)
                      } else {
                          val errorMsg = uploadResult.exceptionOrNull()?.message ?: ""
-                         if (errorMsg.contains("401") || errorMsg.contains("403")) {
-                             _uiState.value = BackupUiState.AuthRequired
+                         if (errorMsg.contains("accessNotConfigured") || errorMsg.contains("SERVICE_DISABLED")) {
+                             _uiState.value = BackupUiState.Error("L'API Google Drive n'est pas activée.\nVeuillez l'activer dans la Google Cloud Console.")
+                         } else if (errorMsg.contains("401") || errorMsg.contains("403")) {
+                             _uiState.value = BackupUiState.AuthRequired(errorMsg)
                          } else {
                              _uiState.value = BackupUiState.Error("Upload Failed: $errorMsg")
                          }
@@ -92,10 +94,13 @@ class BackupViewModel @Inject constructor(
                  }
                  tempFile.delete()
             } catch (e: Exception) {
-                if (e.message?.contains("401") == true || e.message?.contains("403") == true) {
-                     _uiState.value = BackupUiState.AuthRequired
+                val msg = e.message ?: "Unknown error"
+                 if (msg.contains("accessNotConfigured") || msg.contains("SERVICE_DISABLED")) {
+                     _uiState.value = BackupUiState.Error("L'API Google Drive n'est pas activée.\nVeuillez l'activer dans la Google Cloud Console.")
+                 } else if (msg.contains("401") || msg.contains("403")) {
+                     _uiState.value = BackupUiState.AuthRequired(msg)
                 } else {
-                    _uiState.value = BackupUiState.Error("Drive Backup Error: ${e.message}")
+                    _uiState.value = BackupUiState.Error("Drive Backup Error: $msg")
                 }
             }
         }
@@ -116,10 +121,12 @@ class BackupViewModel @Inject constructor(
         null
     )
 
-    fun onCloudBackupToggled(enabled: Boolean) {
+    fun toggleAutoBackup(enabled: Boolean) {
         viewModelScope.launch {
-            if (!enabled) {
-                userPreferencesRepository.setGoogleDriveBackupEnabled(false)
+            userPreferencesRepository.setGoogleDriveBackupEnabled(enabled)
+            if (enabled) {
+                // Ensure worker is scheduled (redundant if already in App, but harmless)
+                // We rely on CardioApplication to have scheduled it.
             }
         }
     }
@@ -133,18 +140,11 @@ class BackupViewModel @Inject constructor(
                  context.contentResolver.takePersistableUriPermission(uri, flags)
                  
                  userPreferencesRepository.setBackupUri(uri.toString())
-                 userPreferencesRepository.setGoogleDriveBackupEnabled(true)
+                 // Decoupled SAF URI from Drive Auto Backup
              } catch (e: Exception) {
                  _uiState.value = BackupUiState.Error("Erreur permission dossier: ${e.message}")
              }
          }
-    }
-    
-    // Explicit enable if URI exists
-    fun enableCloudBackup() {
-        viewModelScope.launch {
-            userPreferencesRepository.setGoogleDriveBackupEnabled(true)
-        }
     }
 
     fun resetState() {
