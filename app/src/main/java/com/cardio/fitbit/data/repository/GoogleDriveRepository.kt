@@ -74,21 +74,31 @@ class GoogleDriveRepository @Inject constructor(
     suspend fun uploadToDriveApi(file: java.io.File): Result<Unit> {
         return try {
             val jsonType = "application/json".toMediaTypeOrNull()
-            // 1. Prepare Metadata
-            val metadataJson = "{\"name\": \"${file.name}\", \"mimeType\": \"application/json\", \"parents\": [\"appDataFolder\"]}"
-            val metadataPart = okhttp3.RequestBody.create(jsonType, metadataJson)
             
-            // 2. Prepare File Content
+            // 1. Create File Metadata (Empty content first)
+            val metadataJson = "{\"name\": \"${file.name}\", \"mimeType\": \"application/json\"}"
+            val metadataBody = okhttp3.RequestBody.create(jsonType, metadataJson)
+            
+            val createResponse = apiClient.googleDriveApi.createFileMetadata(metadataBody)
+            
+            if (!createResponse.isSuccessful || createResponse.body() == null) {
+                val errorBody = createResponse.errorBody()?.string() ?: "No details"
+                return Result.failure(Exception("Metadata create failed: ${createResponse.code()} \n$errorBody"))
+            }
+            
+            val fileId = createResponse.body()!!.id
+            
+            // 2. Upload Content via PATCH to upload endpoint
+            val uploadUrl = "https://www.googleapis.com/upload/drive/v3/files/$fileId?uploadType=media"
             val fileBody = okhttp3.RequestBody.create(jsonType, file)
-            val filePart = okhttp3.MultipartBody.Part.createFormData("file", file.name, fileBody)
             
-            // 3. Upload
-            val response = apiClient.googleDriveApi.uploadFile(metadataPart, filePart)
+            val uploadResponse = apiClient.googleDriveApi.uploadFileMedia(uploadUrl, fileBody)
             
-            if (response.isSuccessful) {
+            if (uploadResponse.isSuccessful) {
                 Result.success(Unit)
             } else {
-                Result.failure(Exception("Upload failed: ${response.code()} ${response.message()}"))
+                val errorBody = uploadResponse.errorBody()?.string() ?: "No details"
+                Result.failure(Exception("Content upload failed: ${uploadResponse.code()} \n$errorBody"))
             }
         } catch (e: Exception) {
              Result.failure(e)
@@ -98,21 +108,17 @@ class GoogleDriveRepository @Inject constructor(
     suspend fun listBackupsFromDriveApi(): Result<List<com.cardio.fitbit.data.api.DriveFile>> {
         return try {
             // Query: name contains 'CardioLens' and not trashed
-            // We look in 'appDataFolder' explicitly? Or just 'drive' space?
-            // "spaces" param in API defaults to 'drive'. If we use appDataFolder, we must specify spaces='appDataFolder'.
-            // For now let's try standard drive if we didn't use appDataFolder before.
-            // Actually, in upload I used "parents=['appDataFolder']". So I MUST search in spaces='appDataFolder'.
-            
+            // Removed spaces="appDataFolder" to search in standard Drive
             val query = "name contains 'CardioLens' and name contains '.json' and trashed = false"
             val response = apiClient.googleDriveApi.listFiles(
-                query = query,
-                spaces = "appDataFolder"
+                query = query
             )
             
             if (response.isSuccessful) {
                 Result.success(response.body()?.files ?: emptyList())
             } else {
-                 Result.failure(Exception("List failed: ${response.code()}"))
+                 val errorBody = response.errorBody()?.string() ?: "No details"
+                 Result.failure(Exception("List failed: ${response.code()} \n$errorBody"))
             }
         } catch (e: Exception) {
             Result.failure(e)

@@ -1,0 +1,4 @@
+- Added Automatic Daily Drive Backup for data security
+- Fixed "Parse Error" (400) during Google Drive upload
+- Improved Google Drive permission error handling
+- Fixed occasional Fitbit disconnection issues

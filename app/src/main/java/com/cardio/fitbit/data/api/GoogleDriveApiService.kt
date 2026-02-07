@@ -8,11 +8,15 @@ import retrofit2.http.*
 
 interface GoogleDriveApiService {
 
-    @Multipart
-    @POST("files?uploadType=multipart")
-    suspend fun uploadFile(
-        @Part("metadata") metadata: RequestBody,
-        @Part file: MultipartBody.Part
+    @POST("files")
+    suspend fun createFileMetadata(
+        @Body metadata: RequestBody
+    ): Response<DriveFile>
+
+    @PATCH
+    suspend fun uploadFileMedia(
+        @Url url: String,
+        @Body file: RequestBody
     ): Response<DriveFile>
 
     @GET("files")
