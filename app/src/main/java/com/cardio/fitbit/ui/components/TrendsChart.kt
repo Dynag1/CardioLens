@@ -44,12 +44,13 @@ fun TrendsChart(
                 description.isEnabled = false
                 setTouchEnabled(true)
                 isDragEnabled = true
-                setScaleEnabled(false)
-                setPinchZoom(false)
+                setScaleEnabled(true) 
+                setScaleYEnabled(false) // Only zoom X
+                setPinchZoom(true)
                 
                 drawOrder = arrayOf(
-                    CombinedChart.DrawOrder.LINE,
-                    CombinedChart.DrawOrder.BAR
+                    CombinedChart.DrawOrder.BAR,
+                    CombinedChart.DrawOrder.LINE
                 )
                 
                 // Legend
@@ -67,6 +68,11 @@ fun TrendsChart(
                 
                 axisLeft.setDrawGridLines(true)
                 axisRight.setDrawGridLines(false) // Right axis
+                
+                // Marker
+                val markerView = TrendMarkerView(context, com.cardio.fitbit.R.layout.marker_view, selectedMetrics)
+                markerView.chartView = this
+                marker = markerView
             }
         },
         update = { chart ->
@@ -75,14 +81,15 @@ fun TrendsChart(
                 return@AndroidView
             }
 
+            // Update Marker Metrics
+            (chart.marker as? TrendMarkerView)?.updateMetrics(selectedMetrics)
+
             val dateFormat = SimpleDateFormat("dd", Locale.getDefault())
             val dateLabels = data.map { dateFormat.format(it.date) }
             
             // X-Axis Labels
             chart.xAxis.valueFormatter = IndexAxisValueFormatter(dateLabels)
-            chart.xAxis.labelCount = data.size
-
-
+            chart.xAxis.labelCount = data.size.coerceAtMost(8) // Avoid overcrowding if zoomed out
 
             chart.xAxis.textColor = labelColor
             chart.axisLeft.textColor = labelColor
@@ -92,7 +99,6 @@ fun TrendsChart(
             chart.axisLeft.gridColor = gridColor
             chart.xAxis.gridColor = gridColor
 
-
             // Data Sets
             val combinedData = CombinedData()
             
@@ -100,10 +106,15 @@ fun TrendsChart(
             val lineData = LineData()
             var hasLeftAxisData = false
 
+            // Helper to attach data payload
+            fun createEntry(index: Int, value: Float, point: TrendPoint): Entry {
+                return Entry(index.toFloat(), value, point)
+            }
+
             // 1. Night RHR (Blue)
             if (selectedMetrics.contains(TrendMetric.NIGHT)) {
                 val nightEntries = data.mapIndexedNotNull { index, point ->
-                    point.rhrNight?.let { Entry(index.toFloat(), it.toFloat()) }
+                    point.rhrNight?.let { createEntry(index, it.toFloat(), point) }
                 }
                 if (nightEntries.isNotEmpty()) {
                     val nightSet = LineDataSet(nightEntries, "Nuit (Repos)").apply {
@@ -112,11 +123,10 @@ fun TrendsChart(
                         lineWidth = 2f
                         circleRadius = 4f
                         setDrawCircleHole(false)
-                        setDrawValues(true)
-                        valueTextSize = 10f
+                        setDrawValues(false) // Hide values on chart itself, rely on marker
                         mode = LineDataSet.Mode.CUBIC_BEZIER
                         axisDependency = YAxis.AxisDependency.LEFT
-                        valueTextColor = labelColor
+                        highLightColor = Color.YELLOW
                     }
                     lineData.addDataSet(nightSet)
                     hasLeftAxisData = true
@@ -126,7 +136,7 @@ fun TrendsChart(
             // 2. Day RHR (Orange)
             if (selectedMetrics.contains(TrendMetric.DAY)) {
                 val dayEntries = data.mapIndexedNotNull { index, point ->
-                    point.rhrDay?.let { Entry(index.toFloat(), it.toFloat()) }
+                    point.rhrDay?.let { createEntry(index, it.toFloat(), point) }
                 }
                 if (dayEntries.isNotEmpty()) {
                     val daySet = LineDataSet(dayEntries, "Jour (Repos)").apply {
@@ -135,11 +145,10 @@ fun TrendsChart(
                         lineWidth = 2f
                         circleRadius = 4f
                         setDrawCircleHole(false)
-                        setDrawValues(true)
-                        valueTextSize = 10f
+                        setDrawValues(false)
                         mode = LineDataSet.Mode.CUBIC_BEZIER
                         axisDependency = YAxis.AxisDependency.LEFT
-                        valueTextColor = labelColor
+                        highLightColor = Color.YELLOW
                     }
                     lineData.addDataSet(daySet)
                     hasLeftAxisData = true
@@ -149,7 +158,7 @@ fun TrendsChart(
             // 3. Avg RHR (Purple dashed)
             if (selectedMetrics.contains(TrendMetric.AVG)) {
                 val avgEntries = data.mapIndexedNotNull { index, point ->
-                    point.rhrAvg?.let { Entry(index.toFloat(), it.toFloat()) }
+                    point.rhrAvg?.let { createEntry(index, it.toFloat(), point) }
                 }
                 if (avgEntries.isNotEmpty()) {
                     val avgSet = LineDataSet(avgEntries, "Moyenne").apply {
@@ -159,11 +168,10 @@ fun TrendsChart(
                         circleRadius = 3f
                         enableDashedLine(10f, 5f, 0f)
                         setDrawCircleHole(false)
-                        setDrawValues(true)
-                        valueTextSize = 10f
+                        setDrawValues(false)
                         mode = LineDataSet.Mode.LINEAR
                         axisDependency = YAxis.AxisDependency.LEFT
-                        valueTextColor = labelColor
+                        highLightColor = Color.YELLOW
                     }
                     lineData.addDataSet(avgSet)
                     hasLeftAxisData = true
@@ -173,7 +181,7 @@ fun TrendsChart(
             // 4. HRV (Pink)
             if (selectedMetrics.contains(TrendMetric.HRV)) {
                 val hrvEntries = data.mapIndexedNotNull { index, point ->
-                    point.hrv?.let { Entry(index.toFloat(), it.toFloat()) }
+                    point.hrv?.let { createEntry(index, it.toFloat(), point) }
                 }
                 if (hrvEntries.isNotEmpty()) {
                     val hrvSet = LineDataSet(hrvEntries, "HRV (RMSSD)").apply {
@@ -182,11 +190,10 @@ fun TrendsChart(
                         lineWidth = 2f
                         circleRadius = 4f
                         setDrawCircleHole(false)
-                        setDrawValues(true)
-                        valueTextSize = 10f
+                        setDrawValues(false)
                         mode = LineDataSet.Mode.CUBIC_BEZIER
                         axisDependency = YAxis.AxisDependency.LEFT
-                        valueTextColor = labelColor
+                        highLightColor = Color.YELLOW
                     }
                     lineData.addDataSet(hrvSet)
                     hasLeftAxisData = true
@@ -205,13 +212,14 @@ fun TrendsChart(
             // 5. Steps (Green Bars)
             if (selectedMetrics.contains(TrendMetric.STEPS)) {
                 val stepsEntries = data.mapIndexedNotNull { index, point ->
-                    point.steps?.let { BarEntry(index.toFloat(), it.toFloat()) }
+                    point.steps?.let { BarEntry(index.toFloat(), it.toFloat(), point) }
                 }
                 if (stepsEntries.isNotEmpty()) {
                     val stepsSet = BarDataSet(stepsEntries, "Pas").apply {
-                        color = Color.parseColor("#6643A047") // Green with 60% transparency (40% opacity)
+                        color = Color.parseColor("#6643A047") // Green with transparency
                         setDrawValues(false)
                         axisDependency = YAxis.AxisDependency.RIGHT
+                        highLightColor = Color.YELLOW
                     }
                     barData.addDataSet(stepsSet)
                     hasRightAxisData = true
@@ -222,23 +230,15 @@ fun TrendsChart(
             if (selectedMetrics.contains(TrendMetric.WORKOUTS)) {
                 val workoutEntries = data.mapIndexedNotNull { index, point ->
                      point.workoutDurationMinutes?.let { 
-                         if (it > 0) BarEntry(index.toFloat(), it.toFloat() * 100f) else null  // Scale x100 to match Steps magnitude
+                         if (it > 0) BarEntry(index.toFloat(), it.toFloat() * 100f, point) else null // Scale x100
                      }
                 }
                 if (workoutEntries.isNotEmpty()) {
                     val workoutSet = BarDataSet(workoutEntries, "Entraînement (min)").apply {
                         color = Color.parseColor("#66D32F2F") // Transparent Red
-                        setDrawValues(true)
-                        valueTextSize = 10f
-                        valueTextColor = labelColor
-                        axisDependency = YAxis.AxisDependency.RIGHT // Move to Right Axis
-                        
-                        // Custom formatter to divide by 100 and append "min"
-                        valueFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
-                            override fun getFormattedValue(value: Float): String {
-                                return "${(value / 100).toInt()} min"
-                            }
-                        }
+                        setDrawValues(false) // Hide internal values, use marker
+                        axisDependency = YAxis.AxisDependency.RIGHT 
+                        highLightColor = Color.YELLOW
                     }
                     barData.addDataSet(workoutSet)
                     hasRightAxisData = true
@@ -277,7 +277,11 @@ fun TrendsChart(
                  // Ensure max is at least slightly above 0 to avoid range 0..0
                  chart.axisRight.axisMaximum = (max * 1.1f).coerceAtLeast(100f) 
             }
-
+            
+            // Reset zoom if logical change? Or keep it?
+            // chart.fitScreen() -- prefer letting user keep context if possible, but fitScreen ensures data visible if range changed significantly.
+            // chart.setVisibleXRangeMaximum(8f) // Optional: limit viewport to 8 days initially?
+            // Let's stick to simple invalidate for now.
             chart.invalidate()
         }
     )
