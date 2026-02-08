@@ -28,16 +28,16 @@ class NotificationHelper @Inject constructor(
     fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Alert Channel
-            val name = "Alertes Cardio"
-            val descriptionText = "Notifications pour fréquence cardiaque élevée ou basse"
+            val name = context.getString(R.string.channel_alerts_name)
+            val descriptionText = context.getString(R.string.channel_alerts_desc)
             val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
             }
             
             // Sync Channel (High Importance for Demo)
-            val syncName = "Synchronisation"
-            val syncDesc = "Notifications de synchronisation des données en arrière-plan"
+            val syncName = context.getString(R.string.channel_sync_name)
+            val syncDesc = context.getString(R.string.channel_sync_desc)
             val syncImportance = NotificationManager.IMPORTANCE_HIGH
             val syncChannel = NotificationChannel(SYNC_CHANNEL_ID, syncName, syncImportance).apply {
                 description = syncDesc
@@ -58,8 +58,8 @@ class NotificationHelper @Inject constructor(
 
         return NotificationCompat.Builder(context, SYNC_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
-            .setContentTitle("Synchronisation en cours")
-            .setContentText("Mise à jour de vos données santé...")
+            .setContentTitle(context.getString(R.string.notif_sync_title))
+            .setContentText(context.getString(R.string.notif_sync_text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -67,8 +67,8 @@ class NotificationHelper @Inject constructor(
     }
 
     fun showHeartRateAlert(bpm: Int, isHigh: Boolean, threshold: Int, time: String) {
-        val title = if (isHigh) "Fréquence Cardiaque Élevée !" else "Fréquence Cardiaque Basse !"
-        val message = "Votre rythme cardiaque est de $bpm BPM (Seuil: $threshold) à $time"
+        val title = if (isHigh) context.getString(R.string.notif_high_hr_title) else context.getString(R.string.notif_low_hr_title)
+        val message = context.getString(R.string.notif_hr_message, bpm, threshold, time)
         
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -97,7 +97,7 @@ class NotificationHelper @Inject constructor(
     }
 
     fun showWorkoutSummary(activityName: String, duration: String, distance: String, avgHr: Int, calories: Int) {
-        val title = "Entrainement terminé : $activityName"
+        val title = context.getString(R.string.notif_workout_title, activityName)
         val message = "$duration | $distance | $avgHr bpm | $calories kcal"
 
         val intent = Intent(context, MainActivity::class.java).apply {

@@ -260,26 +260,43 @@ fun BackupScreen(
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             
-                            // Backup Now Button
-                            Button(
-                                onClick = { viewModel.startDriveApiBackup() },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                            ) {
-                                Text("Sauvegarder sur Drive maintenant")
-                            }
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // Load/Restore Button
-                            OutlinedButton(
-                                onClick = { 
-                                    viewModel.loadDriveBackups()
-                                    showRestoreDialog = true
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Restaurer depuis Drive")
+                            val isDriveConnected by viewModel.isDriveConnected.collectAsState()
+
+                            if (!isDriveConnected) {
+                                Button(
+                                    onClick = {
+                                        val intent = viewModel.getSignInIntent()
+                                        signInLauncher.launch(intent)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Icon(Icons.Default.Cloud, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Se connecter à Google Drive")
+                                }
+                            } else {
+                                // Backup Now Button
+                                Button(
+                                    onClick = { viewModel.startDriveApiBackup() },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text("Sauvegarder sur Drive maintenant")
+                                }
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                // Load/Restore Button
+                                OutlinedButton(
+                                    onClick = { 
+                                        viewModel.loadDriveBackups()
+                                        showRestoreDialog = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Restaurer depuis Drive")
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))

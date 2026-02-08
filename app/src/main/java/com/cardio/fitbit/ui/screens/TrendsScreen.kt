@@ -159,90 +159,7 @@ fun TrendsScreen(
                             )
                         }
 
-                        // Insights / Correlations Section
-                        Text(
-                            text = "Insights & Corrélations",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        if (state.correlations.isNotEmpty()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                state.correlations.forEach { correlation ->
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (correlation.isPositive) 
-                                                Color(0xFFE8F5E9) // Light Green
-                                            else 
-                                                Color(0xFFFFEBEE) // Light Red
-                                        ),
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = if (correlation.isPositive) Icons.Default.CheckCircle else Icons.Default.Info,
-                                                contentDescription = null,
-                                                tint = if (correlation.isPositive) Color(0xFF4CAF50) else Color(0xFFE57373),
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                            Spacer(Modifier.width(16.dp))
-                                            Column {
-                                                Text(
-                                                    text = correlation.title,
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.Black // Ensure contrast on light pastel
-                                                )
-                                                Text(
-                                                    text = correlation.description,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = Color.DarkGray
-                                                )
-                                                Text(
-                                                    text = "Impact: ${correlation.impact}",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (correlation.isPositive) Color(0xFF2E7D32) else Color(0xFFC62828) // Darker Green/Red
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            // Empty State
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(Modifier.width(16.dp))
-                                    Text(
-                                        text = "Pas encore assez de données pour détecter des corrélations. Continuez à enregistrer votre humeur et vos symptômes !",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
+
 
                         // Mood History
                         if (state.data.any { it.moodRating != null }) {
@@ -346,6 +263,91 @@ fun TrendsScreen(
                                     selectedMetrics = selectedMetrics,
                                     modifier = Modifier.fillMaxSize()
                                 )
+                            }
+                        }
+
+                        // Insights / Correlations Section
+                        Text(
+                            text = "Insights & Corrélations",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        if (state.correlations.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                state.correlations.forEach { correlation ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (correlation.isPositive) 
+                                                Color(0xFFE8F5E9) // Light Green
+                                            else 
+                                                Color(0xFFFFEBEE) // Light Red
+                                        ),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = if (correlation.isPositive) Icons.Default.CheckCircle else Icons.Default.Info,
+                                                contentDescription = null,
+                                                tint = if (correlation.isPositive) Color(0xFF4CAF50) else Color(0xFFE57373),
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(Modifier.width(16.dp))
+                                            Column {
+                                                Text(
+                                                    text = correlation.title,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.Black // Ensure contrast on light pastel
+                                                )
+                                                Text(
+                                                    text = correlation.description,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = Color.DarkGray
+                                                )
+                                                Text(
+                                                    text = "Impact: ${correlation.impact}",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (correlation.isPositive) Color(0xFF2E7D32) else Color(0xFFC62828) // Darker Green/Red
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Empty State
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(Modifier.width(16.dp))
+                                    Text(
+                                        text = "Pas encore assez de données pour détecter des corrélations. Continuez à enregistrer votre humeur et vos symptômes !",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
 

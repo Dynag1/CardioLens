@@ -29,6 +29,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.cardio.fitbit.ui.MainActivity
+import com.cardio.fitbit.R
 
 class HealthWidget : GlanceAppWidget() {
 
@@ -86,12 +87,12 @@ class HealthWidget : GlanceAppWidget() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // RHR
-                    MetricItem("RHR", displayRhr, "")
+                    MetricItem(context.getString(R.string.widget_rhr), displayRhr, "")
 
                     Spacer(GlanceModifier.width(24.dp))
 
                     // Last HR
-                    MetricItem("Dernier", displayLastHr, "")
+                    MetricItem(context.getString(R.string.widget_last), displayLastHr, "")
                 }
 
                 Spacer(GlanceModifier.size(4.dp))

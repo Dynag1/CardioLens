@@ -113,4 +113,21 @@
     <string name="symptom_stress">Stress</string>
     <string name="symptom_headache">Maux de tête</string>
     <string name="symptom_nausea">Nausée</string>
+
+    <!-- Notifications & Widget -->
+    <string name="widget_last">Dernier</string>
+    <string name="widget_rhr">Repos</string>
+    <string name="widget_error">Err</string>
+    
+    <string name="channel_alerts_name">Alertes Cardio</string>
+    <string name="channel_alerts_desc">Notifications pour fréquence cardiaque élevée ou basse</string>
+    <string name="channel_sync_name">Synchronisation</string>
+    <string name="channel_sync_desc">Notifications de synchronisation des données en arrière-plan</string>
+    
+    <string name="notif_sync_title">Synchronisation en cours</string>
+    <string name="notif_sync_text">Mise à jour de vos données santé...</string>
+    <string name="notif_high_hr_title">Fréquence Cardiaque Élevée !</string>
+    <string name="notif_low_hr_title">Fréquence Cardiaque Basse !</string>
+    <string name="notif_hr_message">Votre rythme cardiaque est de %1$d BPM (Seuil: %2$d) à %3$s</string>
+    <string name="notif_workout_title">Entrainement terminé : %s</string>
 </resources>

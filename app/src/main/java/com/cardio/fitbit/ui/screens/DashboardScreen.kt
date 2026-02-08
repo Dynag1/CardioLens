@@ -41,6 +41,7 @@ fun DashboardScreen(
     onLogout: () -> Unit,
     onNavigateToTrends: () -> Unit,
     onNavigateToBackup: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
     onNavigateToSleep: (java.util.Date) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -285,6 +286,16 @@ fun DashboardScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         onNavigateToTrends()
+                    }
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.DateRange, contentDescription = null) },
+                    label = { Text("Calendrier") }, // Strings resource would be better but hardcoding for speed
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToCalendar()
                     }
                 )
 
