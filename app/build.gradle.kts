@@ -14,8 +14,8 @@ android {
         applicationId = "com.cardio.fitbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 54
-        versionName = "1.2.24"
+        versionCode = 55
+        versionName = "1.2.25"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -43,8 +43,8 @@ android {
             if (keyFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
