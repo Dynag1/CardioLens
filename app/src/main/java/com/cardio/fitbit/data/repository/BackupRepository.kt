@@ -57,15 +57,36 @@ class BackupRepository @Inject constructor(
 
             database.withTransaction {
                 // Upsert strategy (Insert with REPLACE)
-                if (backupData.intradayData.isNotEmpty()) database.intradayDataDao().insertAll(backupData.intradayData)
-                if (backupData.sleepData.isNotEmpty()) database.sleepDataDao().insertAll(backupData.sleepData)
-                if (backupData.activityData.isNotEmpty()) database.activityDataDao().insertAll(backupData.activityData)
-                if (backupData.hrvData.isNotEmpty()) database.hrvDataDao().insertAll(backupData.hrvData)
-                if (backupData.heartRateData.isNotEmpty()) database.heartRateDao().insertAll(backupData.heartRateData)
-                if (backupData.stepsData.isNotEmpty()) database.stepsDao().insertAll(backupData.stepsData)
-                if (backupData.moodEntries.isNotEmpty()) database.moodDao().insertAll(backupData.moodEntries)
-                if (backupData.spo2Data.isNotEmpty()) database.spo2Dao().insertAll(backupData.spo2Data)
-                if (backupData.symptomEntries.isNotEmpty()) database.symptomDao().insertAll(backupData.symptomEntries)
+                // Batch processing to avoid SQlite limits and OOM
+                val BATCH_SIZE = 500
+
+                backupData.intradayData.chunked(BATCH_SIZE).forEach { batch ->
+                    database.intradayDataDao().insertAll(batch)
+                }
+                backupData.sleepData.chunked(BATCH_SIZE).forEach { batch ->
+                    database.sleepDataDao().insertAll(batch)
+                }
+                backupData.activityData.chunked(BATCH_SIZE).forEach { batch ->
+                    database.activityDataDao().insertAll(batch)
+                }
+                backupData.hrvData.chunked(BATCH_SIZE).forEach { batch ->
+                    database.hrvDataDao().insertAll(batch)
+                }
+                backupData.heartRateData.chunked(BATCH_SIZE).forEach { batch ->
+                    database.heartRateDao().insertAll(batch)
+                }
+                backupData.stepsData.chunked(BATCH_SIZE).forEach { batch ->
+                    database.stepsDao().insertAll(batch)
+                }
+                backupData.moodEntries.chunked(BATCH_SIZE).forEach { batch ->
+                    database.moodDao().insertAll(batch)
+                }
+                backupData.spo2Data.chunked(BATCH_SIZE).forEach { batch ->
+                    database.spo2Dao().insertAll(batch)
+                }
+                backupData.symptomEntries.chunked(BATCH_SIZE).forEach { batch ->
+                    database.symptomDao().insertAll(batch)
+                }
             }
             
             // Restore Preferences

@@ -254,8 +254,9 @@ class BackupViewModel @Inject constructor(
                      _uiState.value = BackupUiState.Error("Download Failed")
                 }
                 tempFile.delete()
-            } catch (e: Exception) {
-                 _uiState.value = BackupUiState.Error("Restore Error: ${e.message}")
+            } catch (e: Throwable) {
+                 e.printStackTrace()
+                 _uiState.value = BackupUiState.Error("Restore Error: ${e.message ?: "Unknown crash"}")
             }
         }
     }
