@@ -15,6 +15,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 import androidx.room.withTransaction
+import com.cardio.fitbit.data.local.entities.*
+import com.google.gson.stream.JsonReader
+import java.io.InputStreamReader
 
 @Singleton
 class BackupRepository @Inject constructor(
@@ -51,52 +54,67 @@ class BackupRepository @Inject constructor(
 
     suspend fun importData(inputStream: InputStream): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val backupData = InputStreamReader(inputStream).use { reader ->
-                gson.fromJson(reader, BackupData::class.java)
-            }
-
+            // Use Room transaction for atomicity (optional, but good for restore)
+            // Note: For very large files, a single transaction might be too heavy?
+            // SQLite is usually fine with large transactions if we just insert.
             database.withTransaction {
-                // Upsert strategy (Insert with REPLACE)
-                // Batch processing to avoid SQlite limits and OOM
-                val BATCH_SIZE = 500
+                val reader = com.google.gson.stream.JsonReader(InputStreamReader(inputStream, "UTF-8"))
+                reader.beginObject() // Start of BackupData object
 
-                backupData.intradayData.chunked(BATCH_SIZE).forEach { batch ->
-                    database.intradayDataDao().insertAll(batch)
+                while (reader.hasNext()) {
+                    val name = reader.nextName()
+                    when (name) {
+                        "dateOfBirth" -> {
+                             val dob = reader.nextLong()
+                             userPreferencesRepository.setDateOfBirth(dob)
+                        }
+                        "intradayData" -> parseAndInsertBatch(reader, IntradayDataEntity::class.java) { database.intradayDataDao().insertAll(it) }
+                        "sleepData" -> parseAndInsertBatch(reader, SleepDataEntity::class.java) { database.sleepDataDao().insertAll(it) }
+                        "activityData" -> parseAndInsertBatch(reader, ActivityDataEntity::class.java) { database.activityDataDao().insertAll(it) }
+                        "hrvData" -> parseAndInsertBatch(reader, HrvDataEntity::class.java) { database.hrvDataDao().insertAll(it) }
+                        "heartRateData" -> parseAndInsertBatch(reader, HeartRateDataEntity::class.java) { database.heartRateDao().insertAll(it) }
+                        "stepsData" -> parseAndInsertBatch(reader, StepsDataEntity::class.java) { database.stepsDao().insertAll(it) }
+                        "moodEntries" -> parseAndInsertBatch(reader, MoodEntry::class.java) { database.moodDao().insertAll(it) }
+                        "spo2Data" -> parseAndInsertBatch(reader, SpO2DataEntity::class.java) { database.spo2Dao().insertAll(it) }
+                        "symptomEntries" -> parseAndInsertBatch(reader, SymptomEntry::class.java) { database.symptomDao().insertAll(it) }
+                        else -> reader.skipValue() // Skip version, timestamp, etc.
+                    }
                 }
-                backupData.sleepData.chunked(BATCH_SIZE).forEach { batch ->
-                    database.sleepDataDao().insertAll(batch)
-                }
-                backupData.activityData.chunked(BATCH_SIZE).forEach { batch ->
-                    database.activityDataDao().insertAll(batch)
-                }
-                backupData.hrvData.chunked(BATCH_SIZE).forEach { batch ->
-                    database.hrvDataDao().insertAll(batch)
-                }
-                backupData.heartRateData.chunked(BATCH_SIZE).forEach { batch ->
-                    database.heartRateDao().insertAll(batch)
-                }
-                backupData.stepsData.chunked(BATCH_SIZE).forEach { batch ->
-                    database.stepsDao().insertAll(batch)
-                }
-                backupData.moodEntries.chunked(BATCH_SIZE).forEach { batch ->
-                    database.moodDao().insertAll(batch)
-                }
-                backupData.spo2Data.chunked(BATCH_SIZE).forEach { batch ->
-                    database.spo2Dao().insertAll(batch)
-                }
-                backupData.symptomEntries.chunked(BATCH_SIZE).forEach { batch ->
-                    database.symptomDao().insertAll(batch)
-                }
-            }
-            
-            // Restore Preferences
-            backupData.dateOfBirth?.let { dob ->
-                userPreferencesRepository.setDateOfBirth(dob)
+                reader.endObject()
+                reader.close()
             }
 
             Result.success(Unit)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            e.printStackTrace()
             Result.failure(e)
         }
+    }
+
+    private suspend fun <T> parseAndInsertBatch(
+        reader: com.google.gson.stream.JsonReader,
+        clazz: Class<T>,
+        insertFn: suspend (List<T>) -> Unit
+    ) {
+        val batchSize = 500
+        val batch = ArrayList<T>(batchSize)
+        
+        reader.beginArray()
+        while (reader.hasNext()) {
+            val item = gson.fromJson<T>(reader, clazz)
+            if (item != null) {
+                batch.add(item)
+            }
+            
+            if (batch.size >= batchSize) {
+                insertFn(batch)
+                batch.clear()
+            }
+        }
+        // Insert remaining
+        if (batch.isNotEmpty()) {
+            insertFn(batch)
+        }
+        reader.endArray()
     }
 }
