@@ -17,7 +17,6 @@ import javax.inject.Singleton
 import androidx.room.withTransaction
 import com.cardio.fitbit.data.local.entities.*
 import com.google.gson.stream.JsonReader
-import java.io.InputStreamReader
 
 @Singleton
 class BackupRepository @Inject constructor(
