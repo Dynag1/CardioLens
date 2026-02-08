@@ -46,14 +46,19 @@ class BackupViewModel @Inject constructor(
                  loadDriveBackups()
                  _uiState.value = BackupUiState.Success
             } else {
-                 _uiState.value = BackupUiState.Error("Connexion échouée: ${result.exceptionOrNull()?.message}")
+                 val errorMsg = result.exceptionOrNull()?.message ?: ""
+                 if (errorMsg.contains("10:") || errorMsg.contains("Status{statusCode=DEVELOPER_ERROR")) {
+                     _uiState.value = BackupUiState.Error("Erreur 10 : Configuration incorrecte.\n\nVeuillez ajouter le SHA-1 de votre clé de signature Play Store dans la console Google Cloud (Credentials > Android Client ID).")
+                 } else {
+                     _uiState.value = BackupUiState.Error("Connexion échouée: $errorMsg")
+                 }
             }
         }
     }
     
     // Deprecated but kept to avoid instant compilation error if UI not updated recursively yet, 
     // although we will update UI immediately.
-    fun triggerReAuth(context: android.content.Context) {
+    fun triggerReAuth(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
         // No-op, UI handles it via Intent
     }
 

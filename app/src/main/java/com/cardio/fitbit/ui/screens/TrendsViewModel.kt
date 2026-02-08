@@ -170,9 +170,16 @@ class TrendsViewModel @Inject constructor(
                         repairCandidates.add(targetDate)
                     }
 
-                    val dailyStepsSummary = stepsMap[dateStr]?.steps ?: 0
-                    val intradayStepsSum = dailyIntraday.sumOf { it.steps }
-                    val dailySteps = kotlin.math.max(dailyStepsSummary, intradayStepsSum).takeIf { it > 0 }
+                    // Step Calculation Logic: Prioritize Activity Summary (Dashboard Source)
+                    val stepsFromActivity = dailyActivity?.summary?.steps ?: 0
+                    val stepsFromTimeSeries = stepsMap[dateStr]?.steps ?: 0
+                    val stepsFromIntraday = dailyIntraday.sumOf { it.steps }
+                    
+                    val dailySteps = when {
+                        stepsFromActivity > 0 -> stepsFromActivity
+                        stepsFromTimeSeries > 0 -> stepsFromTimeSeries
+                        else -> stepsFromIntraday
+                    }.takeIf { it > 0 }
                     val dailySymptoms = symptomsMap[dateStr]?.symptoms
 
                     // Calculate Workout Duration
@@ -263,7 +270,6 @@ class TrendsViewModel @Inject constructor(
             
             val diff = avgSleepSick - avgSleepHealthy
             if (kotlin.math.abs(diff) > 20) { // Relaxed from 30 to 20 mins
-                 val positive = diff > 0 
                  val diffMins = kotlin.math.abs(diff.toInt())
                  
                  results.add(CorrelationResult(
