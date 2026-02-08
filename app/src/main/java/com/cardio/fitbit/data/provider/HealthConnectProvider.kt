@@ -488,20 +488,23 @@ class HealthConnectProvider @Inject constructor(
                 )
             )
 
-            // Removed early return if records.isEmpty()
-            // We want to calculate daily summary (Steps, Calories) even if no specific "Exercise Session" exists.
-
-            val activities = response.records.map { record ->
+            // Maps records to Activity objects
+            val rawActivities = response.records.map { record ->
                 val durationMs = record.endTime.toEpochMilli() - record.startTime.toEpochMilli()
                 
-                // Aggregate calories for this specific session time range
+                // Aggregate metrics for this specific session
                 var calories = 0.0
+                var steps = 0
+                var distance = 0.0
+
                 try {
                      val aggregateResponse = healthConnectClient.aggregate(
                         androidx.health.connect.client.request.AggregateRequest(
                             metrics = setOf(
                                 ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL,
-                                TotalCaloriesBurnedRecord.ENERGY_TOTAL
+                                TotalCaloriesBurnedRecord.ENERGY_TOTAL,
+                                StepsRecord.COUNT_TOTAL,
+                                DistanceRecord.DISTANCE_TOTAL
                             ),
                             timeRangeFilter = TimeRangeFilter.between(
                                 record.startTime,
@@ -511,17 +514,14 @@ class HealthConnectProvider @Inject constructor(
                     )
                     val active = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
                     val total = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
-                    
-
-                    
-                    // Prefer Active, fallback to Total if Active is 0 (some devices only write Total)
                     calories = if (active > 0.1) active else total
-                    
-                } catch (e: Exception) {
 
+                    steps = aggregateResponse[StepsRecord.COUNT_TOTAL]?.toInt() ?: 0
+                    distance = aggregateResponse[DistanceRecord.DISTANCE_TOTAL]?.inKilometers ?: 0.0
+                } catch (e: Exception) {
+                    // Ignore aggregation errors
                 }
 
-                // Get title or default
                 val title = record.title ?: when(record.exerciseType) {
                     ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "Marche" 
                     ExerciseSessionRecord.EXERCISE_TYPE_RUNNING -> "Course"
@@ -535,18 +535,44 @@ class HealthConnectProvider @Inject constructor(
                     startTime = Date.from(record.startTime),
                     duration = durationMs,
                     calories = calories.toInt(),
-                    distance = null, // Could fetch if linked, but complex for now
-                    steps = null,
-                    averageHeartRate = null // Could fetch derived data later
+                    distance = if (distance > 0.001) distance else null,
+                    steps = if (steps > 0) steps else null,
+                    averageHeartRate = null 
                 )
             }
 
-            // Calculate Summary from Sessions
-            val totalCaloriesFromSessions = activities.sumOf { it.calories }
-            val totalActiveMinutes = activities.sumOf { (it.duration / 60000).toInt() }
+            // --- Deduplication Logic ---
+            // Group by approximate start time or handle overlaps
+            val uniqueActivities = mutableListOf<Activity>()
+            val sortedActivities = rawActivities.sortedBy { it.startTime }
 
-            // NEW: Fetch Total Steps & Calories for the ENTIRE DAY to populate summary
-            // This is independent of having specific Exercise Sessions
+            for (activity in sortedActivities) {
+                // Check if this activity significantly overlaps with an existing one
+                val duplicateIndex = uniqueActivities.indexOfFirst { existing ->
+                    val overlap = calculateOverlap(existing, activity)
+                    val minDuration = kotlin.math.min(existing.duration, activity.duration)
+                    // If overlap is > 70% of the shorter duration, allow it to replace or ignore
+                    overlap > (minDuration * 0.7)
+                }
+
+                if (duplicateIndex != -1) {
+                    val existing = uniqueActivities[duplicateIndex]
+                    // Keep the "better" one (e.g. has steps/distance or manually titled)
+                    if (isBetterActivity(activity, existing)) {
+                        uniqueActivities[duplicateIndex] = activity
+                    }
+                    // Else ignore 'activity'
+                } else {
+                    uniqueActivities.add(activity)
+                }
+            }
+
+
+            // Calculate Summary from Sessions
+            val totalCaloriesFromSessions = uniqueActivities.sumOf { it.calories }
+            val totalActiveMinutes = uniqueActivities.sumOf { (it.duration / 60000).toInt() }
+
+            // Fetch Total Daily Stats
             var totalDailySteps = 0L
             var totalDailyCalories = 0.0
             
@@ -569,9 +595,6 @@ class HealthConnectProvider @Inject constructor(
                 val activeCals = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
                 totalDailyCalories = if (totalCals > 0) totalCals else activeCals
                 
-
-                
-                // Fallback for Steps if aggregation returns 0
                 if (totalDailySteps == 0L) {
                      val fallbackResponse = healthConnectClient.readRecords(
                         ReadRecordsRequest(
@@ -583,19 +606,17 @@ class HealthConnectProvider @Inject constructor(
                         )
                     )
                     totalDailySteps = fallbackResponse.records.sumOf { it.count }
-
                 }
             } catch (e: Exception) {
-
+               // Ignore
             }
             
-            // If totalDailyCalories is still 0 (agg failed), fallback to sum of sessions or 0
             if (totalDailyCalories <= 0.1) totalDailyCalories = totalCaloriesFromSessions.toDouble()
 
             return Result.success(
                 ActivityData(
                     date = date,
-                    activities = activities,
+                    activities = uniqueActivities,
                     summary = ActivitySummary(
                         steps = totalDailySteps.toInt(),
                         distance = 0.0,
@@ -611,11 +632,42 @@ class HealthConnectProvider @Inject constructor(
         }
     }
 
+    private fun calculateOverlap(a1: Activity, a2: Activity): Long {
+        val start1 = a1.startTime.time
+        val end1 = start1 + a1.duration
+        val start2 = a2.startTime.time
+        val end2 = start2 + a2.duration
+
+        val overlapStart = kotlin.math.max(start1, start2)
+        val overlapEnd = kotlin.math.min(end1, end2)
+
+        return kotlin.math.max(0, overlapEnd - overlapStart)
+    }
+
+    private fun isBetterActivity(new: Activity, existing: Activity): Boolean {
+        // Preference: Has Distance > Has Steps > Has Calories > Longer Duration
+        val newScore = (if (new.distance != null) 4 else 0) + 
+                       (if (new.steps != null) 2 else 0) + 
+                       (if (new.calories > 0) 1 else 0)
+        
+        val existingScore = (if (existing.distance != null) 4 else 0) + 
+                            (if (existing.steps != null) 2 else 0) + 
+                            (if (existing.calories > 0) 1 else 0)
+
+        if (newScore > existingScore) return true
+        if (newScore < existingScore) return false
+        
+        // Tie-breaker: Name (if not generic)
+        if (new.activityName != "Exercice" && existing.activityName == "Exercice") return true
+        
+        // Tie-breaker: Duration
+        return new.duration > existing.duration
+    }
+
     override suspend fun getActivityHistory(startDate: Date, endDate: Date): Result<List<ActivityData>> {
         return Result.success(emptyList())
     }
 
-    override suspend fun getUserProfile(): Result<UserProfile> {
         return Result.success(
             UserProfile(
                 userId = "health_connect_user",
