@@ -117,7 +117,7 @@
     <string name="feature_charts">Interactive charts and statistics</string>
 
     <!-- Symptoms -->
-    <string name="label_symptoms">Day Symptoms</string>
+    <string name="label_symptoms">Today\'s Symptoms</string>
     <string name="btn_add_note">Add</string>
     <string name="dialog_symptom_title">How do you feel?</string>
     <string name="dialog_symptom_subtitle">Select symptoms or add a note.</string>
@@ -131,4 +131,22 @@
     <string name="symptom_stress">Stress</string>
     <string name="symptom_headache">Headache</string>
     <string name="symptom_nausea">Nausea</string>
+
+    <!-- Notifications & Widget -->
+    <string name="widget_last">Last</string>
+    <string name="widget_rhr">RHR</string>
+    <string name="widget_error">Err</string>
+    
+    <string name="channel_alerts_name">Cardio Alerts</string>
+    <string name="channel_alerts_desc">Notifications for high or low heart rate</string>
+    <string name="channel_sync_name">Synchronization</string>
+    <string name="channel_sync_desc">Background data synchronization notifications</string>
+    
+    <string name="notif_sync_title">Sync in progress</string>
+    <string name="notif_sync_text">Updating your health data...</string>
+    <string name="notif_high_hr_title">High Heart Rate!</string>
+    <string name="notif_low_hr_title">Low Heart Rate!</string>
+    <!-- Parameters: 1=BPM, 2=Threshold, 3=Time -->
+    <string name="notif_hr_message">Your heart rate is %1$d BPM (Threshold: %2$d) at %3$s</string>
+    <string name="notif_workout_title">Workout finished: %s</string>
 </resources>

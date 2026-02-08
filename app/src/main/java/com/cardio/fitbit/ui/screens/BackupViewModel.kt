@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
@@ -110,6 +111,15 @@ class BackupViewModel @Inject constructor(
             }
         }
     }
+
+
+    val isDriveConnected: StateFlow<Boolean> = googleFitAuthManager.authState
+        .map { it is com.cardio.fitbit.auth.AuthState.Authenticated }
+        .stateIn(
+            scope = viewModelScope,
+            started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
     private val _uiState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
     val uiState: StateFlow<BackupUiState> = _uiState.asStateFlow()

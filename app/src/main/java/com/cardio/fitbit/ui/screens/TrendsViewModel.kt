@@ -329,7 +329,7 @@ class TrendsViewModel @Inject constructor(
     suspend fun generatePdf(context: android.content.Context): java.io.File? = withContext(Dispatchers.IO) {
         val state = uiState.value
         if (state is TrendsUiState.Success) {
-            return@withContext com.cardio.fitbit.utils.ReportGenerator.generateReport(context, state.data, state.selectedDays)
+            return@withContext com.cardio.fitbit.utils.ReportGenerator.generateReport(context, state.data, state.selectedDays, state.correlations)
         }
         null
     }

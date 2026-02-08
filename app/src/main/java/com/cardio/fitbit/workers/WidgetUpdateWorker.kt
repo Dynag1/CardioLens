@@ -8,6 +8,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.cardio.fitbit.data.repository.HealthRepository
+import com.cardio.fitbit.R
 import com.cardio.fitbit.ui.widget.HealthWidget
 import com.cardio.fitbit.utils.DateUtils
 import com.cardio.fitbit.utils.HeartRateAnalysisUtils
@@ -67,7 +68,7 @@ class WidgetUpdateWorker @AssistedInject constructor(
                 val glanceIds = manager.getGlanceIds(HealthWidget::class.java)
                 glanceIds.forEach { glanceId ->
                     updateAppWidgetState(applicationContext, glanceId) { prefs ->
-                        prefs[HealthWidget.KEY_LAST_SYNC_STATUS] = "Err"
+                        prefs[HealthWidget.KEY_LAST_SYNC_STATUS] = applicationContext.getString(R.string.widget_error)
                     }
                 }
                 HealthWidget().updateAll(applicationContext)

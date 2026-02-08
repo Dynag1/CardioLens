@@ -25,6 +25,7 @@ sealed class Screen(val route: String) {
     object ProviderSelection : Screen("provider_selection")
     object Backup : Screen("backup")
     object Sleep : Screen("sleep")
+    object Calendar : Screen("calendar")
 }
 
 @Composable
@@ -139,6 +140,9 @@ fun AppNavigation() {
                 onNavigateToBackup = {
                     navController.navigate(Screen.Backup.route)
                 },
+                onNavigateToCalendar = {
+                    navController.navigate(Screen.Calendar.route)
+                },
                 onNavigateToSleep = { date ->
                     val timestamp = date.time
                     navController.navigate("${Screen.Sleep.route}?date=$timestamp")
@@ -153,6 +157,17 @@ fun AppNavigation() {
                 },
                 onNavigateToDashboard = { date ->
                     navController.navigate("${Screen.Dashboard.route}?date=${date.time}") {
+                        popUpTo(Screen.Dashboard.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Calendar.route) {
+            com.cardio.fitbit.ui.screens.CalendarScreen(
+                onNavigateToDashboard = { date ->
+                    navController.navigate("${Screen.Dashboard.route}?date=${date.time}") {
+                        // Pop up to Dashboard to avoid back stack loop
                         popUpTo(Screen.Dashboard.route) { inclusive = true }
                     }
                 }
