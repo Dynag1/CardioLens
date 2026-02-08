@@ -668,6 +668,7 @@ class HealthConnectProvider @Inject constructor(
         return Result.success(emptyList())
     }
 
+    override suspend fun getUserProfile(): Result<UserProfile> {
         return Result.success(
             UserProfile(
                 userId = "health_connect_user",
