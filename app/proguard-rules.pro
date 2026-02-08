@@ -33,7 +33,22 @@
 -dontwarn java.lang.invoke.MethodHandle
 -dontwarn java.lang.invoke.MethodHandles$Lookup
 
-# Keep Hilt/Dagger
 -keep class dagger.hilt.** { *; }
 -keep interface dagger.hilt.** { *; }
 -dontwarn dagger.hilt.android.internal.**
+
+# Room
+-keep class androidx.room.RoomDatabase { *; }
+-keep class androidx.room.RoomDatabase$** { *; }
+-dontwarn androidx.room.paging.**
+
+# WorkManager
+-keep class androidx.work.** { *; }
+-keep class androidx.work.impl.** { *; }
+
+# Coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembers class kotlinx.coroutines.android.AndroidExceptionPreHandler {
+    <init>();
+}
