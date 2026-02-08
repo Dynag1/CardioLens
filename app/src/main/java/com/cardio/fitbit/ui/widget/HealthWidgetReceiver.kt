@@ -10,11 +10,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class HealthWidgetReceiver : GlanceAppWidgetReceiver() {
 
-    @Inject
-    lateinit var repository: HealthRepository
-
     override val glanceAppWidget: GlanceAppWidget
-        get() = HealthWidget(repository)
+        get() = HealthWidget()
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)

@@ -60,6 +60,7 @@ fun DashboardScreen(
     val spo2Data by viewModel.spo2Data.collectAsState()
     val spo2History by viewModel.spo2History.collectAsState()
     val dailySymptoms by viewModel.dailySymptoms.collectAsState()
+    val comparisonStats by viewModel.comparisonStats.collectAsState()
 
     // Handle Deep Linking / Navigation with Date
     LaunchedEffect(initialDate) {
@@ -480,13 +481,67 @@ fun DashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         
-                        // Mood Selector
-                        item {
-                            val currentMood by viewModel.dailyMood.collectAsState()
-                            MoodSelector(
-                                currentRating = currentMood,
-                                onRatingSelected = { rating -> viewModel.saveMood(rating) }
-                            )
+                        // Comparison Section (Trends vs 7-Day Average)
+                        if (comparisonStats != null) {
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
+                                    ),
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.1f))
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(
+                                            text = "Comparaison (Moy. 7 jours)",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(bottom = 12.dp)
+                                        )
+                                        
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceAround
+                                        ) {
+
+
+                                            ComparisonItem(
+                                                label = "HRV",
+                                                currentValue = hrvAverage,
+                                                averageValue = comparisonStats?.hrvAvg,
+                                                unit = "ms",
+                                                reverseColor = false
+                                            )
+                                            
+                                            ComparisonItem(
+                                                label = "Repos Nuit",
+                                                currentValue = rhrNight,
+                                                averageValue = comparisonStats?.rhrNightAvg,
+                                                unit = "bpm",
+                                                reverseColor = true
+                                            )
+                                            
+                                            ComparisonItem(
+                                                label = "Repos Jour",
+                                                currentValue = rhrDay,
+                                                averageValue = comparisonStats?.rhrDayAvg,
+                                                unit = "bpm",
+                                                reverseColor = true
+                                            )
+
+                                            val totalSteps = activityData?.summary?.steps
+                                            ComparisonItem(
+                                                label = "Pas",
+                                                currentValue = totalSteps,
+                                                averageValue = comparisonStats?.stepsAvg,
+                                                unit = "",
+                                                reverseColor = false
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // Chart Section
@@ -637,6 +692,15 @@ fun DashboardScreen(
                             }
                         }
 
+                        // Mood Selector
+                        item {
+                            val currentMood by viewModel.dailyMood.collectAsState()
+                            MoodSelector(
+                                currentRating = currentMood,
+                                onRatingSelected = { rating -> viewModel.saveMood(rating) }
+                            )
+                        }
+
                         // Symptom Section
                         item {
                             Card(
@@ -741,6 +805,49 @@ fun DashboardScreen(
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ComparisonItem(
+    label: String,
+    currentValue: Int?,
+    averageValue: Int?,
+    unit: String,
+    reverseColor: Boolean = false // false: High=Green (HRV), true: Low=Green (RHR)
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = currentValue?.toString() ?: "--",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+
+        if (currentValue != null && averageValue != null) {
+            val diff = currentValue - averageValue
+            val sign = if (diff > 0) "+" else ""
+            val isGood = if (reverseColor) diff <= 0 else diff >= 0
+            val color = if (isGood) Color(0xFF4CAF50) else Color(0xFFE57373)
+
+            Text(
+                text = "$sign$diff $unit",
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+                fontWeight = FontWeight.Bold
+            )
+        } else {
+            Text(
+                text = "--",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Transparent
+            )
         }
     }
 }

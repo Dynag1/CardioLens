@@ -170,7 +170,9 @@ class TrendsViewModel @Inject constructor(
                         repairCandidates.add(targetDate)
                     }
 
-                    val dailySteps = stepsMap[dateStr]?.steps
+                    val dailyStepsSummary = stepsMap[dateStr]?.steps ?: 0
+                    val intradayStepsSum = dailyIntraday.sumOf { it.steps }
+                    val dailySteps = kotlin.math.max(dailyStepsSummary, intradayStepsSum).takeIf { it > 0 }
                     val dailySymptoms = symptomsMap[dateStr]?.symptoms
 
                     // Calculate Workout Duration

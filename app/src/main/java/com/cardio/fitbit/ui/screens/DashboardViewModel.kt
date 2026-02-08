@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import javax.inject.Inject
 
 @HiltViewModel
@@ -59,6 +60,17 @@ class DashboardViewModel @Inject constructor(
     
     private val _dailySymptoms = MutableStateFlow<String?>(null)
     val dailySymptoms: StateFlow<String?> = _dailySymptoms.asStateFlow()
+
+    // Comparison Stats (Today vs 7-Day Avg)
+    data class ComparisonStats(
+        val hrvAvg: Int?,
+        val rhrNightAvg: Int?,
+        val rhrDayAvg: Int?,
+        val stepsAvg: Int?
+    )
+
+    private val _comparisonStats = MutableStateFlow<ComparisonStats?>(null)
+    val comparisonStats: StateFlow<ComparisonStats?> = _comparisonStats.asStateFlow()
 
     // Settings
     val highHrThreshold = userPreferencesRepository.highHrThreshold
@@ -154,7 +166,9 @@ class DashboardViewModel @Inject constructor(
         _hrvDailyAverage.value = null
         _dailyMood.value = null
         _spo2History.value = emptyList()
+        _spo2History.value = emptyList()
         _dailySymptoms.value = null
+        _comparisonStats.value = null // Reset comparison
 
         // Only reload date-dependent data
         viewModelScope.launch {
@@ -169,7 +183,8 @@ class DashboardViewModel @Inject constructor(
                     launch { loadHrvData(newDate, forceRefresh = false) },
                     launch { loadMood(newDate) },
                     launch { loadSymptoms(newDate) },
-                    launch { loadSpO2(newDate, forceRefresh = false) }
+                    launch { loadSpO2(newDate, forceRefresh = false) },
+                    launch { loadComparisonStats(newDate) } // Load comparison stats
                 )
                 jobs.forEach { it.join() } // Wait for all data
                 computeDerivedMetrics()
@@ -221,7 +236,8 @@ class DashboardViewModel @Inject constructor(
                     launch { loadHrvData(selectedDate, forceRefresh) },
                     launch { loadMood(selectedDate) },
                     launch { loadSymptoms(selectedDate) },
-                    launch { loadSpO2(selectedDate, forceRefresh) }
+                    launch { loadSpO2(selectedDate, forceRefresh) },
+                    launch { loadComparisonStats(selectedDate) }
                 )
                 jobs.forEach { it.join() }
                 
@@ -515,6 +531,118 @@ class DashboardViewModel @Inject constructor(
             } catch (e: Exception) {
 
             }
+        }
+    }
+
+    private suspend fun loadComparisonStats(currentDate: java.util.Date) {
+        // Calculate 7-day average (Previous 7 days: [Current-7 ... Current-1])
+        // Strict "previous 7 days" is better for "trend vs today".
+        val cal = java.util.Calendar.getInstance()
+        cal.time = currentDate
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val endDate = cal.time // Yesterday (relative to selected date)
+        
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -6) // Go back 6 more days (total 7)
+        val startDate = cal.time
+        
+        // Parallel Fetch History
+        val hrvHistoryDeferred = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { /* async fetch */ }
+        // We need return values, so using explicit async block or relying on repository calls directly?
+        // Repository calls are suspend, so better done sequentially or with async/await pattern if inside coroutine scope.
+        // Since we are already in suspend function, let's use coroutineScope { async... }
+        
+        try {
+            kotlinx.coroutines.coroutineScope {
+                val hrvDeferred = async { healthRepository.getHrvHistory(startDate, endDate) }
+                val intradayDeferred = async { healthRepository.getIntradayHistory(startDate, endDate) } // Heavy?
+                val sleepDeferred = async { healthRepository.getSleepHistory(startDate, endDate) }
+                val stepsDeferred = async { healthRepository.getStepsData(startDate, endDate) }
+                
+                val hrvResult = hrvDeferred.await()
+                val intradayResult = intradayDeferred.await()
+                val sleepResult = sleepDeferred.await()
+                val stepsResult = stepsDeferred.await()
+                
+                // Process HRV
+                val hrvAvg = if (hrvResult.isSuccess) {
+                    val records = hrvResult.getOrNull() ?: emptyList<com.cardio.fitbit.data.models.HrvRecord>()
+                    // Calculate Daily Averages first
+                    val dailyAvgs = records.groupBy { DateUtils.formatForApi(it.time) }
+                        .mapValues { entry -> entry.value.map { r -> r.rmssd }.average() }
+                        .values
+                    
+                    if (dailyAvgs.isNotEmpty()) dailyAvgs.average().toInt() else null
+                } else null
+
+                // Process Steps
+                val stepsAvg = if (stepsResult.isSuccess) {
+                    val stepsList = stepsResult.getOrNull() ?: emptyList<StepsData>()
+                    if (stepsList.isNotEmpty()) {
+                        stepsList.map { it.steps }.average().toInt()
+                    } else null
+                } else null
+                
+                // Process RHR (Day/Night)
+                
+                // Process RHR (Day/Night)
+                // We need to run calculateDailyRHR for each day in range
+                var rhrNightSum = 0
+                var rhrNightCount = 0
+                var rhrDaySum = 0
+                var rhrDayCount = 0
+                
+                if (intradayResult.isSuccess && sleepResult.isSuccess) {
+                    val intradayList = intradayResult.getOrNull() ?: emptyList<IntradayData>()
+                    val intradayMap = intradayList.associateBy { DateUtils.formatForApi(it.date) }
+                    
+                    val sleepList = sleepResult.getOrNull() ?: emptyList<SleepData>()
+                    // Sleep needs to be grouped by day? Or passed as list to utility? Utility takes full list and filters? checks implementation...
+                    // HeartRateAnalysisUtils.calculateDailyRHR(date, intraday, sleep, activity?, preMidnight?)
+                    // It filters sleep sessions overlapping with 'date'.
+                    
+                    // Iterate each day in range
+                    val loopCal = java.util.Calendar.getInstance()
+                    loopCal.time = startDate
+                    val endCal = java.util.Calendar.getInstance()
+                    endCal.time = endDate
+                    
+                    while (!loopCal.time.after(endCal.time)) {
+                        val d = loopCal.time
+                        val dStr = DateUtils.formatForApi(d)
+                        
+                        val dailyIntraday = intradayMap[dStr]?.minuteData ?: emptyList()
+                        // If no intraday, we can't calc distinctive RHR cleanly. Skip or use fallback?
+                        if (dailyIntraday.isNotEmpty()) {
+                            val rhr = HeartRateAnalysisUtils.calculateDailyRHR(
+                                date = d,
+                                intraday = dailyIntraday,
+                                sleep = sleepList, 
+                                activity = null, // simplified, ignoring activity exclusion for history check to start
+                                preMidnightHeartRates = emptyList() // simplified
+                            )
+                            
+                            if (rhr.rhrNight != null) {
+                                rhrNightSum += rhr.rhrNight
+                                rhrNightCount++
+                            }
+                            if (rhr.rhrDay != null) {
+                                rhrDaySum += rhr.rhrDay
+                                rhrDayCount++
+                            }
+                        }
+                        
+                        loopCal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                    }
+                }
+                
+                val rhrNightAvg = if (rhrNightCount > 0) rhrNightSum / rhrNightCount else null
+                val rhrDayAvg = if (rhrDayCount > 0) rhrDaySum / rhrDayCount else null
+                
+                _comparisonStats.value = ComparisonStats(hrvAvg, rhrNightAvg, rhrDayAvg, stepsAvg)
+            }
+        } catch (e: Exception) {
+            // fail silently, just no comparison shown
+            _comparisonStats.value = null
         }
     }
 }

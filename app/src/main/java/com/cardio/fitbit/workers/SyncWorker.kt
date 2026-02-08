@@ -125,9 +125,12 @@ class SyncWorker @AssistedInject constructor(
             }
             
 
+            // Trigger Widget Update regardless of alerts
+            val widgetRequest = androidx.work.OneTimeWorkRequestBuilder<WidgetUpdateWorker>().build()
+            androidx.work.WorkManager.getInstance(applicationContext).enqueue(widgetRequest)
+
             Result.success()
         } catch (e: Exception) {
-
             Result.failure()
         }
     }

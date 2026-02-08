@@ -335,6 +335,22 @@ fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?, sleepDebtMin
             }
         }
 
+        // Sleep Comparison Chart (New)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Comparaison / Recommandations", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(16.dp))
+                SleepComparisonChart(
+                    data = data,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
         // Hypnogram Chart (Timeline with Bars)
         Card(
             modifier = Modifier.fillMaxWidth().height(400.dp),
@@ -744,6 +760,149 @@ fun SleepPhasesPieChart(
             }
 
             startAngle += sweepAngle
+        }
+    }
+}
+
+@Composable
+fun SleepComparisonChart(
+    data: SleepData,
+    modifier: Modifier = Modifier
+) {
+    val totalMinutes = data.minutesAsleep + data.minutesAwake
+    if (totalMinutes == 0) return
+
+    val wakePct = (data.minutesAwake.toFloat() / totalMinutes * 100).toInt()
+    val remPct = ((data.stages?.rem ?: 0).toFloat() / totalMinutes * 100).toInt()
+    val lightPct = ((data.stages?.light ?: 0).toFloat() / totalMinutes * 100).toInt()
+    val deepPct = ((data.stages?.deep ?: 0).toFloat() / totalMinutes * 100).toInt()
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SleepPhaseBar(
+            label = "Éveillé",
+            valuePct = wakePct,
+            minRec = 5,
+            maxRec = 20, // 5-20% generous range for awake
+            color = Color(0xFFFFEB3B)
+        )
+        SleepPhaseBar(
+            label = "REM (Rêve)",
+            valuePct = remPct,
+            minRec = 20,
+            maxRec = 25,
+            color = Color(0xFF00BCD4)
+        )
+        SleepPhaseBar(
+            label = "Léger",
+            valuePct = lightPct,
+            minRec = 40,
+            maxRec = 60,
+            color = Color(0xFF2196F3)
+        )
+        SleepPhaseBar(
+            label = "Profond",
+            valuePct = deepPct,
+            minRec = 10,
+            maxRec = 25,
+            color = Color(0xFF3F51B5)
+        )
+    }
+}
+
+@Composable
+fun SleepPhaseBar(
+    label: String,
+    valuePct: Int,
+    minRec: Int,
+    maxRec: Int,
+    color: Color
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+            
+            // Status Text
+            val status = when {
+                valuePct < minRec -> "Faible"
+                valuePct > maxRec -> "Élevé"
+                else -> "Normal"
+            }
+            val statusColor = if (status == "Normal") Color(0xFF4CAF50) else Color(0xFFFF9800)
+            
+            Row {
+                Text(
+                    text = "$valuePct%", 
+                    style = MaterialTheme.typography.bodyMedium, 
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = "($status)", 
+                    style = MaterialTheme.typography.bodySmall, 
+                    color = statusColor
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        
+        // Bar
+        Canvas(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+            val width = size.width
+            val height = size.height
+            val maxScale = 70f // Max percentage to show on scale (to allow visibility of bars)
+            
+            // Draw Background Track
+            drawRoundRect(
+                color = Color.LightGray.copy(alpha = 0.3f),
+                size = Size(width, height),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(height/2, height/2)
+            )
+            
+            // Draw Recommended Range
+            val xMin = (minRec / maxScale) * width
+            val xMax = (maxRec / maxScale) * width
+            val rectWidth = (xMax - xMin).coerceAtLeast(1f) // Ensure distinct range
+            
+            drawRect(
+                color = Color.Gray.copy(alpha = 0.2f),
+                topLeft = Offset(xMin, 0f),
+                size = Size(rectWidth, height)
+            )
+            
+            // Draw User Value Bar
+            val barWidth = ((valuePct / maxScale) * width).coerceAtMost(width)
+            drawRoundRect(
+                color = color,
+                size = Size(barWidth, height),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(height/2, height/2)
+            )
+            
+             // Draw Min/Max Lines
+            drawLine(
+                color = Color.DarkGray.copy(alpha = 0.5f),
+                start = Offset(xMin, 0f),
+                end = Offset(xMin, height),
+                strokeWidth = 2f
+            )
+             drawLine(
+                color = Color.DarkGray.copy(alpha = 0.5f),
+                start = Offset(xMax, 0f),
+                end = Offset(xMax, height),
+                strokeWidth = 2f
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+             Text(
+                 text = "Rec: $minRec-$maxRec%",
+                 style = MaterialTheme.typography.labelSmall,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant
+             )
         }
     }
 }
