@@ -59,28 +59,31 @@ fun HealthSettingsDialog(
                     )
                 }
                 
-                Divider()
+                // Show thresholds only if notifications are enabled
+                if (notificationsEnabled) {
+                    Divider()
 
-                // High Threshold Slider
-                Column {
-                    Text(stringResource(R.string.settings_high_threshold, highThreshold), style = MaterialTheme.typography.bodyMedium)
-                    Slider(
-                        value = highThreshold.toFloat(),
-                        onValueChange = { onHighThresholdChange(it.toInt()) },
-                        valueRange = 100f..200f,
-                        steps = 19
-                    )
-                }
+                    // High Threshold Slider
+                    Column {
+                        Text(stringResource(R.string.settings_high_threshold, highThreshold), style = MaterialTheme.typography.bodyMedium)
+                        Slider(
+                            value = highThreshold.toFloat(),
+                            onValueChange = { onHighThresholdChange(it.toInt()) },
+                            valueRange = 100f..200f,
+                            steps = 19
+                        )
+                    }
 
-                // Low Threshold Slider
-                Column {
-                    Text(stringResource(R.string.settings_low_threshold, lowThreshold), style = MaterialTheme.typography.bodyMedium)
-                    Slider(
-                        value = lowThreshold.toFloat(),
-                        onValueChange = { onLowThresholdChange(it.toInt()) },
-                        valueRange = 30f..100f,
-                        steps = 13
-                    )
+                    // Low Threshold Slider
+                    Column {
+                        Text(stringResource(R.string.settings_low_threshold, lowThreshold), style = MaterialTheme.typography.bodyMedium)
+                        Slider(
+                            value = lowThreshold.toFloat(),
+                            onValueChange = { onLowThresholdChange(it.toInt()) },
+                            valueRange = 30f..100f,
+                            steps = 13
+                        )
+                    }
                 }
                 
                 Divider()

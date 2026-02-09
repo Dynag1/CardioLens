@@ -135,6 +135,7 @@
     <!-- Notifications & Widget -->
     <string name="widget_last">Last</string>
     <string name="widget_rhr">RHR</string>
+    <string name="widget_steps">Steps</string>
     <string name="widget_error">Err</string>
     
     <string name="channel_alerts_name">Cardio Alerts</string>

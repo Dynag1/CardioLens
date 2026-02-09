@@ -26,7 +26,7 @@ class WidgetUpdateWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            val (rhr, lastHr, lastTime) = fetchData()
+            val (rhr, lastHr, steps, lastTime) = fetchData()
 
             val manager = GlanceAppWidgetManager(applicationContext)
             val glanceIds = manager.getGlanceIds(HealthWidget::class.java)
@@ -44,6 +44,12 @@ class WidgetUpdateWorker @AssistedInject constructor(
                             prefs[HealthWidget.KEY_LAST_HR] = lastHr
                         } else {
                             prefs.minusAssign(HealthWidget.KEY_LAST_HR)
+                        }
+
+                        if (steps != null) {
+                            prefs[HealthWidget.KEY_STEPS] = steps
+                        } else {
+                            prefs.minusAssign(HealthWidget.KEY_STEPS)
                         }
 
                         if (lastTime != null) {
@@ -79,7 +85,7 @@ class WidgetUpdateWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun fetchData(): Triple<Int?, Int?, String?> {
+    private suspend fun fetchData(): Quad<Int?, Int?, Int?, String?> {
         // 1. Try Today
         val today = Date()
         var result = tryFetchForDate(today)
@@ -97,7 +103,9 @@ class WidgetUpdateWorker @AssistedInject constructor(
         return result
     }
 
-    private suspend fun tryFetchForDate(date: Date): Triple<Int?, Int?, String?> {
+    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+    private suspend fun tryFetchForDate(date: Date): Quad<Int?, Int?, Int?, String?> {
         // 1. Fetch Sleep (Needed for RHR Calc)
         var sleep = healthRepository.getSleepData(date, forceRefresh = false).getOrNull()
         if (sleep.isNullOrEmpty()) {
@@ -107,6 +115,7 @@ class WidgetUpdateWorker @AssistedInject constructor(
         val mainSleep = sleep?.maxByOrNull { it.duration }
         var computedRhr: Int? = null
         var computedLastHr: Int? = null
+        var computedSteps: Int? = null
         var computedLastTime: String? = null
 
         // 2. Fetch Intraday (Needed for RHR & Last HR)
@@ -124,6 +133,11 @@ class WidgetUpdateWorker @AssistedInject constructor(
                 computedLastHr = lastPoint.heartRate
                 computedLastTime = lastPoint.time
             }
+        }
+
+        // -- Logic for Steps --
+        if (intraday != null && intraday.minuteData.isNotEmpty()) {
+            computedSteps = intraday.minuteData.sumOf { it.steps }
         }
 
         // -- Logic for RHR --
@@ -177,6 +191,6 @@ class WidgetUpdateWorker @AssistedInject constructor(
                 e.printStackTrace()
             }
         }
-        return Triple(computedRhr, computedLastHr, computedLastTime)
+        return Quad(computedRhr, computedLastHr, computedSteps, computedLastTime)
     }
 }

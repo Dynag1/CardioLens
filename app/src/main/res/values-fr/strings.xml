@@ -117,6 +117,7 @@
     <!-- Notifications & Widget -->
     <string name="widget_last">Dernier</string>
     <string name="widget_rhr">Repos</string>
+    <string name="widget_steps">Pas</string>
     <string name="widget_error">Err</string>
     
     <string name="channel_alerts_name">Alertes Cardio</string>

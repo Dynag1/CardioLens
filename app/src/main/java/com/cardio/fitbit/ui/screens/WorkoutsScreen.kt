@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,11 +16,25 @@ import androidx.compose.foundation.pager.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Pool
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.SportsScore
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cardio.fitbit.ui.components.ActivityDetailCard
 import com.cardio.fitbit.utils.DateUtils
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun WorkoutsScreen(
     onNavigateBack: () -> Unit,
@@ -70,13 +85,31 @@ fun WorkoutsScreen(
                 title = { Text("Entraînements") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Retour")
+                        Icon(Icons.Default.Menu, contentDescription = "Menu")
                     }
                 }
             )
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
+        val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+        
+        if (pullRefreshState.isRefreshing) {
+            LaunchedEffect(true) {
+                viewModel.loadWorkouts()
+            }
+        }
+        
+        LaunchedEffect(uiState) {
+            if (uiState !is WorkoutsUiState.Loading) {
+                pullRefreshState.endRefresh()
+            }
+        }
+        
+        Box(
+            modifier = Modifier
+                .padding(paddingValues)
+                .nestedScroll(pullRefreshState.nestedScrollConnection)
+        ) {
             if (isExporting) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth().zIndex(1f))
             }
@@ -93,6 +126,7 @@ fun WorkoutsScreen(
                 }
                 is WorkoutsUiState.Success -> {
                     val weeklySummaries by viewModel.weeklySummaries.collectAsState()
+                    val selectedType by viewModel.selectedActivityType.collectAsState()
                     
                     if (state.activities.isEmpty()) {
                          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -104,6 +138,203 @@ fun WorkoutsScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
+                            // Monthly Statistics Card - EN HAUT
+                            item {
+                                val stats by viewModel.monthlyStats.collectAsState()
+                                
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            "Ce mois-ci",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceEvenly
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    "${stats.totalActivities}",
+                                                    style = MaterialTheme.typography.headlineSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Text(
+                                                    "Activités",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                            
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                val hours = stats.totalDuration / (1000 * 60 * 60)
+                                                val minutes = (stats.totalDuration / (1000 * 60)) % 60
+                                                Text(
+                                                    "${hours}h ${minutes}m",
+                                                    style = MaterialTheme.typography.headlineSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Text(
+                                                    "Durée",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                            
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    "${String.format("%.1f", stats.totalDistance)} km",
+                                                    style = MaterialTheme.typography.headlineSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Text(
+                                                    "Distance",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                            
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    "${stats.totalCalories}",
+                                                    style = MaterialTheme.typography.headlineSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Text(
+                                                    "Calories",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Weekly Summary Pager - ENSUITE
+                            item {
+                                if (weeklySummaries.isNotEmpty()) {
+                                    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { weeklySummaries.size })
+                                    
+                                    Column {
+                                        androidx.compose.foundation.pager.HorizontalPager(
+                                            state = pagerState,
+                                            contentPadding = PaddingValues(horizontal = 0.dp),
+                                            pageSpacing = 16.dp
+                                        ) { page ->
+                                            val context = androidx.compose.ui.platform.LocalContext.current
+                                            com.cardio.fitbit.ui.components.WeeklyWorkoutSummaryCard(summary = weeklySummaries[page], onExportClick = { 
+                                                viewModel.exportPdf(context, it)
+                                            })
+                                        }
+                                        
+                                        // Simple Pager Indicator
+                                        Row(
+                                            Modifier
+                                                .height(20.dp)
+                                                .fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            repeat(weeklySummaries.size) { iteration ->
+                                                val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                                Box(
+                                                    modifier = Modifier
+                                                        .padding(2.dp)
+                                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                                        .background(color)
+                                                        .size(6.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Filter Chips
+                            item {
+                                val activityTypes by viewModel.availableActivityTypes.collectAsState()
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    activityTypes.forEach { type ->
+                                        FilterChip(
+                                            selected = selectedType == type,
+                                            onClick = { viewModel.setActivityTypeFilter(type) },
+                                            label = { Text(type) },
+                                            leadingIcon = if (selectedType == type) {
+                                                { Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                                            } else null
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            // Sort Dropdown
+                            item {
+                                val sortOrder by viewModel.sortOrder.collectAsState()
+                                var expanded by remember { mutableStateOf(false) }
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Trier par:", style = MaterialTheme.typography.labelMedium)
+                                    
+                                    Box {
+                                        OutlinedButton(
+                                            onClick = { expanded = true }
+                                        ) {
+                                            Text(
+                                                when (sortOrder) {
+                                                    WorkoutsViewModel.SortOrder.RECENT -> "Plus récent"
+                                                    WorkoutsViewModel.SortOrder.DURATION -> "Durée"
+                                                    WorkoutsViewModel.SortOrder.INTENSITY -> "Intensité"
+                                                }
+                                            )
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                        }
+                                        
+                                        DropdownMenu(
+                                            expanded = expanded,
+                                            onDismissRequest = { expanded = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Plus récent") },
+                                                onClick = {
+                                                    viewModel.setSortOrder(WorkoutsViewModel.SortOrder.RECENT)
+                                                    expanded = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Durée") },
+                                                onClick = {
+                                                    viewModel.setSortOrder(WorkoutsViewModel.SortOrder.DURATION)
+                                                    expanded = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Intensité") },
+                                                onClick = {
+                                                    viewModel.setSortOrder(WorkoutsViewModel.SortOrder.INTENSITY)
+                                                    expanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            
                             // Weekly Summary Pager
                             item {
                                 if (weeklySummaries.isNotEmpty()) {
@@ -148,14 +379,24 @@ fun WorkoutsScreen(
                                 val minuteData = intradayCache[dateStr] ?: emptyList()
                                 
                                 Column {
-                                    // Date Header if first item of day? Or always show date?
-                                    // Let's show date above each card for clarity in a long list
-                                    Text(
-                                        text = DateUtils.formatForDisplay(item.fullDateOfActivity),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
-                                    )
+                                    // Date Header with Activity Icon
+                                    Row(
+                                        modifier = Modifier.padding(bottom = 4.dp, start = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = getActivityIcon(item.activity.activityName),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = DateUtils.formatForDisplay(item.fullDateOfActivity),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                     
                                     ActivityDetailCard(
                                         activity = item.activity,
@@ -178,6 +419,23 @@ fun WorkoutsScreen(
                     }
                 }
             }
+            
+            PullToRefreshContainer(
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
+    }
+}
+
+@Composable
+private fun getActivityIcon(activityName: String): androidx.compose.ui.graphics.vector.ImageVector {
+    return when {
+        activityName.contains("run", ignoreCase = true) -> Icons.Default.DirectionsRun
+        activityName.contains("bike", ignoreCase = true) || activityName.contains("cycling", ignoreCase = true) -> Icons.Default.DirectionsBike
+        activityName.contains("walk", ignoreCase = true) -> Icons.Default.DirectionsWalk
+        activityName.contains("swim", ignoreCase = true) -> Icons.Default.Pool
+        activityName.contains("workout", ignoreCase = true) || activityName.contains("weights", ignoreCase = true) -> Icons.Default.FitnessCenter
+        else -> Icons.Default.SportsScore
     }
 }

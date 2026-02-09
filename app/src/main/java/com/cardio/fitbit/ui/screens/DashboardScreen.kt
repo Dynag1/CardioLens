@@ -152,7 +152,13 @@ fun DashboardScreen(
             currentLanguage = appLanguage,
             onLanguageChange = viewModel::updateAppLanguage,
             currentTheme = currentTheme,
-            onThemeChange = viewModel::updateAppTheme
+            onThemeChange = viewModel::updateAppTheme,
+            onNavigateToBackup = {
+                onNavigateToBackup()
+            },
+            onShowAbout = {
+                showAboutDialog = true
+            }
         )
     }
 
@@ -320,6 +326,9 @@ fun DashboardScreen(
                         onNavigateToSleep(selectedDate)
                     }
                 )
+                
+                // Push Settings, Backup, About, Logout to bottom
+                Spacer(Modifier.weight(1f))
 
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
@@ -331,9 +340,6 @@ fun DashboardScreen(
                     }
                 )
                 
-                // Push Settings, Backup, About, Logout to bottom
-                Spacer(Modifier.weight(1f))
-                
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text(stringResource(R.string.menu_settings)) },
@@ -341,27 +347,6 @@ fun DashboardScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         showSettingsDialog = true
-                    }
-                )
-
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Save, contentDescription = null) },
-                    label = { Text("Sauvegarde / Restauration") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        onNavigateToBackup()
-                    }
-                )
-                
-                // About
-                 NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                    label = { Text(stringResource(R.string.menu_about)) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        showAboutDialog = true
                     }
                 )
                 
