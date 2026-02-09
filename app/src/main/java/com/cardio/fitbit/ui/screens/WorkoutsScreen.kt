@@ -30,6 +30,13 @@ import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Pool
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.SportsScore
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.foundation.clickable
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cardio.fitbit.ui.components.ActivityDetailCard
 import com.cardio.fitbit.utils.DateUtils
@@ -79,6 +86,9 @@ fun WorkoutsScreen(
         }
     }
 
+    // State for expanded weeks
+    val expandedWeeks = remember { mutableStateMapOf<Int, Boolean>() }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -127,6 +137,7 @@ fun WorkoutsScreen(
                 is WorkoutsUiState.Success -> {
                     val weeklySummaries by viewModel.weeklySummaries.collectAsState()
                     val selectedType by viewModel.selectedActivityType.collectAsState()
+                    val groupedActivities by viewModel.groupedActivities.collectAsState()
                     
                     if (state.activities.isEmpty()) {
                          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -220,7 +231,8 @@ fun WorkoutsScreen(
                                 }
                             }
                             
-                            // Weekly Summary Pager - ENSUITE
+                            
+                            // Weekly Summary Pager
                             item {
                                 if (weeklySummaries.isNotEmpty()) {
                                     val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { weeklySummaries.size })
@@ -334,78 +346,151 @@ fun WorkoutsScreen(
                                     }
                                 }
                             }
-                            
-                            // Weekly Summary Pager
-                            item {
-                                if (weeklySummaries.isNotEmpty()) {
-                                    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { weeklySummaries.size })
-                                    
-                                    Column {
-                                        androidx.compose.foundation.pager.HorizontalPager(
-                                            state = pagerState,
-                                            contentPadding = PaddingValues(horizontal = 0.dp),
-                                            pageSpacing = 16.dp
-                                        ) { page ->
-                                            val context = androidx.compose.ui.platform.LocalContext.current
-                                            com.cardio.fitbit.ui.components.WeeklyWorkoutSummaryCard(summary = weeklySummaries[page], onExportClick = { 
-                                                viewModel.exportPdf(context, it)
-                                            })
-                                        }
-                                        
-                                        // Simple Pager Indicator
+
+
+                            // Grouped Activities by Week
+
+                            groupedActivities.forEach { weekGroup ->
+                                val groupKey = weekGroup.year * 100 + weekGroup.weekNumber
+                                val isExpanded = expandedWeeks.getOrPut(groupKey) { false }
+                                
+                                // Week Header
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                        )
+                                    ) {
                                         Row(
-                                            Modifier
-                                                .height(20.dp)
-                                                .fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.Center
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { expandedWeeks[groupKey] = !isExpanded }
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            repeat(weeklySummaries.size) { iteration ->
-                                                val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                                                Box(
-                                                    modifier = Modifier
-                                                        .padding(2.dp)
-                                                        .clip(androidx.compose.foundation.shape.CircleShape)
-                                                        .background(color)
-                                                        .size(6.dp)
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    weekGroup.weekLabel,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer
                                                 )
                                             }
+                                            Icon(
+                                                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                contentDescription = if (isExpanded) "Réduire" else "Développer",
+                                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
                                         }
                                     }
                                 }
-                            }
-
-                            items(state.activities) { item ->
-                                val dateStr = DateUtils.formatForApi(item.date)
-                                val minuteData = intradayCache[dateStr] ?: emptyList()
                                 
-                                Column {
-                                    // Date Header with Activity Icon
-                                    Row(
-                                        modifier = Modifier.padding(bottom = 4.dp, start = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = getActivityIcon(item.activity.activityName),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Text(
-                                            text = DateUtils.formatForDisplay(item.fullDateOfActivity),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.primary
+                                // Activities in this week (only if expanded)
+                                items(if (isExpanded) weekGroup.activities else emptyList()) { item ->
+                                    val dateStr = DateUtils.formatForApi(item.date)
+                                    val minuteData = intradayCache[dateStr] ?: emptyList()
+                                    val context = androidx.compose.ui.platform.LocalContext.current
+                                    
+                                    Column {
+                                        // Date Header with Activity Icon and Actions
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 4.dp, start = 4.dp, end = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = getActivityIcon(item.activity.activityName),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                                Text(
+                                                    text = DateUtils.formatForDisplay(item.fullDateOfActivity),
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            
+                                            // Action buttons
+                                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                // Share button
+                                                IconButton(
+                                                    onClick = {
+                                                        val shareText = viewModel.getActivityShareText(item.activity, item.fullDateOfActivity)
+                                                        val sendIntent = android.content.Intent().apply {
+                                                            action = android.content.Intent.ACTION_SEND
+                                                            putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                                                            type = "text/plain"
+                                                        }
+                                                        context.startActivity(android.content.Intent.createChooser(sendIntent, "Partager l'activité"))
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Share,
+                                                        contentDescription = "Partager",
+                                                        modifier = Modifier.size(18.dp),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                                
+                                                // Delete button
+                                                var showDeleteDialog by remember { mutableStateOf(false) }
+                                                IconButton(
+                                                    onClick = { showDeleteDialog = true },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Delete,
+                                                        contentDescription = "Supprimer",
+                                                        modifier = Modifier.size(18.dp),
+                                                        tint = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                                
+                                                // Confirmation dialog
+                                                if (showDeleteDialog) {
+                                                    AlertDialog(
+                                                        onDismissRequest = { showDeleteDialog = false },
+                                                        title = { Text("Supprimer l'activité ?") },
+                                                        text = { Text("Êtes-vous sûr de vouloir supprimer cette activité ? Cette action est irréversible.") },
+                                                        confirmButton = {
+                                                            TextButton(
+                                                                onClick = {
+                                                                    viewModel.deleteActivity(item.activity.activityId)
+                                                                    showDeleteDialog = false
+                                                                }
+                                                            ) {
+                                                                Text("Supprimer", color = MaterialTheme.colorScheme.error)
+                                                            }
+                                                        },
+                                                        dismissButton = {
+                                                            TextButton(onClick = { showDeleteDialog = false }) {
+                                                                Text("Annuler")
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        
+                                        ActivityDetailCard(
+                                            activity = item.activity,
+                                            allMinuteData = minuteData,
+                                            selectedDate = item.date,
+                                            dateOfBirth = null
                                         )
                                     }
-                                    
-                                    ActivityDetailCard(
-                                        activity = item.activity,
-                                        allMinuteData = minuteData,
-                                        selectedDate = item.date,
-                                        dateOfBirth = null // TODO: Pass DOB if needed, or get from VM
-                                    )
                                 }
                             }
+                            
                             
                             // Loading indicator at bottom?
                              item {
