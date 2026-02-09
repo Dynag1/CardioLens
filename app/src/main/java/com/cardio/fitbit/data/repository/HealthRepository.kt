@@ -632,6 +632,26 @@ class HealthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Get all cached activities
+     */
+    suspend fun getAllActivities(): Result<List<ActivityData>> = withContext(Dispatchers.IO) {
+        try {
+            val cachedList = activityDataDao.getAll()
+            val result = cachedList.mapNotNull { entity ->
+                try {
+                    gson.fromJson(entity.data, ActivityData::class.java)
+                } catch (e: Exception) {
+                    null
+                }
+            }.sortedByDescending { it.date } // Most recent first
+            
+            Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
 
 
     /**

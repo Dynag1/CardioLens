@@ -1,5 +1,13 @@
 # Historique des Versions (Changelog)
 
+## Version 67 (v1.3.7) - 2026-02-09
+### Améliorations
+- **Export PDF** : Amélioration complète du rapport hebdomadaire PDF.
+  - Barre visuelle des zones de fréquence cardiaque (Fat Burn, Cardio) pour chaque entraînement.
+  - Labels de l'axe X simplifiés avec minutes écoulées (0, 10, 20...).
+  - En-tête enrichi affichant l'heure de début et de fin de chaque session.
+  - Gestion améliorée des entraînements sans données cardiaques (affichage "N/A").
+
 ## Version 66 (v1.3.6) - 2026-02-09
 ### Améliorations
 - **Widget** : Mise à jour automatique du widget lors de l'actualisation du tableau de bord.

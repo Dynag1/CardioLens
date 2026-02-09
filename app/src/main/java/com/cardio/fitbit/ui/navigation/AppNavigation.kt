@@ -26,6 +26,7 @@ sealed class Screen(val route: String) {
     object Backup : Screen("backup")
     object Sleep : Screen("sleep")
     object Calendar : Screen("calendar")
+    object Workouts : Screen("workouts")
 }
 
 @Composable
@@ -146,6 +147,9 @@ fun AppNavigation() {
                 onNavigateToSleep = { date ->
                     val timestamp = date.time
                     navController.navigate("${Screen.Sleep.route}?date=$timestamp")
+                },
+                onNavigateToWorkouts = {
+                    navController.navigate(Screen.Workouts.route)
                 }
             )
         }
@@ -199,6 +203,14 @@ fun AppNavigation() {
             
             com.cardio.fitbit.ui.screens.SleepScreen(
                 date = date,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Screen.Workouts.route) {
+            com.cardio.fitbit.ui.screens.WorkoutsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }
