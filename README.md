@@ -25,6 +25,16 @@ Parce que la santé mentale est indissociable de la santé physique :
 - **Journal Quotidien** : Une interface simple ("Comment allez-vous ?") pour noter votre humeur du jour.
 - **Corrélation** : Visualisez l'impact de votre sommeil et de votre activité sur votre moral dans l'onglet Tendances.
 
+### 🏃 Entraînements
+Une vue complète et intelligente de vos activités sportives :
+- **Pull-to-Refresh** : Rafraîchissez vos données d'un simple geste.
+- **Filtres Dynamiques** : Filtrage automatique par type d'activité (Marche, Course, Vélo, Natation, Exercice).
+- **Tri Multi-Critères** : Organisez vos séances par récence, durée ou intensité.
+- **Statistiques Mensuelles** : Visualisez en un coup d'œil vos totaux du mois (activités, durée, distance, calories).
+- **Résumés Hebdomadaires** : Cartes interactives avec statistiques détaillées et export PDF.
+
+![Workouts Screen](screenshots/workouts_screen.png)
+
 ### 📈 Tendances & Analyse
 Ne regardez pas seulement aujourd'hui, comprenez votre évolution :
 - Graphiques interactifs sur **7, 15 ou 30 jours**.

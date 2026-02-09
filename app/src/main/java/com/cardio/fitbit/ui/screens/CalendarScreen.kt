@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,7 +29,8 @@ import java.util.*
 @Composable
 fun CalendarScreen(
     viewModel: TrendsViewModel = hiltViewModel(),
-    onNavigateToDashboard: (Date) -> Unit
+    onNavigateToDashboard: (Date) -> Unit,
+    onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentMonth by remember { mutableStateOf(Calendar.getInstance()) }
@@ -48,6 +50,11 @@ fun CalendarScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Calendrier Santé") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu")
+                    }
+                }
             )
         }
     ) { padding ->

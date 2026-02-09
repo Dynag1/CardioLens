@@ -7,6 +7,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,7 +28,9 @@ fun SettingsDialog(
     currentLanguage: String,
     onLanguageChange: (String) -> Unit,
     currentTheme: String,
-    onThemeChange: (String) -> Unit
+    onThemeChange: (String) -> Unit,
+    onNavigateToBackup: () -> Unit = {},
+    onShowAbout: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -156,6 +160,38 @@ fun SettingsDialog(
                                 )
                             }
                         }
+                    }
+                }
+                
+                Divider()
+                
+                // Navigation Buttons
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            onDismiss()
+                            onNavigateToBackup()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Sauvegarde / Restauration")
+                    }
+                    
+                    OutlinedButton(
+                        onClick = {
+                            onDismiss()
+                            onShowAbout()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.menu_about))
                     }
                 }
             }

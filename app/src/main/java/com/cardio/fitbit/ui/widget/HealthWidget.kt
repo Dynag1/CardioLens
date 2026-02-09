@@ -36,6 +36,7 @@ class HealthWidget : GlanceAppWidget() {
     companion object {
         val KEY_RHR = intPreferencesKey("rhr")
         val KEY_LAST_HR = intPreferencesKey("last_hr")
+        val KEY_STEPS = intPreferencesKey("steps")
         val KEY_LAST_TIME = stringPreferencesKey("last_time")
         val KEY_LAST_SYNC_STATUS = stringPreferencesKey("last_sync_status") // For "...", "Err", etc.
     }
@@ -53,12 +54,14 @@ class HealthWidget : GlanceAppWidget() {
         val prefs = currentState<Preferences>()
         val rhr = prefs[KEY_RHR]
         val lastHr = prefs[KEY_LAST_HR]
+        val steps = prefs[KEY_STEPS]
         val lastTime = prefs[KEY_LAST_TIME]
         // Default to "..." if null, or error text if status indicates error
         val status = prefs[KEY_LAST_SYNC_STATUS]
 
         val displayRhr = rhr?.toString() ?: "--"
         val displayLastHr = lastHr?.toString() ?: "--"
+        val displaySteps = steps?.toString() ?: "--"
         val displayTime = if (lastTime != null) "$lastTime" else (status ?: "...")
 
         Box(
@@ -82,6 +85,7 @@ class HealthWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
+                // Top Row: RHR and Last HR
                 Row(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalAlignment = Alignment.CenterVertically
@@ -95,13 +99,10 @@ class HealthWidget : GlanceAppWidget() {
                     MetricItem(context.getString(R.string.widget_last), displayLastHr, "")
                 }
 
-                Spacer(GlanceModifier.size(4.dp))
+                Spacer(GlanceModifier.size(8.dp))
 
-                // Time centered below values
-                Text(
-                    text = displayTime,
-                    style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
-                )
+                // Bottom Row: Steps
+                MetricItem(context.getString(R.string.widget_steps), displaySteps, "")
             }
         }
     }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import java.util.Date
+import java.util.Calendar
 
 @HiltViewModel
 class WorkoutsViewModel @Inject constructor(
@@ -44,6 +45,45 @@ class WorkoutsViewModel @Inject constructor(
     // Track loading state of intraday data
     private val _loadingIntraday = MutableStateFlow<Set<String>>(emptySet())
     val loadingIntraday: StateFlow<Set<String>> = _loadingIntraday.asStateFlow()
+    
+    // Activity Type Filter
+    private val _selectedActivityType = MutableStateFlow<String>("Tous")
+    val selectedActivityType: StateFlow<String> = _selectedActivityType.asStateFlow()
+    
+    // Available activity types from loaded workouts
+    private val _availableActivityTypes = MutableStateFlow<List<String>>(listOf("Tous"))
+    val availableActivityTypes: StateFlow<List<String>> = _availableActivityTypes.asStateFlow()
+    
+    // Sort order
+    enum class SortOrder { RECENT, DURATION, INTENSITY }
+    private val _sortOrder = MutableStateFlow(SortOrder.RECENT)
+    val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
+    
+    // Filtered activities based on selected type
+    private var filteredActivities: List<ActivityItem> = emptyList()
+    
+    // Monthly statistics
+    data class MonthlyStats(
+        val totalActivities: Int = 0,
+        val totalDuration: Long = 0, // in milliseconds
+        val totalDistance: Double = 0.0, // in km
+        val totalCalories: Int = 0
+    )
+    
+    private val _monthlyStats = MutableStateFlow(MonthlyStats())
+    val monthlyStats: StateFlow<MonthlyStats> = _monthlyStats.asStateFlow()
+    
+    // Normalize activity type names (group Walk/Marche, Run/Course, etc.)
+    private fun normalizeActivityType(activityName: String): String {
+        return when {
+            activityName.contains("walk", ignoreCase = true) || activityName.contains("marche", ignoreCase = true) -> "Marche"
+            activityName.contains("run", ignoreCase = true) || activityName.contains("course", ignoreCase = true) -> "Course"
+            activityName.contains("bike", ignoreCase = true) || activityName.contains("vélo", ignoreCase = true) || activityName.contains("cycling", ignoreCase = true) -> "Vélo"
+            activityName.contains("swim", ignoreCase = true) || activityName.contains("natation", ignoreCase = true) -> "Natation"
+            activityName.contains("workout", ignoreCase = true) || activityName.contains("exercice", ignoreCase = true) || activityName.contains("exercise", ignoreCase = true) -> "Exercice"
+            else -> activityName.trim() // Keep original for other types, trimmed
+        }
+    }
 
     init {
         loadWorkouts()
@@ -69,7 +109,17 @@ class WorkoutsViewModel @Inject constructor(
                 }.sortedByDescending { it.fullDateOfActivity }
 
                 allActivities = flatList
+                filteredActivities = flatList
+                
+                // Extract unique activity types (normalized)
+                val types = flatList
+                    .map { normalizeActivityType(it.activity.activityName) }
+                    .distinct()
+                    .sorted()
+                _availableActivityTypes.value = listOf("Tous") + types
+                
                 calculateWeeklySummaries(flatList)
+                calculateMonthlyStats(flatList)
                 currentPage = 0
                 loadNextPage() // Load first page
             } else {
@@ -78,15 +128,52 @@ class WorkoutsViewModel @Inject constructor(
         }
     }
 
+    fun setSortOrder(order: SortOrder) {
+        _sortOrder.value = order
+        applyFiltersAndSort()
+    }
+
+    fun setActivityTypeFilter(type: String) {
+        _selectedActivityType.value = type
+        applyFiltersAndSort()
+    }
+    
+    private fun applyFiltersAndSort() {
+        // First filter
+        val filtered = if (_selectedActivityType.value == "Tous") {
+            allActivities
+        } else {
+            allActivities.filter { item ->
+                normalizeActivityType(item.activity.activityName) == _selectedActivityType.value
+            }
+        }
+        
+        // Then sort
+        filteredActivities = when (_sortOrder.value) {
+            SortOrder.RECENT -> filtered.sortedByDescending { it.fullDateOfActivity }
+            SortOrder.DURATION -> filtered.sortedByDescending { it.activity.duration }
+            SortOrder.INTENSITY -> filtered.sortedByDescending { it.activity.averageHeartRate ?: 0 }
+        }
+        
+        // Reset pagination and immediately show first page
+        currentPage = 0
+        val displayList = filteredActivities.take(pageSize)
+        currentPage = 1
+        _uiState.value = WorkoutsUiState.Success(displayList)
+        
+        // Trigger fetch for intraday data
+        fetchIntradayForItems(displayList)
+    }
+
     fun loadNextPage() {
         // If already showing all, do nothing
         val currentState = _uiState.value
         if (currentState is WorkoutsUiState.Success) {
-            if (currentState.activities.size >= allActivities.size) return
+            if (currentState.activities.size >= filteredActivities.size) return
         }
 
         val nextIndex = (currentPage + 1) * pageSize
-        val displayList = allActivities.take(nextIndex)
+        val displayList = filteredActivities.take(nextIndex)
         currentPage++
 
         _uiState.value = WorkoutsUiState.Success(displayList)
@@ -193,6 +280,29 @@ class WorkoutsViewModel @Inject constructor(
         
         // Auto-select first week (current) if we want? 
         // Or UI handles paging.
+    }
+    
+    private fun calculateMonthlyStats(activities: List<ActivityItem>) {
+        val now = Calendar.getInstance()
+        val currentMonth = now.get(Calendar.MONTH)
+        val currentYear = now.get(Calendar.YEAR)
+        
+        val monthActivities = activities.filter { item ->
+            val cal = Calendar.getInstance().apply { time = item.date }
+            cal.get(Calendar.MONTH) == currentMonth && cal.get(Calendar.YEAR) == currentYear
+        }
+        
+        val totalActivities = monthActivities.size
+        val totalDuration = monthActivities.sumOf { it.activity.duration }
+        val totalDistance = monthActivities.sumOf { it.activity.distance ?: 0.0 }
+        val totalCalories = monthActivities.sumOf { it.activity.calories }
+        
+        _monthlyStats.value = MonthlyStats(
+            totalActivities = totalActivities,
+            totalDuration = totalDuration,
+            totalDistance = totalDistance,
+            totalCalories = totalCalories
+        )
     }
 
     private val _weeklySummaries = MutableStateFlow<List<WeeklySummary>>(emptyList())

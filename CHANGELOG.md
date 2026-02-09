@@ -1,5 +1,14 @@
 # Historique des Versions (Changelog)
 
+## Version 68 (v1.3.8) - 2026-02-09
+### Améliorations Entraînements
+- **Pull-to-Refresh** : Rafraîchissement manuel des entraînements d'un simple geste.
+- **Filtres Dynamiques** : Filtrage intelligent par type d'activité (Marche, Course, Vélo, Natation, Exercice) avec normalisation automatique.
+- **Tri Multi-Critères** : Organisation des séances par récence, durée ou intensité cardiaque.
+- **Statistiques Mensuelles** : Carte récapitulative affichant les totaux du mois (nombre d'activités, durée, distance, calories).
+- **Icônes Visuelles** : Identification rapide du type d'activité avec des icônes dédiées.
+- **Interface Optimisée** : Réorganisation de la mise en page pour une meilleure lisibilité.
+
 ## Version 67 (v1.3.7) - 2026-02-09
 ### Améliorations
 - **Export PDF** : Amélioration complète du rapport hebdomadaire PDF.

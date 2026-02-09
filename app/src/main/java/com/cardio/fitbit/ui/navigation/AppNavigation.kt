@@ -174,6 +174,9 @@ fun AppNavigation() {
                         // Pop up to Dashboard to avoid back stack loop
                         popUpTo(Screen.Dashboard.route) { inclusive = true }
                     }
+                },
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }
