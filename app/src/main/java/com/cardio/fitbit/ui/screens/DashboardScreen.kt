@@ -42,7 +42,8 @@ fun DashboardScreen(
     onNavigateToTrends: () -> Unit,
     onNavigateToBackup: () -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onNavigateToSleep: (java.util.Date) -> Unit
+    onNavigateToSleep: (java.util.Date) -> Unit,
+    onNavigateToWorkouts: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val sleepData by viewModel.sleepData.collectAsState()
@@ -286,6 +287,16 @@ fun DashboardScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         onNavigateToTrends()
+                    }
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.DirectionsRun, contentDescription = null) },
+                    label = { Text("Entraînements") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onNavigateToWorkouts()
                     }
                 )
 

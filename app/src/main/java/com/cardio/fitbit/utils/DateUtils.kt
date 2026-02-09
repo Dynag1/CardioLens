@@ -264,4 +264,23 @@ object DateUtils {
         return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
                cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
     }
+    fun getYearWeek(date: Date): String {
+        val cal = Calendar.getInstance()
+        cal.time = date
+        // Set first day of week to Monday for ISO-like behavior
+        cal.firstDayOfWeek = Calendar.MONDAY
+        cal.minimalDaysInFirstWeek = 4
+        return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.WEEK_OF_YEAR)}"
+    }
+    
+    fun getWeekStartDate(year: Int, week: Int): Date {
+        val cal = Calendar.getInstance()
+        cal.clear()
+        cal.firstDayOfWeek = Calendar.MONDAY
+        cal.minimalDaysInFirstWeek = 4
+        cal.set(Calendar.YEAR, year)
+        cal.set(Calendar.WEEK_OF_YEAR, week)
+        cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        return cal.time
+    }
 }
