@@ -11,6 +11,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import java.util.Date
@@ -72,6 +75,30 @@ class WorkoutsViewModel @Inject constructor(
     
     private val _monthlyStats = MutableStateFlow(MonthlyStats())
     val monthlyStats: StateFlow<MonthlyStats> = _monthlyStats.asStateFlow()
+    
+    // Search query
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    
+    // Grouped activities by week
+    data class WeekGroup(
+        val weekLabel: String,
+        val weekNumber: Int,
+        val year: Int,
+        val activities: List<ActivityItem>,
+        val totalActivities: Int,
+        val totalDuration: Long,
+        val totalCalories: Int
+    )
+    
+    // Grouped Activities derived from current UI State (paged)
+    val groupedActivities: StateFlow<List<WeekGroup>> = _uiState.map { state ->
+        if (state is WorkoutsUiState.Success) {
+            groupActivitiesByWeek(state.activities)
+        } else {
+            emptyList()
+        }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     
     // Normalize activity type names (group Walk/Marche, Run/Course, etc.)
     private fun normalizeActivityType(activityName: String): String {
@@ -138,13 +165,27 @@ class WorkoutsViewModel @Inject constructor(
         applyFiltersAndSort()
     }
     
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+        applyFiltersAndSort()
+    }
+    
     private fun applyFiltersAndSort() {
-        // First filter
-        val filtered = if (_selectedActivityType.value == "Tous") {
+        // First filter by type
+        var filtered = if (_selectedActivityType.value == "Tous") {
             allActivities
         } else {
             allActivities.filter { item ->
                 normalizeActivityType(item.activity.activityName) == _selectedActivityType.value
+            }
+        }
+        
+        // Then filter by search query
+        val query = _searchQuery.value.trim()
+        if (query.isNotEmpty()) {
+            filtered = filtered.filter { item ->
+                item.activity.activityName.contains(query, ignoreCase = true) ||
+                DateUtils.formatForDisplay(item.fullDateOfActivity).contains(query, ignoreCase = true)
             }
         }
         
@@ -163,6 +204,38 @@ class WorkoutsViewModel @Inject constructor(
         
         // Trigger fetch for intraday data
         fetchIntradayForItems(displayList)
+    }
+    
+    private fun groupActivitiesByWeek(activities: List<ActivityItem>): List<WeekGroup> {
+        val cal = Calendar.getInstance()
+        val groups = activities.groupBy { item ->
+            cal.time = item.date
+            val week = cal.get(Calendar.WEEK_OF_YEAR)
+            val year = cal.get(Calendar.YEAR)
+            Pair(year, week)
+        }.map { (yearWeek, items) ->
+            val (year, week) = yearWeek
+            cal.clear()
+            cal.set(Calendar.YEAR, year)
+            cal.set(Calendar.WEEK_OF_YEAR, week)
+            cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+            
+            val weekStart = cal.time
+            val sdf = java.text.SimpleDateFormat("d MMM", java.util.Locale.FRENCH)
+            val weekLabel = "Semaine du ${sdf.format(weekStart)}"
+            
+            WeekGroup(
+                weekLabel = weekLabel,
+                weekNumber = week,
+                year = year,
+                activities = items,
+                totalActivities = items.size,
+                totalDuration = items.sumOf { it.activity.duration },
+                totalCalories = items.sumOf { it.activity.calories }
+            )
+        }.sortedByDescending { it.year * 100 + it.weekNumber }
+        
+        return groups
     }
 
     fun loadNextPage() {
@@ -362,6 +435,39 @@ class WorkoutsViewModel @Inject constructor(
     
     fun clearExportEvent() {
         _exportEvent.value = null
+    }
+    
+    // Delete activity
+    fun deleteActivity(activityId: Long) {
+        viewModelScope.launch {
+            try {
+                // Remove from allActivities
+                allActivities = allActivities.filter { it.activity.activityId != activityId }
+                // Reapply filters
+                applyFiltersAndSort()
+                // Optionally: delete from backend/cache if needed
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutsViewModel", "Error deleting activity", e)
+            }
+        }
+    }
+    
+    // Share activity summary
+    fun getActivityShareText(activity: Activity, date: Date): String {
+        val dateStr = java.text.SimpleDateFormat("dd MMMM yyyy 'à' HH:mm", java.util.Locale.FRENCH).format(date)
+        val duration = activity.duration / (1000 * 60) // minutes
+        val hours = duration / 60
+        val minutes = duration % 60
+        
+        return buildString {
+            appendLine("🏃 ${activity.activityName}")
+            appendLine("📅 $dateStr")
+            appendLine("⏱️ Durée: ${hours}h ${minutes}min")
+            activity.distance?.let { appendLine("📏 Distance: ${String.format("%.2f", it)} km") }
+            appendLine("🔥 Calories: ${activity.calories} kcal")
+            activity.averageHeartRate?.let { appendLine("❤️ FC moy: $it bpm") }
+            activity.steps?.let { appendLine("👟 Pas: $it") }
+        }
     }
 }
 

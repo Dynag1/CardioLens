@@ -1,0 +1,7 @@
+Améliorations majeures de l'écran "Entraînements" :
+- 📊 Groupement des activités par semaine avec résumé (nombre, durée, calories)
+- 📅 Statistiques mensuelles détaillées en haut de page
+- 🔍 Filtres par type d'activité et tri (récent, durée, intensité)
+- ⚡ Actions rapides : Partage et Suppression d'activité
+- 🔄 Pull-to-refresh pour actualiser les données
+- 🎨 Interface plus claire et épurée
