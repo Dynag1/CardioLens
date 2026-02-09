@@ -176,7 +176,7 @@ class FitbitAuthManager @Inject constructor(
         refreshMutex.lock()
         try {
             // Check if another thread already refreshed the token while we were waiting
-            val currentToken = getAccessToken()
+            val currentToken = getAccessTokenOrNull()
             if (currentToken != null) {
                 android.util.Log.d("FitbitAuthManager", "Token already refreshed by another thread. Skipping API call.")
                 return@withContext Result.success(currentToken)
