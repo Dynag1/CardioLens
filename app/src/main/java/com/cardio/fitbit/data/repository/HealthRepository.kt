@@ -85,6 +85,7 @@ class HealthRepository @Inject constructor(
         // Priority: Health Connect > Google Fit Cloud > Fitbit
         return when {
             useHealthConnect -> healthConnectProvider
+            fitbitProvider.isAuthorized() -> fitbitProvider
             googleFitProvider.isAuthorized() -> googleFitProvider
             else -> fitbitProvider
         }

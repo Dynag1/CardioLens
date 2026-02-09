@@ -1,5 +1,14 @@
 # Historique des Versions (Changelog)
 
+## Version 66 (v1.3.6) - 2026-02-09
+### Améliorations
+- **Widget** : Mise à jour automatique du widget lors de l'actualisation du tableau de bord.
+- **Synchronisation** : Priorisation des données Fitbit pour garantir une synchronisation fluide même si un ancien compte Google Fit est connecté.
+
+### Corrections
+- **Stabilité** : Correction d'un blocage critique lors de la synchronisation Fitbit (Deadlock).
+
+
 ## Version 41 (v1.2.12) - 2026-01-31
 ### Nouveautés
 - **Graphique de Sommeil** : Un diagramme circulaire montre désormais la répartition de vos phases de sommeil.

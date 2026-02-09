@@ -21,7 +21,8 @@ import javax.inject.Inject
 class DashboardViewModel @Inject constructor(
     private val healthRepository: HealthRepository,
     private val authManager: FitbitAuthManager,
-    private val userPreferencesRepository: com.cardio.fitbit.data.repository.UserPreferencesRepository
+    private val userPreferencesRepository: com.cardio.fitbit.data.repository.UserPreferencesRepository,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DashboardUiState>(DashboardUiState.Loading)
@@ -265,6 +266,10 @@ class DashboardViewModel @Inject constructor(
                 // Let's stick to calculated time.
                 
                 userPreferencesRepository.setLastSyncTimestamp(latestDataTime)
+                
+                // Trigger Widget Update
+                val widgetRequest = androidx.work.OneTimeWorkRequest.Builder(com.cardio.fitbit.workers.WidgetUpdateWorker::class.java).build()
+                androidx.work.WorkManager.getInstance(context).enqueue(widgetRequest)
             } catch (e: Exception) {
                 _uiState.value = DashboardUiState.Error(e.message ?: "Unknown error")
             }
