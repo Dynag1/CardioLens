@@ -1,0 +1,8 @@
+Améliorations Sommeil :
+- Refonte de l'en-tête et calculs plus précis.
+
+Widget :
+- Ajustements visuels.
+
+Divers :
+- Corrections mineures.

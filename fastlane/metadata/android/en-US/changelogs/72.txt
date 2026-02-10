@@ -1,0 +1,10 @@
+Améliorations Sommeil :
+- Refonte de l'en-tête (Exclusion éveil, comp. 7j).
+- Indicateurs visuels de dette de sommeil.
+
+Widget :
+- Taille de police adaptative pour le compteur de pas.
+
+Technique :
+- Correction du build de déploiement (R8).
+- Support amélioré de la synchronisation Health Connect.
