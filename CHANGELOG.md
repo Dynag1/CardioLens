@@ -1,5 +1,10 @@
 # Historique des Versions (Changelog)
 
+## Version 72 (v1.3.12) - 2026-02-10
+### Corrections Techniques & Déploiement
+- **Build R8** : Désactivation temporaire de l'obfuscation R8 pour résoudre les erreurs de build (`ConcurrentModificationException`) et permettre le déploiement sur le Play Store.
+- **Documentation** : Ajout d'un guide de dépannage pour la synchronisation Health Connect (explication du fonctionnement local et transfert de données).
+
 ## Version 70 (v1.3.10) - 2026-02-10
 ### Améliorations Sommeil & Santé
 - **Page Sommeil** : Refonte complète de l'en-tête pour une meilleure lisibilité.
