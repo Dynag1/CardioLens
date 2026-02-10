@@ -1,5 +1,9 @@
 # Historique des Versions (Changelog)
 
+## Version 73 (v1.3.13) - 2026-02-10
+### Correctif Critique
+- **Déploiement** : Correction d'un problème où les modifications de l'interface (Sommeil, Widget) n'étaient pas incluses dans la version précédente (v1.3.12). Cette mise à jour force l'application des changements.
+
 ## Version 72 (v1.3.12) - 2026-02-10
 ### Corrections Techniques & Déploiement
 - **Build R8** : Désactivation temporaire de l'obfuscation R8 pour résoudre les erreurs de build (`ConcurrentModificationException`) et permettre le déploiement sur le Play Store.
