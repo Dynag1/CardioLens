@@ -32,8 +32,8 @@ class SleepViewModel @Inject constructor(
     private val _selectedDate = MutableStateFlow<Date>(Date())
     val selectedDate: StateFlow<Date> = _selectedDate
     
-    private val _sleepDebtMinutes = MutableStateFlow<Int?>(null)
-    val sleepDebtMinutes: StateFlow<Int?> = _sleepDebtMinutes
+    private val _sleepStats = MutableStateFlow<SleepStats?>(null)
+    val sleepStats: StateFlow<SleepStats?> = _sleepStats
 
     fun setDate(date: Date) {
         // Only update if date is different to avoid loops if needed, 
@@ -81,46 +81,55 @@ class SleepViewModel @Inject constructor(
                 _uiState.value = SleepUiState.Error(e.message ?: "Failed to load sleep data")
             }
             
-            // Calculate Sleep Debt
-            calculateSleepDebt(date)
+            // Calculate Sleep Stats
+            calculateSleepStats(date)
         }
     }
     
-    private suspend fun calculateSleepDebt(anchorDate: Date) {
+    private suspend fun calculateSleepStats(anchorDate: Date) {
         try {
+            // End date is anchor date (inclusive for history usually covers the night ending on that date)
             val endDate = DateUtils.getStartOfDay(anchorDate)
-            val startDate = DateUtils.getDaysAgo(7, endDate)
+            // 7 days window
+            val startDate = DateUtils.getDaysAgo(6, endDate)
             
             val goalMinutes = userPreferencesRepository.sleepGoalMinutes.first()
-            var totalDebt = 0
             
             // Fetch history
             val historyResult = healthRepository.getSleepHistory(startDate, endDate)
             val history = historyResult.getOrNull() ?: emptyList()
             
-            // Map history by Date
-            val historyMap = history.groupBy { 
-                DateUtils.formatForApi(it.startTime)
+            // Map history by Date to ensure we have unique days if multiple records per day
+            // We want one duration per day (main sleep).
+            val historyPerDay = history.groupBy { 
+                DateUtils.formatForApi(it.startTime) 
+            }.mapValues { (_, list) ->
+                val stages = list.maxByOrNull { it.duration }?.stages
+                if (stages != null) {
+                    (stages.deep + stages.light + stages.rem)
+                } else {
+                    list.maxByOrNull { it.duration }?.minutesAsleep ?: 0
+                }
             }
             
-            val cal = java.util.Calendar.getInstance()
-            cal.time = startDate
-            
-            while (!cal.time.after(endDate)) {
-                 val dStr = DateUtils.formatForApi(cal.time)
-                 val sleeps = historyMap[dStr]
-                 
-                 if (sleeps != null) {
-                     val totalSleep = sleeps.sumOf { it.duration }
-                     val minutes = (totalSleep / (1000 * 60)).toInt()
-                     val debt = goalMinutes - minutes
-                     totalDebt += debt
-                 }
-                 cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            val validDurations = historyPerDay.values.filter { it > 0 }
+            val avgMinutes = if (validDurations.isNotEmpty()) {
+                (validDurations.sum() / validDurations.size) // attributes are already in minutes
+            } else {
+                0
             }
-            _sleepDebtMinutes.value = totalDebt
+
+            _sleepStats.value = SleepStats(
+                goalMinutes = goalMinutes,
+                average7DaysMinutes = avgMinutes
+            )
         } catch (e: Exception) {
-             android.util.Log.e("SleepVM", "Error calculating debt", e)
+             android.util.Log.e("SleepVM", "Error calculating stats", e)
         }
     }
 }
+
+data class SleepStats(
+    val goalMinutes: Int,
+    val average7DaysMinutes: Int
+)

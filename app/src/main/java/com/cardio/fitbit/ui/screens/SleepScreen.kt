@@ -61,7 +61,7 @@ fun SleepScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
-    val sleepDebtMinutes by viewModel.sleepDebtMinutes.collectAsState()
+    val sleepStats by viewModel.sleepStats.collectAsState()
 
     Scaffold(
         topBar = {
@@ -171,7 +171,7 @@ fun SleepScreen(
                              modifier = Modifier.align(Alignment.Center)
                          )
                      } else {
-                         SleepContent(sleepData, currentUiState.heartRateData, sleepDebtMinutes)
+                         SleepContent(sleepData, currentUiState.heartRateData, sleepStats)
                      }
                  }
              }
@@ -185,7 +185,7 @@ fun SleepScreen(
 }
 
 @Composable
-fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?, sleepDebtMinutes: Int?) {
+fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?, sleepStats: SleepStats?) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -195,50 +195,103 @@ fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?, sleepDebtMin
     ) {
         
         // Sleep Debt Card (Last 7 Days)
-        if (sleepDebtMinutes != null) {
+        // Sleep Stats Card (Goal vs Actual)
+        if (sleepStats != null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                 Row(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.SpaceEvenly, // Distribute evenly
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = "Bilan Sommeil (7j)",
-                            style = MaterialTheme.typography.titleMedium,
+                    
+                    // Helper to format minute diff
+                    fun formatDiff(diff: Int): Pair<String, Color> {
+                        val hours = kotlin.math.abs(diff) / 60
+                        val mins = kotlin.math.abs(diff) % 60
+                        val text = if (diff >= 0) "+${hours}h ${mins}m" else "-${hours}h ${mins}m"
+                        val color = if (diff >= 0) Color(0xFF4CAF50) else Color.Red
+                        return text to color
+                    }
+                    
+                    // Calculate duration excluding awake explicitly if stages available
+                    val currentDurationMin = if (data.stages != null) {
+                        data.stages.deep + data.stages.light + data.stages.rem
+                    } else {
+                        data.minutesAsleep
+                    }
+                    val goal = sleepStats.goalMinutes
+                    
+                    // LEFT: Current Night
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                         Text(
+                            text = "Cette Nuit",
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
+                        
+                        val durationH = currentDurationMin / 60
+                        val durationM = currentDurationMin % 60
                         Text(
-                            text = "Différence cumulée vs Objectif",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    
-                    val debtHours = kotlin.math.abs(sleepDebtMinutes) / 60
-                    val debtMins = kotlin.math.abs(sleepDebtMinutes) % 60
-                    
-                    val (color, text, icon) = when {
-                        sleepDebtMinutes > 120 -> Triple(MaterialTheme.colorScheme.error, "-${debtHours}h ${debtMins}m", Icons.Default.Warning) // > 2h debt
-                        sleepDebtMinutes > 0 -> Triple(Color(0xFFFF9800), "-${debtHours}h ${debtMins}m", Icons.Default.Info) // Some debt
-                        else -> Triple(Color(0xFF4CAF50), "+${debtHours}h ${debtMins}m", Icons.Default.CheckCircle) // Surplus or met
-                    }
-                    
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = text,
-                            style = MaterialTheme.typography.titleLarge,
+                            text = "${durationH}h ${durationM}m",
+                            style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            color = color
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Icon(icon, contentDescription = null, tint = color)
+                        
+                        val diff = currentDurationMin - goal
+                        val (diffText, diffColor) = formatDiff(diff)
+                        
+                        Text(
+                            text = "$diffText vs Obj.",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = diffColor
+                        )
+                    }
+                    
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(40.dp)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.3f))
+                    )
+
+                    // RIGHT: 7 Days Avg
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                         Text(
+                            text = "Moyenne 7j",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        val avgMin = sleepStats.average7DaysMinutes
+                        val avgH = avgMin / 60
+                        val avgM = avgMin % 60
+                        Text(
+                            text = "${avgH}h ${avgM}m",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        // Compare avg to current night
+                        val diff = currentDurationMin - avgMin
+                        val (diffText, diffColor) = formatDiff(diff)
+                        val comparisonText = if (diff >= 0) "plus que cette nuit" else "moins que cette nuit"
+                        
+                        Text(
+                            text = "$diffText vs nuit",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = diffColor
+                        )
                     }
                 }
             }
