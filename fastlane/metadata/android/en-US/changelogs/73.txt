@@ -1,0 +1,2 @@
+Correction interface manquante (Sommeil, Widget).
+Cette version force l'application des changements graphiques qui n'étaient pas présents dans la v1.3.12 par erreur.
