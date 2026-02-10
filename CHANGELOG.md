@@ -1,5 +1,15 @@
 # Historique des Versions (Changelog)
 
+## Version 70 (v1.3.10) - 2026-02-10
+### Améliorations Sommeil & Santé
+- **Page Sommeil** : Refonte complète de l'en-tête pour une meilleure lisibilité.
+  - Distinction claire entre "Cette Nuit" et la "Moyenne sur 7 jours".
+  - **Exclusion Éveil** : La durée de sommeil affichée exclut désormais strictement les phases d'éveil.
+  - **Comparaison Inversée** : La différence est calculée par rapport à la moyenne (Nuit - Moyenne).
+  - **Code Couleur** : Les déficits de sommeil (différence négative) sont immédiatement visibles en rouge.
+- **Tableau de Bord** : Ajout d'une carte **SpO2** (Saturation en Oxygène) affichant la moyenne journalière, min/max et l'historique récent (si disponible).
+- **Widget** : Correction de la taille de texte pour le nombre de pas, qui s'adapte désormais automatiquement pour éviter les retours à la ligne indésirables.
+
 ## Version 68 (v1.3.8) - 2026-02-09
 ### Améliorations Entraînements
 - **Pull-to-Refresh** : Rafraîchissement manuel des entraînements d'un simple geste.
