@@ -1,0 +1,5 @@
+Améliorations Sommeil :
+- Refonte de l'en-tête et calculs plus précis.
+
+Technique :
+- Améliorations de stabilité.
