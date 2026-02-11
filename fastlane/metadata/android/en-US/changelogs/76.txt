@@ -1,0 +1,2 @@
+- Fix: Prevented infinite loading loop on Trends and Calendar pages by caching empty data for missing days
+- Fix: Adjusted widget font size to prevent step count overflow for large numbers
