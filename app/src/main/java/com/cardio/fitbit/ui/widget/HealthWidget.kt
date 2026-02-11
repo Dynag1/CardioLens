@@ -102,17 +102,25 @@ class HealthWidget : GlanceAppWidget() {
                 Spacer(GlanceModifier.size(8.dp))
 
                 // Bottom Row: Steps
-                MetricItem(context.getString(R.string.widget_steps), displaySteps, "")
+                MetricItem(context.getString(R.string.widget_steps), displaySteps, "", isLarge = true)
             }
         }
     }
 
     @Composable
-    private fun MetricItem(label: String, value: String, unit: String) {
-        val fontSize = when {
-            value.length > 5 -> 14.sp
-            value.length > 4 -> 18.sp
-            else -> 22.sp
+    private fun MetricItem(label: String, value: String, unit: String, isLarge: Boolean = false) {
+        val fontSize = if (isLarge) {
+            when {
+                value.length > 6 -> 20.sp
+                value.length > 5 -> 24.sp
+                else -> 30.sp
+            }
+        } else {
+            when {
+                value.length > 5 -> 14.sp
+                value.length > 4 -> 16.sp
+                else -> 20.sp
+            }
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

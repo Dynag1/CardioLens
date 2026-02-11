@@ -57,82 +57,77 @@ class TrendsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<TrendsUiState>(TrendsUiState.Loading)
     val uiState: StateFlow<TrendsUiState> = _uiState.asStateFlow()
 
+    // Cache pour les points de tendance (Données complétement traitées)
+    private var _cachedTrendPoints = listOf<TrendPoint>()
+    
+    // Cache dédié pour les activités (comme demandé)
+    private val _activityCache = mutableMapOf<String, ActivityData>()
+
     init {
         loadTrends(7)
     }
 
     fun loadTrends(days: Int = 7) {
         viewModelScope.launch {
-            _uiState.value = TrendsUiState.Loading
+            // 1. Try to serve from cache immediately if we have enough data
+            val cachedForRequest = _cachedTrendPoints.sortedByDescending { it.date }.take(days)
+            if (cachedForRequest.isNotEmpty() && cachedForRequest.size >= days) {
+                 val correlations = computeCorrelations(cachedForRequest)
+                _uiState.value = TrendsUiState.Success(cachedForRequest.sortedBy { it.date }, days, correlations)
+            } else {
+                _uiState.value = TrendsUiState.Loading // Only show loading if we really don't have data
+            }
+
             try {
                 val calendar = Calendar.getInstance()
-                // End at end of today to capture all of today's data
                 val endDate = DateUtils.getEndOfDay(calendar.time)
                 
-                // Calculate Start Date (N days ago, starting at 00:00)
                 val startCalendar = Calendar.getInstance()
                 startCalendar.add(Calendar.DAY_OF_YEAR, -(days - 1))
                 val startDate = DateUtils.getStartOfDay(startCalendar.time)
                 
-                // 1. Fetch History Data in Bulk (Parallelizable, but sequential is fine for now)
-                
-                // HRV History
+                // Fetch Data
                 val hrvResult = healthRepository.getHrvHistory(startDate, endDate)
                 val hrvMap = hrvResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.time) }?.toMutableMap() ?: mutableMapOf()
 
-                // Mood History
                 val moodHistory = healthRepository.getMoodHistory(startDate, endDate)
                 val moodMap = moodHistory.associateBy { it.date }
                 
-                // Symptoms History
                 val symptomsHistory = healthRepository.getSymptomsHistory(startDate, endDate)
                 val symptomsMap = symptomsHistory.associateBy { it.date }
 
-                // Heart Rate History (Daily Summaries - Native RHR Fallback)
                 val hrHistoryResult = healthRepository.getHeartRateHistory(startDate, endDate)
                 val hrMap = hrHistoryResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
 
-                // Intraday History (Detailed Data - The Source of "True RHR")
                 val intradayHistoryResult = healthRepository.getIntradayHistory(startDate, endDate)
                 val intradayMap = intradayHistoryResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
 
-                // Sleep History
                 val sleepHistoryResult = healthRepository.getSleepHistory(startDate, endDate)
                 val sleepLogs = sleepHistoryResult.getOrNull() ?: emptyList() 
-                val sleepMap = sleepLogs.groupBy { DateUtils.formatForApi(it.date) } // Note: Sleep date logic might be tricky, assuming API returns 'dateOfSleep' correctly
-                
-                // Activity History (for excluding workouts from RHR)
-                // Activity History (for excluding workouts from RHR)
-                val activityHistoryResult = healthRepository.getActivityHistory(startDate, endDate)
-                val activityMap = activityHistoryResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
+                val sleepMap = sleepLogs.groupBy { DateUtils.formatForApi(it.date) }
 
-                // Steps History
+                // Retrieve Activities using our specialized cache
+                val activityMap = getActivitiesWithCache(startDate, endDate)
+
                 val stepsResult = healthRepository.getStepsData(startDate, endDate)
                 val stepsMap = stepsResult.getOrNull()?.associateBy { DateUtils.formatForApi(it.date) } ?: emptyMap()
                 
-                
-                // HOTFIX: Explicitly fetch Today's HRV (same as before)
+                // ... (Existing HOTFIX for Today's HRV)
                 try {
                     val today = Calendar.getInstance().time
                     val todayStr = DateUtils.formatForApi(today)
-                    // We don't force refresh here to respect Dashboard's cache, but if missing it will fetch single
                     val todayResult = healthRepository.getHrvData(today)
                     val todayRecords = todayResult.getOrNull() ?: emptyList()
-                    
                     if (todayRecords.isNotEmpty()) {
                         val avgRmssd = todayRecords.map { it.rmssd }.average()
-                        val syntheticRecord = com.cardio.fitbit.data.models.HrvRecord(
-                            time = todayRecords.first().time, 
-                            rmssd = avgRmssd
-                        )
+                        val syntheticRecord = com.cardio.fitbit.data.models.HrvRecord(time = todayRecords.first().time, rmssd = avgRmssd)
                         hrvMap[todayStr] = syntheticRecord
                     }
-                } catch (e: Exception) { /* Ignore */ }
+                } catch (e: Exception) { }
 
                 val trendPoints = mutableListOf<TrendPoint>()
                 val repairCandidates = mutableListOf<Date>()
                 
-                // Iterate to build points
                 val processingCalendar = Calendar.getInstance()
                 processingCalendar.time = endDate
                 
@@ -143,7 +138,6 @@ class TrendsViewModel @Inject constructor(
                     val hrvValue = hrvMap[dateStr]?.rmssd?.toInt()
                     val moodRating = moodMap[dateStr]?.rating
                     
-                    // Retrieve Datasets
                     val dailyHr = hrMap[dateStr]
                     val dailySleep = sleepMap[dateStr] ?: emptyList()
                     val dailyIntraday = intradayMap[dateStr]?.minuteData ?: emptyList()
@@ -151,26 +145,19 @@ class TrendsViewModel @Inject constructor(
                     
                     val nativeRhr = dailyHr?.restingHeartRate
                     
-
                     val rhrResult = HeartRateAnalysisUtils.calculateDailyRHR(
                         date = targetDate,
                         intraday = dailyIntraday,
                         sleep = dailySleep,
-                        activity = dailyActivity, // NOW PASSING ACTIVITY DATA
+                        activity = dailyActivity,
                         preMidnightHeartRates = emptyList(), 
                         nativeRhr = nativeRhr
                     )
 
-                    // Repair Check
-                    // Aggressive: If we have no Intraday data for a past day, try to fetch it.
-                    // This covers cases where we have NO data at all (nativeRhr is null) or just summary.
-                    // Accessing 'steps' to verify if the user was active could be smart, but 'forceRefresh' 
-                    // on missing Intraday is the robust way to ensure we have tried everything.
                     if (dailyIntraday.isEmpty()) {
                         repairCandidates.add(targetDate)
                     }
 
-                    // Step Calculation Logic: Prioritize Activity Summary (Dashboard Source)
                     val stepsFromActivity = dailyActivity?.summary?.steps ?: 0
                     val stepsFromTimeSeries = stepsMap[dateStr]?.steps ?: 0
                     val stepsFromIntraday = dailyIntraday.sumOf { it.steps }
@@ -182,8 +169,6 @@ class TrendsViewModel @Inject constructor(
                     }.takeIf { it > 0 }
                     val dailySymptoms = symptomsMap[dateStr]?.symptoms
 
-                    // Calculate Workout Duration
-                    // Sum duration of all activities for the day
                     val workoutDurationMinutes = dailyActivity?.activities?.sumOf { it.duration }?.let { millis ->
                         (millis / 1000 / 60).toInt()
                     } ?: 0
@@ -204,13 +189,13 @@ class TrendsViewModel @Inject constructor(
                     )
                     
                     trendPoints.add(point)
-                    
-                    // Move back one day
                     processingCalendar.add(Calendar.DAY_OF_YEAR, -1)
                 }
                 
-                // Sort by date ascending
                 val sortedPoints = trendPoints.sortedBy { it.date }
+                
+                // Update Cache
+                _cachedTrendPoints = sortedPoints
                 
                 val correlations = computeCorrelations(sortedPoints)
                 
@@ -221,9 +206,54 @@ class TrendsViewModel @Inject constructor(
                 }
                 
             } catch (e: Exception) {
-                _uiState.value = TrendsUiState.Error(e.message ?: "Unknown error")
+                // If it fails but we have cache, keep showing cache? 
+                // Currently errors out.
+                // If we have cache, maybe revert to it?
+                if (_cachedTrendPoints.isNotEmpty()) {
+                     val correlations = computeCorrelations(_cachedTrendPoints)
+                    _uiState.value = TrendsUiState.Success(_cachedTrendPoints.sortedBy { it.date }, days, correlations)
+                } else {
+                    _uiState.value = TrendsUiState.Error(e.message ?: "Unknown error")
+                }
             }
         }
+    }
+
+    private suspend fun getActivitiesWithCache(startDate: Date, endDate: Date): Map<String, ActivityData> {
+        val startCalendar = Calendar.getInstance()
+        startCalendar.time = startDate
+        val missingDates = mutableListOf<Date>()
+        val result = mutableMapOf<String, ActivityData>()
+
+        // 1. Check Memory Cache
+        while (!startCalendar.time.after(endDate)) {
+            val dStr = DateUtils.formatForApi(startCalendar.time)
+            if (_activityCache.containsKey(dStr)) {
+                result[dStr] = _activityCache[dStr]!!
+            } else {
+                missingDates.add(startCalendar.time)
+            }
+            startCalendar.add(Calendar.DAY_OF_YEAR, 1)
+        }
+
+        // 2. Fetch Missing from Repository (Disk Cache or Network)
+        if (missingDates.isNotEmpty()) {
+            // Group contiguous or just fetch min-max of missing
+            val fetchStart = missingDates.minOrNull() ?: startDate
+            val fetchEnd = missingDates.maxOrNull() ?: endDate
+            
+            val apiResult = healthRepository.getActivityHistory(fetchStart, fetchEnd)
+            val fetchedList = apiResult.getOrNull() ?: emptyList()
+            
+            // Update Cache
+            fetchedList.forEach { 
+                val dStr = DateUtils.formatForApi(it.date)
+                _activityCache[dStr] = it
+                result[dStr] = it
+            }
+        }
+        
+        return result
     }
 
     private fun computeCorrelations(points: List<TrendPoint>): List<CorrelationResult> {
