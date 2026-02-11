@@ -104,24 +104,55 @@ class SleepViewModel @Inject constructor(
             val historyPerDay = history.groupBy { 
                 DateUtils.formatForApi(it.startTime) 
             }.mapValues { (_, list) ->
-                val stages = list.maxByOrNull { it.duration }?.stages
-                if (stages != null) {
-                    (stages.deep + stages.light + stages.rem)
-                } else {
-                    list.maxByOrNull { it.duration }?.minutesAsleep ?: 0
-                }
+                list.maxByOrNull { it.duration }
             }
             
-            val validDurations = historyPerDay.values.filter { it > 0 }
-            val avgMinutes = if (validDurations.isNotEmpty()) {
-                (validDurations.sum() / validDurations.size) // attributes are already in minutes
-            } else {
-                0
+            val validSleeps = historyPerDay.values.filterNotNull()
+            
+            // Calc avg duration
+            val avgMinutes = if (validSleeps.isNotEmpty()) {
+                validSleeps.map { 
+                    if (it.stages != null) (it.stages.deep + it.stages.light + it.stages.rem) 
+                    else it.minutesAsleep 
+                }.average().toInt()
+            } else 0
+
+            // Calc avg percentages
+            var avgWake = 0
+            var avgRem = 0
+            var avgLight = 0
+            var avgDeep = 0
+            
+            val sleepsWithStages = validSleeps.filter { it.stages != null && (it.minutesAsleep + it.minutesAwake) > 0 }
+            if (sleepsWithStages.isNotEmpty()) {
+                var sumWake = 0f
+                var sumRem = 0f
+                var sumLight = 0f
+                var sumDeep = 0f
+                
+                sleepsWithStages.forEach { sleep ->
+                    val total = (sleep.minutesAsleep + sleep.minutesAwake).toFloat()
+                    val stages = sleep.stages!!
+                    
+                    sumWake += (sleep.minutesAwake / total) * 100
+                    sumRem += (stages.rem / total) * 100
+                    sumLight += (stages.light / total) * 100
+                    sumDeep += (stages.deep / total) * 100
+                }
+                
+                avgWake = (sumWake / sleepsWithStages.size).toInt()
+                avgRem = (sumRem / sleepsWithStages.size).toInt()
+                avgLight = (sumLight / sleepsWithStages.size).toInt()
+                avgDeep = (sumDeep / sleepsWithStages.size).toInt()
             }
 
             _sleepStats.value = SleepStats(
                 goalMinutes = goalMinutes,
-                average7DaysMinutes = avgMinutes
+                average7DaysMinutes = avgMinutes,
+                averageWakePct = avgWake,
+                averageRemPct = avgRem,
+                averageLightPct = avgLight,
+                averageDeepPct = avgDeep
             )
         } catch (e: Exception) {
              android.util.Log.e("SleepVM", "Error calculating stats", e)
@@ -131,5 +162,9 @@ class SleepViewModel @Inject constructor(
 
 data class SleepStats(
     val goalMinutes: Int,
-    val average7DaysMinutes: Int
+    val average7DaysMinutes: Int,
+    val averageWakePct: Int = 0,
+    val averageRemPct: Int = 0,
+    val averageLightPct: Int = 0,
+    val averageDeepPct: Int = 0
 )
