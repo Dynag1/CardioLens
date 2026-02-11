@@ -35,16 +35,30 @@ fun CalendarScreen(
     val uiState by viewModel.uiState.collectAsState()
     var currentMonth by remember { mutableStateOf(Calendar.getInstance()) }
 
+    LaunchedEffect(Unit) {
+        viewModel.loadTrends(60)
+    }
+
     // Reload trends when month changes (fetch 30-40 days around month)
     // For now, TrendsViewModel fetches 7/15/30 days from TODAY back. 
     // To support arbitrary months, we'd need to update ViewModel. 
     // For MVP, we stick to "Last 30 Days" view or assume TrendsViewModel has data if within range.
     // IMPROVEMENT: Trigger a load for the specific month.
     
-    // We will use the existing "Success" state data.
-    val dataMap = (uiState as? TrendsUiState.Success)?.data?.associateBy { 
+    // Retain data across Loading states to prevent flickering
+    var cachedPoints by remember { mutableStateOf<List<TrendPoint>>(emptyList()) }
+    
+    LaunchedEffect(uiState) {
+        if (uiState is TrendsUiState.Success) {
+            cachedPoints = (uiState as TrendsUiState.Success).data
+        }
+    }
+
+    val displayedPoints = (uiState as? TrendsUiState.Success)?.data ?: cachedPoints
+
+    val dataMap = displayedPoints.associateBy { 
         DateUtils.formatForApi(it.date) 
-    } ?: emptyMap()
+    }
 
     Scaffold(
         topBar = {
@@ -109,7 +123,7 @@ fun CalendarScreen(
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(7),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.weight(1f)
             ) {
                 // Empty slots for start offset
                 items(days.first) {
@@ -140,7 +154,10 @@ fun CalendarScreen(
                             )
                             
                             if (point != null) {
-                                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.height(12.dp)) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally), 
+                                    modifier = Modifier.height(12.dp)
+                                ) {
                                     // Mood Dot
                                     point.moodRating?.let { mood ->
                                         val color = when(mood) {
@@ -149,16 +166,61 @@ fun CalendarScreen(
                                             else -> Color.Red
                                         }
                                         Box(Modifier.size(6.dp).clip(CircleShape).background(color))
-                                        Spacer(Modifier.width(2.dp))
                                     }
                                     
                                     // Symptom Dot
                                     if (!point.symptoms.isNullOrEmpty()) {
                                         Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFE57373))) // Red for symptoms
                                     }
+
+                                    // Workout Dot
+                                    if ((point.workoutDurationMinutes ?: 0) > 0) {
+                                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF42A5F5))) // Blue
+                                    }
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Legend
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), shape = MaterialTheme.shapes.medium)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Légende :", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Mood
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color.Green))
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color.Yellow))
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color.Red))
+                        }
+                        Text("Humeur", style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    // Symptoms
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFE57373)))
+                        Text("Symptômes", style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    // Workouts
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF42A5F5)))
+                        Text("Activités", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
