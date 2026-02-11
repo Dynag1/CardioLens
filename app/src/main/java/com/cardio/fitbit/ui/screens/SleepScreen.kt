@@ -400,6 +400,7 @@ fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?, sleepStats: 
                 Spacer(Modifier.height(16.dp))
                 SleepComparisonChart(
                     data = data,
+                    stats = sleepStats,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -821,6 +822,7 @@ fun SleepPhasesPieChart(
 @Composable
 fun SleepComparisonChart(
     data: SleepData,
+    stats: SleepStats?,
     modifier: Modifier = Modifier
 ) {
     val totalMinutes = data.minutesAsleep + data.minutesAwake
@@ -831,10 +833,16 @@ fun SleepComparisonChart(
     val lightPct = ((data.stages?.light ?: 0).toFloat() / totalMinutes * 100).toInt()
     val deepPct = ((data.stages?.deep ?: 0).toFloat() / totalMinutes * 100).toInt()
 
+    val avgWake = stats?.averageWakePct
+    val avgRem = stats?.averageRemPct
+    val avgLight = stats?.averageLightPct
+    val avgDeep = stats?.averageDeepPct
+
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SleepPhaseBar(
             label = "Éveillé",
             valuePct = wakePct,
+            avgPct = avgWake,
             minRec = 5,
             maxRec = 20, // 5-20% generous range for awake
             color = Color(0xFFFFEB3B)
@@ -842,6 +850,7 @@ fun SleepComparisonChart(
         SleepPhaseBar(
             label = "REM (Rêve)",
             valuePct = remPct,
+            avgPct = avgRem,
             minRec = 20,
             maxRec = 25,
             color = Color(0xFF00BCD4)
@@ -849,6 +858,7 @@ fun SleepComparisonChart(
         SleepPhaseBar(
             label = "Léger",
             valuePct = lightPct,
+            avgPct = avgLight,
             minRec = 40,
             maxRec = 60,
             color = Color(0xFF2196F3)
@@ -856,6 +866,7 @@ fun SleepComparisonChart(
         SleepPhaseBar(
             label = "Profond",
             valuePct = deepPct,
+            avgPct = avgDeep,
             minRec = 10,
             maxRec = 25,
             color = Color(0xFF3F51B5)
@@ -867,6 +878,7 @@ fun SleepComparisonChart(
 fun SleepPhaseBar(
     label: String,
     valuePct: Int,
+    avgPct: Int? = null,
     minRec: Int,
     maxRec: Int,
     color: Color
@@ -947,6 +959,21 @@ fun SleepPhaseBar(
                 end = Offset(xMax, height),
                 strokeWidth = 2f
             )
+            
+            // Draw Avg Point
+            if (avgPct != null) {
+                 val xAvg = ((avgPct / maxScale) * width).coerceAtMost(width)
+                 drawCircle(
+                     color = Color.Black,
+                     radius = height * 0.45f,
+                     center = Offset(xAvg, height / 2)
+                 )
+                  drawCircle(
+                     color = Color.White,
+                     radius = height * 0.25f,
+                     center = Offset(xAvg, height / 2)
+                 )
+            }
         }
         Row(
             modifier = Modifier.fillMaxWidth(),

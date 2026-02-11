@@ -110,9 +110,9 @@ class HealthWidget : GlanceAppWidget() {
     @Composable
     private fun MetricItem(label: String, value: String, unit: String) {
         val fontSize = when {
-            value.length > 5 -> 18.sp
-            value.length > 4 -> 20.sp
-            else -> 24.sp
+            value.length > 5 -> 14.sp
+            value.length > 4 -> 18.sp
+            else -> 22.sp
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

@@ -1,0 +1,2 @@
+- Added 7-day average indicators to Sleep Phase graph
+- Improvement: Widget font sizing and step count reliability

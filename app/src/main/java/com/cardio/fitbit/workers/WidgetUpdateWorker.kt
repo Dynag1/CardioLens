@@ -136,7 +136,14 @@ class WidgetUpdateWorker @AssistedInject constructor(
         }
 
         // -- Logic for Steps --
-        if (intraday != null && intraday.minuteData.isNotEmpty()) {
+        // Try getting daily summary first (more reliable)
+        val activityData = healthRepository.getActivityData(date, forceRefresh = false).getOrNull() 
+            ?: healthRepository.getActivityData(date, forceRefresh = true).getOrNull()
+
+        if (activityData != null) {
+            computedSteps = activityData.summary.steps
+        } else if (intraday != null && intraday.minuteData.isNotEmpty()) {
+            // Fallback to intraday sum
             computedSteps = intraday.minuteData.sumOf { it.steps }
         }
 
