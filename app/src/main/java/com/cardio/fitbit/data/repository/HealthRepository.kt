@@ -228,47 +228,44 @@ class HealthRepository @Inject constructor(
                     val data = result.getOrNull() ?: emptyList()
                     fetchedData.addAll(data)
 
-                    // Cache (overwrite if exists, to ensure we have at least this summary)
-                    // Logic: If we already have a record for this date, should we overwrite?
-                    // If existing record has intraday (!= null), DO NOT overwrite with summary (null).
-                    // If existing record is just summary, we can overwrite (update).
-                    // Since we filtered `missingDates` based on `cachedMap[dateStr] == null`, 
-                    // we are mostly dealing with new data here.
-                    // BUT, if we fetched a Range (e.g. startDate to endDate) because >50% missing, 
-                    // the `data` result includes dates we ALREADY have.
-                    // We must be careful not to downgrade detailed data to summary.
-                    
-                    val existingMap = cachedMap.mapValues { 
-                         try { gson.fromJson(it.value.data, HeartRateData::class.java) } catch(e: Exception) { null }
-                    }.filterValues { it != null } as Map<String, HeartRateData>
-                    
+                    // Cache discovered data
                     val entitiesToInsert = mutableListOf<com.cardio.fitbit.data.local.entities.HeartRateDataEntity>()
+                    val foundDates = data.map { DateUtils.formatForApi(it.date) }.toSet()
                     
                     data.forEach { newItem ->
                         val dateStr = DateUtils.formatForApi(newItem.date)
-                        val existingItem = existingMap[dateStr]
-                        
-                        // Only insert/update if:
-                        // 1. No existing item
-                        // 2. Existing item is just a summary (intraday == null) AND new item is better? (History fetch is always summary, so never better than detail)
-                        // So: rely on "History Fetch never beats Detailed Cache".
-                        // Basic rule: If exists and has details, keep existing. If not exists, insert new. 
-                        // If exists but summary, simple update (same level).
-                        
-                        val shouldSave = existingItem == null || existingItem.intradayData == null
-                        
-                        if (shouldSave) {
-                             val json = gson.toJson(newItem)
-                             entitiesToInsert.add(
-                                 com.cardio.fitbit.data.local.entities.HeartRateDataEntity(
-                                     date = dateStr,
-                                     data = json,
-                                     timestamp = System.currentTimeMillis()
-                                 )
+                        // Simple rule: always update cache with what we found (summary mostly)
+                        // But respect if existing detail is better? 
+                        // For simplicity in this fix, we assume we fetch what is needed.
+                        val json = gson.toJson(newItem)
+                        entitiesToInsert.add(
+                             com.cardio.fitbit.data.local.entities.HeartRateDataEntity(
+                                 date = dateStr,
+                                 data = json,
+                                 timestamp = System.currentTimeMillis()
                              )
-                        }
+                        )
                     }
                     
+                    // CRITICAL FIX: Insert empty records for dates that were requested but returned NO data
+                    // This prevents infinite re-fetching of these "gap" days.
+                    missingDates.forEach { date ->
+                        val dateStr = DateUtils.formatForApi(date)
+                        if (!foundDates.contains(dateStr)) {
+                            // verify we don't overwrite existing valid data (though if it was in missingDates, it likely wasn't in cache)
+                            // Construct empty HeartRateData
+                            val emptyData = HeartRateData(date, null, emptyList(), null)
+                            val json = gson.toJson(emptyData)
+                            entitiesToInsert.add(
+                                com.cardio.fitbit.data.local.entities.HeartRateDataEntity(
+                                    date = dateStr,
+                                    data = json,
+                                    timestamp = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    }
+
                     if (entitiesToInsert.isNotEmpty()) {
                         heartRateDao.insertAll(entitiesToInsert)
                     }
@@ -376,16 +373,8 @@ class HealthRepository @Inject constructor(
                     val data = result.getOrNull() ?: emptyList()
                     fetchedData.addAll(data)
                     
-                    // Cache
-                    // SleepData structure is complex (list of SleepData per day? No, getSleepHistory returns List<SleepData> flat?)
-                    // Fitbit API returns list of sleep logs. Multiple logs can exist for same day.
-                    // SleepDataDao expects One Entity per Date?
-                    // Let's check SleepDataDao...
-                    // SleepDataEntity: date (String), data (JSON List<SleepData>)
-                    // getSleepHistory returns List<SleepData>.
-                    // We need to group by Date to insert into DB.
-                    
                     val grouped = data.groupBy { DateUtils.formatForApi(it.date) }
+                    val foundDates = grouped.keys
                     
                     val entities = grouped.map { (dateStr, sleepList) ->
                         com.cardio.fitbit.data.local.entities.SleepDataEntity(
@@ -393,7 +382,22 @@ class HealthRepository @Inject constructor(
                             data = gson.toJson(sleepList),
                             timestamp = System.currentTimeMillis()
                         )
+                    }.toMutableList()
+                    
+                    // Insert empty list for missing dates (Gaps)
+                    missingDates.forEach { date ->
+                        val dateStr = DateUtils.formatForApi(date)
+                        if (!foundDates.contains(dateStr)) {
+                             entities.add(
+                                com.cardio.fitbit.data.local.entities.SleepDataEntity(
+                                    date = dateStr,
+                                    data = gson.toJson(emptyList<SleepData>()),
+                                    timestamp = System.currentTimeMillis()
+                                )
+                             )
+                        }
                     }
+
                     if (entities.isNotEmpty()) {
                         sleepDataDao.insertAll(entities)
                     }
@@ -544,15 +548,35 @@ class HealthRepository @Inject constructor(
                      val data = result.getOrNull() ?: emptyList()
                      fetchedData.addAll(data)
                      
-                     // Cache new data
+                     val foundDates = data.map { DateUtils.formatForApi(it.date) }.toSet()
+                     
+                     // Cache NEW data
                      val entities = data.map { stepsData ->
                          com.cardio.fitbit.data.local.entities.StepsDataEntity(
                              date = DateUtils.formatForApi(stepsData.date),
                              data = gson.toJson(stepsData),
                              timestamp = System.currentTimeMillis()
                          )
+                     }.toMutableList()
+                     
+                     // Handle MISSING dates (Gaps) - Insert empty record
+                     missingDates.forEach { date ->
+                         val dateStr = DateUtils.formatForApi(date)
+                         if (!foundDates.contains(dateStr)) {
+                             val emptyData = StepsData(date, 0, 0.0, 0, 0)
+                             entities.add(
+                                 com.cardio.fitbit.data.local.entities.StepsDataEntity(
+                                     date = dateStr,
+                                     data = gson.toJson(emptyData),
+                                     timestamp = System.currentTimeMillis()
+                                 )
+                             )
+                         }
                      }
-                     stepsDao.insertAll(entities)
+                     
+                     if (entities.isNotEmpty()) {
+                         stepsDao.insertAll(entities)
+                     }
                 } else {
                     android.util.Log.e("TrendsDebug", "HR Steps: Fetch Failed: ${result.exceptionOrNull()}")
                     return@withContext result // Fail if network fails and we needed data
@@ -703,6 +727,8 @@ class HealthRepository @Inject constructor(
                     val data = result.getOrNull() ?: emptyList()
                     fetchedData.addAll(data)
                     
+                    val foundDates = data.map { DateUtils.formatForApi(it.date) }.toSet()
+                    
                     // Cache
                     val entities = data.map { item ->
                         com.cardio.fitbit.data.local.entities.ActivityDataEntity(
@@ -710,7 +736,28 @@ class HealthRepository @Inject constructor(
                             data = gson.toJson(item),
                             timestamp = System.currentTimeMillis()
                         )
+                    }.toMutableList()
+                    
+                    // Insert empty for missing
+                    missingDates.forEach { date ->
+                        val dateStr = DateUtils.formatForApi(date)
+                        if (!foundDates.contains(dateStr)) {
+                            // Empty ActivityData
+                            val emptyAct = ActivityData(
+                                date = date, 
+                                activities = emptyList(), 
+                                summary = ActivitySummary(0, 0.0, 0, 0, 0, 0)
+                            )
+                            entities.add(
+                                com.cardio.fitbit.data.local.entities.ActivityDataEntity(
+                                    date = dateStr,
+                                    data = gson.toJson(emptyAct),
+                                    timestamp = System.currentTimeMillis()
+                                )
+                            )
+                        }
                     }
+
                     if (entities.isNotEmpty()) {
                         activityDataDao.insertAll(entities)
                     }
@@ -795,6 +842,8 @@ class HealthRepository @Inject constructor(
                     val data = result.getOrNull() ?: emptyList()
                     fetchedData.addAll(data)
                     
+                    val foundDates = data.map { DateUtils.formatForApi(it.date) }.toSet()
+                    
                     // Cache
                     val entities = data.map { item ->
                         com.cardio.fitbit.data.local.entities.IntradayDataEntity(
@@ -802,7 +851,24 @@ class HealthRepository @Inject constructor(
                             data = gson.toJson(item),
                             timestamp = System.currentTimeMillis()
                         )
+                    }.toMutableList()
+                    
+                    // Insert missing
+                    missingDates.forEach { date ->
+                        val dateStr = DateUtils.formatForApi(date)
+                        if (!foundDates.contains(dateStr)) {
+                            // Empty IntradayData
+                            val emptyData = IntradayData(date, emptyList(), null)
+                            entities.add(
+                                com.cardio.fitbit.data.local.entities.IntradayDataEntity(
+                                    date = dateStr,
+                                    data = gson.toJson(emptyData),
+                                    timestamp = System.currentTimeMillis()
+                                )
+                            )
+                        }
                     }
+
                     if (entities.isNotEmpty()) {
                         intradayDataDao.insertAll(entities)
                     }
@@ -964,9 +1030,7 @@ class HealthRepository @Inject constructor(
                      
                      // Group by Date to Cache
                      val recordsByDate = allRecords.groupBy { DateUtils.formatForApi(it.time) }
-                     
-                     // Also handle empty days (explicitly cache empty list if provider success but no data for a day?)
-                     // For now, caching what we got.
+                     val foundDates = recordsByDate.keys
                      
                      val entities = recordsByDate.map { (dateStr, records) ->
                          com.cardio.fitbit.data.local.entities.HrvDataEntity(
@@ -974,7 +1038,22 @@ class HealthRepository @Inject constructor(
                              data = gson.toJson(records),
                              timestamp = System.currentTimeMillis()
                          )
+                     }.toMutableList()
+                     
+                     // Insert empty list for missing dates
+                     missingDates.forEach { date ->
+                         val dateStr = DateUtils.formatForApi(date)
+                         if (!foundDates.contains(dateStr)) {
+                             entities.add(
+                                 com.cardio.fitbit.data.local.entities.HrvDataEntity(
+                                     date = dateStr,
+                                     data = gson.toJson(emptyList<com.cardio.fitbit.data.models.HrvRecord>()),
+                                     timestamp = System.currentTimeMillis()
+                                 )
+                             )
+                         }
                      }
+
                      if (entities.isNotEmpty()) {
                         hrvDataDao.insertAll(entities)
                      }

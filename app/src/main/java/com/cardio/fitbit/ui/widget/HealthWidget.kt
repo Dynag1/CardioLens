@@ -111,9 +111,9 @@ class HealthWidget : GlanceAppWidget() {
     private fun MetricItem(label: String, value: String, unit: String, isLarge: Boolean = false) {
         val fontSize = if (isLarge) {
             when {
-                value.length > 6 -> 20.sp
-                value.length > 5 -> 24.sp
-                else -> 30.sp
+                value.length > 6 -> 18.sp
+                value.length > 5 -> 22.sp
+                else -> 26.sp
             }
         } else {
             when {
@@ -130,6 +130,7 @@ class HealthWidget : GlanceAppWidget() {
             )
             Text(
                 text = value,
+                maxLines = 1,
                 style = TextStyle(
                     fontWeight = FontWeight.Bold,
                     fontSize = fontSize,

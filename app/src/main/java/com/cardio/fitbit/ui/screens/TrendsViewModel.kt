@@ -69,9 +69,9 @@ class TrendsViewModel @Inject constructor(
 
     fun loadTrends(days: Int = 7) {
         viewModelScope.launch {
-            // 1. Try to serve from cache immediately if we have enough data
+            // 1. Try to serve from cache immediately if we have ANY data usually
             val cachedForRequest = _cachedTrendPoints.sortedByDescending { it.date }.take(days)
-            if (cachedForRequest.isNotEmpty() && cachedForRequest.size >= days) {
+            if (cachedForRequest.isNotEmpty()) {
                  val correlations = computeCorrelations(cachedForRequest)
                 _uiState.value = TrendsUiState.Success(cachedForRequest.sortedBy { it.date }, days, correlations)
             } else {
