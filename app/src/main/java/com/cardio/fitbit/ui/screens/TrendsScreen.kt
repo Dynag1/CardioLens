@@ -37,7 +37,8 @@ import kotlinx.coroutines.launch
 fun TrendsScreen(
     viewModel: TrendsViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
-    onNavigateToDashboard: (java.util.Date) -> Unit
+    onNavigateToDashboard: (java.util.Date) -> Unit,
+    openDrawer: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedMetrics by remember { mutableStateOf(setOf(
@@ -52,12 +53,12 @@ fun TrendsScreen(
                     val titleSuffix = if (uiState is TrendsUiState.Success) {
                         "(${(uiState as TrendsUiState.Success).selectedDays} Jours)"
                     } else {
-                        "(7 Jours)"
+                        "(15 Jours)"
                     }
                     Text("Tendances $titleSuffix") 
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = openDrawer) {
                         Icon(Icons.Default.Menu, contentDescription = "Menu")
                     }
                 },

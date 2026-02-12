@@ -90,8 +90,8 @@ class SleepViewModel @Inject constructor(
         try {
             // End date is anchor date (inclusive for history usually covers the night ending on that date)
             val endDate = DateUtils.getStartOfDay(anchorDate)
-            // 7 days window
-            val startDate = DateUtils.getDaysAgo(6, endDate)
+            // 15 days window
+            val startDate = DateUtils.getDaysAgo(14, endDate)
             
             val goalMinutes = userPreferencesRepository.sleepGoalMinutes.first()
             
@@ -148,7 +148,7 @@ class SleepViewModel @Inject constructor(
 
             _sleepStats.value = SleepStats(
                 goalMinutes = goalMinutes,
-                average7DaysMinutes = avgMinutes,
+                average15DaysMinutes = avgMinutes,
                 averageWakePct = avgWake,
                 averageRemPct = avgRem,
                 averageLightPct = avgLight,
@@ -162,7 +162,7 @@ class SleepViewModel @Inject constructor(
 
 data class SleepStats(
     val goalMinutes: Int,
-    val average7DaysMinutes: Int,
+    val average15DaysMinutes: Int,
     val averageWakePct: Int = 0,
     val averageRemPct: Int = 0,
     val averageLightPct: Int = 0,

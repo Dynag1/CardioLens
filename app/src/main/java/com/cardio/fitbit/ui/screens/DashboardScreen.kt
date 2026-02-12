@@ -43,7 +43,8 @@ fun DashboardScreen(
     onNavigateToBackup: () -> Unit,
     onNavigateToCalendar: () -> Unit,
     onNavigateToSleep: (java.util.Date) -> Unit,
-    onNavigateToWorkouts: () -> Unit
+    onNavigateToWorkouts: () -> Unit,
+    openDrawer: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val sleepData by viewModel.sleepData.collectAsState()
@@ -63,6 +64,7 @@ fun DashboardScreen(
     val spo2History by viewModel.spo2History.collectAsState()
     val dailySymptoms by viewModel.dailySymptoms.collectAsState()
     val comparisonStats by viewModel.comparisonStats.collectAsState()
+    val dateOfBirth by viewModel.dateOfBirth.collectAsState(initial = null)
 
     // Handle Deep Linking / Navigation with Date
     LaunchedEffect(initialDate) {
@@ -91,29 +93,9 @@ fun DashboardScreen(
     }
 
     // Settings States
-    val highThreshold by viewModel.highHrThreshold.collectAsState(initial = 120)
-    val lowThreshold by viewModel.lowHrThreshold.collectAsState(initial = 50)
-    val notificationsEnabled by viewModel.notificationsEnabled.collectAsState(initial = true)
-    val syncInterval by viewModel.syncIntervalMinutes.collectAsState(initial = 15)
     val currentProviderId by viewModel.currentProviderId.collectAsState()
-    val appLanguage by viewModel.appLanguage.collectAsState(initial = "system")
-    val currentTheme by viewModel.appTheme.collectAsState(initial = "system")
-    val dateOfBirth by viewModel.dateOfBirth.collectAsState(initial = null)
     val userMaxHr by viewModel.userMaxHr.collectAsState(initial = 220)
-    val sleepGoalMinutes by viewModel.sleepGoalMinutes.collectAsState(initial = 480)
 
-
-    var showSettingsDialog by remember { mutableStateOf(false) }
-    var showHealthSettingsDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-
-    // State to control if drawer gestures are enabled
-    var drawerGesturesEnabled by remember { mutableStateOf(true) }
-
-    // Pull to Refresh State
     val pullRefreshState = rememberPullToRefreshState()
 
     if (pullRefreshState.isRefreshing) {
@@ -121,8 +103,6 @@ fun DashboardScreen(
             viewModel.loadAllData(forceRefresh = true)
         }
     }
-
-
 
     LaunchedEffect(uiState) {
         if (uiState !is DashboardUiState.Loading) {
@@ -143,124 +123,6 @@ fun DashboardScreen(
         }
     }
 
-    if (showSettingsDialog) {
-        SettingsDialog(
-            onDismiss = { showSettingsDialog = false },
-            syncInterval = syncInterval,
-            onSyncIntervalChange = viewModel::updateSyncInterval,
-
-            currentLanguage = appLanguage,
-            onLanguageChange = viewModel::updateAppLanguage,
-            currentTheme = currentTheme,
-            onThemeChange = viewModel::updateAppTheme,
-            onNavigateToBackup = {
-                onNavigateToBackup()
-            },
-            onShowAbout = {
-                showAboutDialog = true
-            }
-        )
-    }
-
-    if (showHealthSettingsDialog) {
-        HealthSettingsDialog(
-            onDismiss = { showHealthSettingsDialog = false },
-            notificationsEnabled = notificationsEnabled,
-            onNotificationsChange = viewModel::toggleNotifications,
-            highThreshold = highThreshold,
-            onHighThresholdChange = viewModel::updateHighHrThreshold,
-            lowThreshold = lowThreshold,
-            onLowThresholdChange = viewModel::updateLowHrThreshold,
-            sleepGoalMinutes = sleepGoalMinutes,
-            onSleepGoalChange = viewModel::updateSleepGoalMinutes,
-            dateOfBirthState = dateOfBirth,
-            onDateOfBirthChange = viewModel::setDateOfBirth
-        )
-    }
-
-    if (showAboutDialog) {
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val packageInfo = try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
-            } else {
-                context.packageManager.getPackageInfo(context.packageName, 0)
-            }
-        } catch (e: Exception) {
-            null
-        }
-        val versionName = packageInfo?.versionName ?: stringResource(R.string.version_unknown)
-        
-        val providerName = when (currentProviderId) {
-            "GOOGLE_FIT" -> stringResource(R.string.provider_google_fit)
-            "health_connect" -> stringResource(R.string.provider_health_connect)
-            else -> stringResource(R.string.provider_fitbit)
-        }
-        
-
-
-        AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            title = { Text(stringResource(R.string.about_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.about_app_label), fontWeight = FontWeight.Bold)
-                        Text("CardioLens")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.about_version_label), fontWeight = FontWeight.Bold)
-                        Text(versionName)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.about_account_label), fontWeight = FontWeight.Bold)
-                        Text(providerName)
-                    }
-
-                    HorizontalDivider()
-
-                    // GitHub Links
-                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                    TextButton(
-                        onClick = { uriHandler.openUri("https://prog.dynag.co/CardioLens.html") },
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_myplaces), contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.about_website))
-                        }
-                    }
-                    TextButton(
-                        onClick = { uriHandler.openUri("https://github.com/Dynag1/CardioLens/blob/master/README.md") },
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_help), contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.about_readme))
-                        }
-                    }
-                    TextButton(
-                        onClick = { uriHandler.openUri("https://github.com/Dynag1/CardioLens/releases") },
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details), contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.about_release_notes))
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text(stringResource(R.string.close))
-                }
-            }
-        )
-    }
-
     // Helper function to get the appropriate icon based on provider
     val getProviderIcon: @Composable () -> Unit = {
         when (currentProviderId) {
@@ -278,189 +140,108 @@ fun DashboardScreen(
             )
         }
     }
+    
+    // Swipe detection state
+    // We lift gesturesEnabled to Scaffold content or keep it local
+    var drawerGesturesEnabled by remember { mutableStateOf(true) }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = drawerGesturesEnabled,
-        drawerContent = {
-            ModalDrawerSheet {
-                Spacer(Modifier.height(12.dp))
-                
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = null) },
-                    label = { Text(stringResource(R.string.menu_trends)) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        onNavigateToTrends()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = openDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onSurface)
                     }
-                )
+                },
+                title = {
+                    Column {
+                        Text(
+                            text = "CardioLens",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = DateUtils.formatForDisplay(selectedDate),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                },
+                actions = {
+                    // Last Sync Display
+                    val lastSync by viewModel.lastSyncTimestamp.collectAsState(initial = 0L)
+                    val timestamp = lastSync
+                    if (timestamp != null && timestamp > 0) {
+                        val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timestamp))
+                        Text(
+                            text = "Sync: $timeStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                    }
 
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.DirectionsRun, contentDescription = null) },
-                    label = { Text("Entraînements") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        onNavigateToWorkouts()
+                    IconButton(onClick = { viewModel.changeDate(-1) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Précédent", tint = MaterialTheme.colorScheme.onSurface)
                     }
-                )
-
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.DateRange, contentDescription = null) },
-                    label = { Text("Calendrier") }, // Strings resource would be better but hardcoding for speed
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        onNavigateToCalendar()
+                    IconButton(onClick = { viewModel.changeDate(1) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Suivant", tint = MaterialTheme.colorScheme.onSurface)
                     }
-                )
-
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Bedtime, contentDescription = null) },
-                    label = { Text("Sommeil") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        // Navigate to selected date's sleep
-                        onNavigateToSleep(selectedDate)
+                    IconButton(onClick = { viewModel.loadAllData(forceRefresh = true) }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = MaterialTheme.colorScheme.onSurface)
                     }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
-                
-                // Push Settings, Backup, About, Logout to bottom
-                Spacer(Modifier.weight(1f))
-
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Favorite, contentDescription = null) },
-                    label = { Text("Paramètres Santé") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        showHealthSettingsDialog = true
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .nestedScroll(pullRefreshState.nestedScrollConnection)
+        ) {
+            when (val state = uiState) {
+                is DashboardUiState.Loading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Primary)
                     }
-                )
-                
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text(stringResource(R.string.menu_settings)) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        showSettingsDialog = true
-                    }
-                )
-                
-                NavigationDrawerItem(
-                    icon = { getProviderIcon() },
-                    label = { Text(stringResource(R.string.menu_logout)) },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        viewModel.logout()
-                        onLogout()
-                    }
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                    },
-                    title = {
-                        Column {
-                            Text(
-                                text = "CardioLens",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = DateUtils.formatForDisplay(selectedDate),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                        }
-                    },
-                    actions = {
-                        // Last Sync Display
-                        val lastSync by viewModel.lastSyncTimestamp.collectAsState(initial = 0L)
-                        val timestamp = lastSync
-                        if (timestamp != null && timestamp > 0) {
-                            val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timestamp))
-                            Text(
-                                text = "Sync: $timeStr",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                        }
-
-                        IconButton(onClick = { viewModel.changeDate(-1) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Précédent", tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = { viewModel.changeDate(1) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Suivant", tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = { viewModel.loadAllData(forceRefresh = true) }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        actionIconContentColor = MaterialTheme.colorScheme.onSurface
-                    )
-                )
-            },
-            containerColor = MaterialTheme.colorScheme.background
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .nestedScroll(pullRefreshState.nestedScrollConnection)
-            ) {
-                when (val state = uiState) {
-                    is DashboardUiState.Loading -> {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Primary)
-                        }
-                    }
-                    is DashboardUiState.Error -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues),
-                        contentAlignment = Alignment.Center
+                }
+                is DashboardUiState.Error -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = Error,
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.error_prefix, state.message),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = OnSurface
-                            )
-                            Button(onClick = { viewModel.loadAllData() }) {
-                                Text(stringResource(R.string.retry))
-                            }
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Error,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.error_prefix, state.message),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = OnSurface
+                        )
+                        Button(onClick = { viewModel.loadAllData() }) {
+                            Text(stringResource(R.string.retry))
                         }
                     }
                 }
-                is DashboardUiState.Success -> {
+            }
+            is DashboardUiState.Success -> {
                     // Swipe detection state
                     var swipeOffset by remember { mutableFloatStateOf(0f) }
                     
@@ -501,7 +282,7 @@ fun DashboardScreen(
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Text(
-                                            text = "Comparaison (Moy. 7 jours)",
+                                            text = "Comparaison (Moy. 15 jours)",
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(bottom = 12.dp)
@@ -805,13 +586,12 @@ fun DashboardScreen(
 
                     }
                 }
-                }
-                
-                PullToRefreshContainer(
-                    state = pullRefreshState,
-                    modifier = Modifier.align(Alignment.TopCenter)
-                )
             }
+            
+            PullToRefreshContainer(
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
     }
 }

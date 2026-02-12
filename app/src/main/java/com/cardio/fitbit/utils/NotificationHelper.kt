@@ -19,7 +19,7 @@ class NotificationHelper @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
-        const val CHANNEL_ID = "cardio_alerts"
+        const val CHANNEL_ID = "cardio_alerts_v3"
         const val SYNC_CHANNEL_ID = "cardio_sync_v2"
         const val NOTIFICATION_ID = 1001
         const val SYNC_NOTIFICATION_ID = 1002
@@ -33,6 +33,10 @@ class NotificationHelper @Inject constructor(
             val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
+                enableLights(true)
+                enableVibration(true)
+                setShowBadge(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
             
             // Sync Channel (High Importance for Demo)
@@ -76,10 +80,13 @@ class NotificationHelper @Inject constructor(
         val pendingIntent: PendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.star_on) // Use vector icon
+            .setSmallIcon(android.R.drawable.star_on) // TODO: Use a real heart icon
             .setContentTitle(title)
             .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
 

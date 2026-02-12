@@ -34,6 +34,25 @@ class MainViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = Screen.Login.route // Default fallback, but will quickly update
+        initialValue = Screen.Login.route
     )
+
+    val currentProviderId: kotlinx.coroutines.flow.Flow<String?> = combine(
+        userPreferencesRepository.useHealthConnect,
+        userPreferencesRepository.googleAccessToken
+    ) { useHealthConnect, googleAccessToken ->
+        when {
+            useHealthConnect -> "health_connect"
+            !googleAccessToken.isNullOrBlank() -> "GOOGLE_FIT"
+            else -> "FITBIT"
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = "FITBIT"
+    )
+
+    fun logout() {
+        authManager.logout()
+    }
 }
