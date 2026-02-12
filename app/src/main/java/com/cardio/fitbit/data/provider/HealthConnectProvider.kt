@@ -497,6 +497,8 @@ class HealthConnectProvider @Inject constructor(
                 var steps = 0
                 var distance = 0.0
 
+                var avgHr: Long? = null
+
                 try {
                      val aggregateResponse = healthConnectClient.aggregate(
                         androidx.health.connect.client.request.AggregateRequest(
@@ -504,7 +506,8 @@ class HealthConnectProvider @Inject constructor(
                                 ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL,
                                 TotalCaloriesBurnedRecord.ENERGY_TOTAL,
                                 StepsRecord.COUNT_TOTAL,
-                                DistanceRecord.DISTANCE_TOTAL
+                                DistanceRecord.DISTANCE_TOTAL,
+                                HeartRateRecord.BPM_AVG
                             ),
                             timeRangeFilter = TimeRangeFilter.between(
                                 record.startTime,
@@ -518,6 +521,7 @@ class HealthConnectProvider @Inject constructor(
 
                     steps = aggregateResponse[StepsRecord.COUNT_TOTAL]?.toInt() ?: 0
                     distance = aggregateResponse[DistanceRecord.DISTANCE_TOTAL]?.inKilometers ?: 0.0
+                    avgHr = aggregateResponse[HeartRateRecord.BPM_AVG]
                 } catch (e: Exception) {
                     // Ignore aggregation errors
                 }
@@ -537,7 +541,7 @@ class HealthConnectProvider @Inject constructor(
                     calories = calories.toInt(),
                     distance = if (distance > 0.001) distance else null,
                     steps = if (steps > 0) steps else null,
-                    averageHeartRate = null 
+                    averageHeartRate = avgHr?.toInt()
                 )
             }
 

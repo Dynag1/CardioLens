@@ -62,12 +62,14 @@ class TrendsViewModel @Inject constructor(
     
     // Cache dédié pour les activités (comme demandé)
     private val _activityCache = mutableMapOf<String, ActivityData>()
+    
+    private var _isRepairing = false
 
     init {
-        loadTrends(7)
+        loadTrends(15)
     }
 
-    fun loadTrends(days: Int = 7) {
+    fun loadTrends(days: Int = 15) {
         viewModelScope.launch {
             // 1. Try to serve from cache immediately if we have ANY data usually
             val cachedForRequest = _cachedTrendPoints.sortedByDescending { it.date }.take(days)
@@ -341,17 +343,22 @@ class TrendsViewModel @Inject constructor(
     }
 
     private fun repairMissingData(candidates: List<Date>, daysToReload: Int) {
+        if (_isRepairing) return
+        _isRepairing = true
+        
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 candidates.forEach { date ->
                     healthRepository.getIntradayData(date, forceRefresh = true)
-                    healthRepository.getSleepData(date, forceRefresh = true) // Also repair Sleep
+                    healthRepository.getSleepData(date, forceRefresh = true)
                 }
                 withContext(Dispatchers.Main) {
                     loadTrends(daysToReload)
                 }
             } catch (e: Exception) {
                // Silent fail
+            } finally {
+                _isRepairing = false
             }
         }
     }

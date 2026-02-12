@@ -53,7 +53,8 @@ import java.util.Locale
 fun SleepScreen(
     date: Date,
     viewModel: SleepViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    openDrawer: () -> Unit
 ) {
     LaunchedEffect(date) {
         viewModel.setDate(date)
@@ -96,7 +97,7 @@ fun SleepScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = openDrawer) {
                         Icon(Icons.Default.Menu, contentDescription = "Menu")
                     }
                 },
@@ -266,12 +267,12 @@ fun SleepContent(data: SleepData, heartRateData: List<MinuteData>?, sleepStats: 
                     // RIGHT: 7 Days Avg
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                          Text(
-                            text = "Moyenne 7j",
+                            text = "Moyenne 15j",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
                         
-                        val avgMin = sleepStats.average7DaysMinutes
+                        val avgMin = sleepStats.average15DaysMinutes
                         val avgH = avgMin / 60
                         val avgM = avgMin % 60
                         Text(
@@ -518,64 +519,6 @@ fun HypnogramChart(
             )
         }
         
-        // 1.5 Draw Heart Rate Line
-        if (heartRateData != null && heartRateData.isNotEmpty()) {
-            val validHr = heartRateData.filter { it.heartRate > 0 }
-            if (validHr.isNotEmpty()) {
-                val minHr = (validHr.minOf { it.heartRate } - 5).coerceAtLeast(0)
-                val maxHr = validHr.maxOf { it.heartRate } + 5
-                val hrRange = maxHr - minHr
-                
-                val hrPath = Path()
-                var firstPoint = true
-                
-                validHr.forEach { point ->
-                    val pointTime = DateUtils.parseFitbitTimeOrDateTime(point.time, startTime)
-                    if (pointTime != null) {
-                        // Fix day crossover if needed
-                        var timeMillis = pointTime.time
-                        // If point time is significantly before start time (e.g., > 12h diff), add a day.
-                        // Or simplistic check: if time < startTime and we expect it to be within duration
-                        // Better: rely on DateUtils robust parsing or if only Time is provided, handle wraparound
-                        // The DateUtils.parseFitbitTimeOrDateTime uses refDate=startTime. 
-                        // If startTime=23:00 and point="00:15", using startTime as ref creates 00:15 THAT day (past).
-                        // We need to check if result < startTime, add 24h
-                        if (timeMillis < startTime.time) {
-                             timeMillis += 24 * 60 * 60 * 1000
-                        }
-                        
-                        val relative = timeMillis - startTime.time
-                         
-                        if (relative in 0..totalDuration) {
-                             val x = (relative.toFloat() / totalDuration) * width
-                             val normalizedHr = (point.heartRate - minHr).toFloat() / hrRange
-                             // Inverted Y: 0 is top. Max HR should be near top (y=0?), Min HR near bottom?
-                             // Usually HR overlay is separate scale. Let's verify requirement.
-                             // Assuming overlay on top. 
-                             // Let's ensure it doesn't obscure bars too much.
-                             // Maybe map minHr to height (bottom) and maxHr to 0 (top)?
-                             // Or align with some axis. Without axis, just scaling to view height is standard.
-                             val y = height - (normalizedHr * height)
-                             
-                             if (firstPoint) {
-                                  hrPath.moveTo(x, y)
-                                  firstPoint = false
-                             } else {
-                                  hrPath.lineTo(x, y)
-                             }
-                        }
-                    }
-                }
-                
-                drawPath(
-                    path = hrPath,
-                    color = Color.Red.copy(alpha = 0.5f),
-                    style = Stroke(width = 2.dp.toPx())
-                )
-                
-                 // Draw Min/Max HR Labels on Right
-            }
-        }
         
         // 2. Draw Y-Axis Guide Lines and Labels ON TOP
         stageOrder.forEach { (stage, ratio) ->
@@ -960,17 +903,12 @@ fun SleepPhaseBar(
                 strokeWidth = 2f
             )
             
-            // Draw Avg Point
+            // Draw Avg Point (7-day average bubble)
             if (avgPct != null) {
                  val xAvg = ((avgPct / maxScale) * width).coerceAtMost(width)
                  drawCircle(
-                     color = Color.Black,
-                     radius = height * 0.45f,
-                     center = Offset(xAvg, height / 2)
-                 )
-                  drawCircle(
-                     color = Color.White,
-                     radius = height * 0.25f,
+                     color = Color.White.copy(alpha = 0.5f),
+                     radius = height * 0.4f,
                      center = Offset(xAvg, height / 2)
                  )
             }

@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
 
         checkNotificationPermission()
         setupPeriodicSync()
+        triggerInitialSync()
         setupCloudBackup()
         observeAppLanguage()
 
@@ -102,6 +103,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    private fun triggerInitialSync() {
+        val syncRequest = androidx.work.OneTimeWorkRequestBuilder<SyncWorker>()
+            .build()
+        WorkManager.getInstance(applicationContext).enqueue(syncRequest)
+    }
+
     private fun setupPeriodicSync() {
         MainScope().launch {
             // Observe sync interval changes

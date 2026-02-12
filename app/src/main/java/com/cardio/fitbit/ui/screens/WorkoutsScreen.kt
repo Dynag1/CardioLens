@@ -45,7 +45,8 @@ import com.cardio.fitbit.utils.DateUtils
 @Composable
 fun WorkoutsScreen(
     onNavigateBack: () -> Unit,
-    viewModel: WorkoutsViewModel = hiltViewModel()
+    viewModel: WorkoutsViewModel = hiltViewModel(),
+    openDrawer: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val intradayCache by viewModel.intradayCache.collectAsState()
@@ -94,7 +95,7 @@ fun WorkoutsScreen(
             TopAppBar(
                 title = { Text("Entraînements") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = openDrawer) {
                         Icon(Icons.Default.Menu, contentDescription = "Menu")
                     }
                 }

@@ -62,7 +62,9 @@ class DashboardViewModel @Inject constructor(
     private val _dailySymptoms = MutableStateFlow<String?>(null)
     val dailySymptoms: StateFlow<String?> = _dailySymptoms.asStateFlow()
 
-    // Comparison Stats (Today vs 7-Day Avg)
+    private var _hasRepairedGaps = false
+
+    // Comparison Stats (Today vs 15-Day Avg)
     data class ComparisonStats(
         val hrvAvg: Int?,
         val rhrNightAvg: Int?,
@@ -204,7 +206,7 @@ class DashboardViewModel @Inject constructor(
             
             try {
                 val today = DateUtils.getToday()
-                val sevenDaysAgo = DateUtils.getDaysAgo(7)
+                val fifteenDaysAgo = DateUtils.getDaysAgo(15)
                 val selectedDate = _selectedDate.value
 
 
@@ -227,7 +229,7 @@ class DashboardViewModel @Inject constructor(
                 val jobs = listOf(
                     launch { loadHeartRate(selectedDate, forceRefresh) },
                     launch { loadSleep(selectedDate, forceRefresh) },
-                    launch { loadSteps(sevenDaysAgo, today) },
+                    launch { loadSteps(fifteenDaysAgo, today) },
                     launch { loadActivity(selectedDate, forceRefresh) }, 
                     launch { loadActivity(selectedDate, forceRefresh) }, 
                     launch { loadIntradayData(selectedDate, forceRefresh) },
@@ -248,6 +250,11 @@ class DashboardViewModel @Inject constructor(
 
                 _uiState.value = DashboardUiState.Success
                 
+                // Proactively check for gaps in the last 7 days and repair them
+                if (forceRefresh || !_hasRepairedGaps) {
+                    _hasRepairedGaps = true
+                    checkAndRepairGaps()
+                }
                 // Update Last Sync Time (only if we actually refreshed or loaded successfully)
                 // We consider a successful loadAllData as a sync point
                 // Use the timestamp of the LATEST valid data retrieved (HR > 0)
@@ -449,8 +456,7 @@ class DashboardViewModel @Inject constructor(
             _spo2Data.value = data
         }
 
-        // Load History (Last 7 days)
-        val startDate = DateUtils.getDaysAgo(7, date)
+        val startDate = DateUtils.getDaysAgo(15, date)
         val historyResult = healthRepository.getSpO2History(startDate, date, forceRefresh)
         historyResult.onSuccess { list ->
             _spo2History.value = list
@@ -540,14 +546,14 @@ class DashboardViewModel @Inject constructor(
     }
 
     private suspend fun loadComparisonStats(currentDate: java.util.Date) {
-        // Calculate 7-day average (Previous 7 days: [Current-7 ... Current-1])
-        // Strict "previous 7 days" is better for "trend vs today".
+        // Calculate 15-day average (Previous 15 days: [Current-15 ... Current-1])
+        // Strict "previous 15 days" is better for "trend vs today".
         val cal = java.util.Calendar.getInstance()
         cal.time = currentDate
         cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
         val endDate = cal.time // Yesterday (relative to selected date)
         
-        cal.add(java.util.Calendar.DAY_OF_YEAR, -6) // Go back 6 more days (total 7)
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -14) // Go back 14 more days (total 15)
         val startDate = cal.time
         
         // Parallel Fetch History
@@ -647,7 +653,46 @@ class DashboardViewModel @Inject constructor(
             }
         } catch (e: Exception) {
             // fail silently, just no comparison shown
-            _comparisonStats.value = null
+        }
+    }
+
+    private fun checkAndRepairGaps() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                // Check last 7 days for gaps in intraday data
+                val today = DateUtils.getToday()
+                val startDate = DateUtils.getDaysAgo(7, today)
+                
+                val history = healthRepository.getIntradayHistory(startDate, today, forceRefresh = false).getOrNull() ?: emptyList()
+                val dayMap = history.associateBy { DateUtils.formatForApi(it.date) }
+                
+                val calendar = java.util.Calendar.getInstance()
+                calendar.time = startDate
+                
+                while (!calendar.time.after(today)) {
+                    val dateStr = DateUtils.formatForApi(calendar.time)
+                    val data = dayMap[dateStr]
+                    
+                    // If data is missing or empty (but not unknown/unauthorized), try to repair
+                    if (data == null || data.minuteData.isEmpty()) {
+                        android.util.Log.d("DashboardVM", "Repairing gap for $dateStr")
+                        healthRepository.getIntradayData(calendar.time, forceRefresh = true)
+                        healthRepository.getSleepData(calendar.time, forceRefresh = true)
+                    }
+                    calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                }
+                
+                // Only reload if we are on one of the repaired days or if it's today
+                // For simplicity, we just trigger a refresh if the current selected date was repaired
+                val selectedDate = _selectedDate.value
+                val diffMs = Math.abs(today.time - selectedDate.time)
+                if (diffMs <= 8 * 24 * 60 * 60 * 1000L) { // ~8 days to be safe
+                    // Refresh current view silently
+                     loadAllData(forceRefresh = false) 
+                }
+            } catch (e: Exception) {
+                // Ignore errors during background repair
+            }
         }
     }
 }

@@ -31,9 +31,14 @@ class HealthRepository @Inject constructor(
     private val symptomDao: com.cardio.fitbit.data.local.dao.SymptomDao,
     private val gson: com.google.gson.Gson
 ) {
-    companion object {
-        private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
-    }
+    // Specialized Memory Caches (as requested)
+    private val _sleepCache = java.util.concurrent.ConcurrentHashMap<String, List<SleepData>>()
+    private val _activityCache = java.util.concurrent.ConcurrentHashMap<String, ActivityData>()
+    private val _heartRateCache = java.util.concurrent.ConcurrentHashMap<String, HeartRateData>()
+    private val _intradayCache = java.util.concurrent.ConcurrentHashMap<String, IntradayData>()
+    private val _hrvCache = java.util.concurrent.ConcurrentHashMap<String, List<HrvRecord>>()
+    private val _stepsCache = java.util.concurrent.ConcurrentHashMap<String, StepsData>()
+    private val _spo2Cache = java.util.concurrent.ConcurrentHashMap<String, SpO2Data>()
 
     suspend fun getMood(date: java.util.Date): Int? = withContext(Dispatchers.IO) {
         val dateString = DateUtils.formatForApi(date)
@@ -42,13 +47,7 @@ class HealthRepository @Inject constructor(
 
     suspend fun saveMood(date: java.util.Date, rating: Int) = withContext(Dispatchers.IO) {
         val dateString = DateUtils.formatForApi(date)
-        moodDao.insert(
-            com.cardio.fitbit.data.local.entities.MoodEntry(
-                date = dateString,
-                rating = rating,
-                timestamp = System.currentTimeMillis()
-            )
-        )
+        moodDao.insert(com.cardio.fitbit.data.local.entities.MoodEntry(dateString, rating, System.currentTimeMillis()))
     }
 
     suspend fun getSymptoms(date: java.util.Date): String? = withContext(Dispatchers.IO) {
@@ -58,13 +57,7 @@ class HealthRepository @Inject constructor(
 
     suspend fun saveSymptoms(date: java.util.Date, symptoms: String) = withContext(Dispatchers.IO) {
         val dateString = DateUtils.formatForApi(date)
-        symptomDao.insertSymptom(
-            com.cardio.fitbit.data.local.entities.SymptomEntry(
-                date = dateString,
-                symptoms = symptoms,
-                timestamp = System.currentTimeMillis()
-            )
-        )
+        symptomDao.insertSymptom(com.cardio.fitbit.data.local.entities.SymptomEntry(dateString, symptoms, System.currentTimeMillis()))
     }
     
     suspend fun getSymptomsHistory(startDate: java.util.Date, endDate: java.util.Date): List<com.cardio.fitbit.data.local.entities.SymptomEntry> = withContext(Dispatchers.IO) {
@@ -112,19 +105,26 @@ class HealthRepository @Inject constructor(
         var cachedSummary: HeartRateData? = null
 
         if (!forceRefresh) {
+            // 1. Check Memory
+            val inMemory = _heartRateCache[dateString]
+            if (inMemory != null && (inMemory.intradayData != null || inMemory.restingHeartRate != null)) {
+                return@withContext Result.success(inMemory)
+            }
+
+            // 2. Check Disk
             val cached = heartRateDao.getByDate(dateString)
             if (cached != null) {
                 try {
                     val data = gson.fromJson(cached.data, HeartRateData::class.java)
-                    // If we have details, return immediately
-                    if (data.intradayData != null && data.intradayData.isNotEmpty()) {
+                    // If we have details, return it and populate memory
+                    if (data.intradayData != null && data.intradayData!!.isNotEmpty()) {
+                        _heartRateCache[dateString] = data
                         return@withContext Result.success(data)
                     }
                     // Determine if this is a summary
                     cachedSummary = data
                 } catch (e: Exception) {
                     android.util.Log.e("HealthRepository", "Failed to parse cached heart rate data: ${e.message}")
-                    // Ignore corrupt cache
                 }
             }
         }
@@ -135,7 +135,8 @@ class HealthRepository @Inject constructor(
         if (result.isSuccess) {
             val data = result.getOrNull()
             if (data != null) {
-                // Save to cache
+                // Save to caches
+                _heartRateCache[dateString] = data
                 val json = gson.toJson(data)
                 heartRateDao.insert(
                     com.cardio.fitbit.data.local.entities.HeartRateDataEntity(
@@ -411,16 +412,23 @@ class HealthRepository @Inject constructor(
              
              // Simple distinct union
              val fetchedDates = fetchedData.map { DateUtils.formatForApi(it.date) }.toSet()
-             
-             cachedList.forEach { entity ->
-                  if (!fetchedDates.contains(entity.date)) {
-                      val type = object : com.google.gson.reflect.TypeToken<List<SleepData>>() {}.type
-                      try {
-                          val list = gson.fromJson<List<SleepData>>(entity.data, type)
-                          finalRecords.addAll(list)
-                      } catch (e: Exception) { /* ignore */ }
-                  }
-             }
+            // Add cached records ONLY if their date was NOT fetched
+            cachedList.forEach { entity ->
+                if (!fetchedDates.contains(entity.date)) {
+                    try {
+                        val type = object : com.google.gson.reflect.TypeToken<List<SleepData>>() {}.type
+                        val records = gson.fromJson<List<SleepData>>(entity.data, type)
+                        finalRecords.addAll(records)
+                        _sleepCache[entity.date] = records // Populate memory
+                    } catch (e: Exception) { /* ignore */ }
+                }
+            }
+            
+            // Populate memory with fetched data too
+            val groupedFetched = fetchedData.groupBy { DateUtils.formatForApi(it.date) }
+            groupedFetched.forEach { (date, records) ->
+                _sleepCache[date] = records
+            }
              
              Result.success(finalRecords.sortedBy { it.startTime })
             
@@ -437,13 +445,20 @@ class HealthRepository @Inject constructor(
         try {
             val dateString = DateUtils.formatForApi(date)
             
-            // Check cache first (unless forceRefresh)
+            // Check memory cache first
+            if (!forceRefresh) {
+                val inMem = _sleepCache[dateString]
+                if (inMem != null) return@withContext Result.success(inMem)
+            }
+
+            // Check disk cache
             if (!forceRefresh) {
                 val cached = sleepDataDao.getByDate(dateString)
                 if (cached != null) {
                     try {
                         val type = object : com.google.gson.reflect.TypeToken<List<SleepData>>() {}.type
                         val data = gson.fromJson<List<SleepData>>(cached.data, type)
+                        _sleepCache[dateString] = data // Populate memory
                         return@withContext Result.success(data)
                     } catch (e: Exception) { /* ignore */ }
                 }
@@ -459,6 +474,7 @@ class HealthRepository @Inject constructor(
                 
                 // Cache
                 if (data.isNotEmpty()) {
+                    _sleepCache[dateString] = data // Populate memory
                     val json = gson.toJson(data)
                     sleepDataDao.insert(
                         com.cardio.fitbit.data.local.entities.SleepDataEntity(
@@ -576,6 +592,10 @@ class HealthRepository @Inject constructor(
                      
                      if (entities.isNotEmpty()) {
                          stepsDao.insertAll(entities)
+                         // Populate memory
+                         data.forEach { data ->
+                             _stepsCache[DateUtils.formatForApi(data.date)] = data
+                         }
                      }
                 } else {
                     android.util.Log.e("TrendsDebug", "HR Steps: Fetch Failed: ${result.exceptionOrNull()}")
@@ -593,6 +613,7 @@ class HealthRepository @Inject constructor(
                      try {
                          val obj = gson.fromJson(entity.data, StepsData::class.java)
                          finalMap[entity.date] = obj
+                         _stepsCache[entity.date] = obj // Populate memory cache
                      } catch (e: Exception) { /* ignore corrupt */ }
                  } catch (e: Exception) { /* ignore corrupt */ }
             }
@@ -622,12 +643,21 @@ class HealthRepository @Inject constructor(
         try {
             val dateString = DateUtils.formatForApi(date)
             
-            // Check cache first (unless forceRefresh)
+            // Check memory
+            if (!forceRefresh) {
+                val inMem = _activityCache[dateString]
+                if (inMem != null) return@withContext Result.success(inMem)
+            }
+
+            // Check disk
             if (!forceRefresh) {
                 val cached = activityDataDao.getByDate(dateString)
                 if (cached != null) {
-                    val data = gson.fromJson(cached.data, ActivityData::class.java)
-                    return@withContext Result.success(data)
+                    try {
+                        val data = gson.fromJson(cached.data, ActivityData::class.java)
+                        _activityCache[dateString] = data // Populate memory
+                        return@withContext Result.success(data)
+                    } catch (e: Exception) {}
                 }
             }
             
@@ -638,6 +668,7 @@ class HealthRepository @Inject constructor(
                 val data = result.getOrNull()
                 // Cache
                 if (data != null) {
+                    _activityCache[dateString] = data // Populate memory
                     val json = gson.toJson(data)
                     activityDataDao.insert(
                         com.cardio.fitbit.data.local.entities.ActivityDataEntity(
@@ -664,7 +695,9 @@ class HealthRepository @Inject constructor(
             val cachedList = activityDataDao.getAll()
             val result = cachedList.mapNotNull { entity ->
                 try {
-                    gson.fromJson(entity.data, ActivityData::class.java)
+                    val obj = gson.fromJson(entity.data, ActivityData::class.java)
+                    _activityCache[entity.date] = obj // Populate memory
+                    obj
                 } catch (e: Exception) {
                     null
                 }
@@ -760,11 +793,15 @@ class HealthRepository @Inject constructor(
 
                     if (entities.isNotEmpty()) {
                         activityDataDao.insertAll(entities)
+                        // Populate memory
+                        data.forEach { data ->
+                            _activityCache[DateUtils.formatForApi(data.date)] = data
+                        }
                     }
                 }
             }
             
-            // 3. Merge
+            // 3. Merged Result
             val finalRecords = mutableListOf<ActivityData>()
             finalRecords.addAll(fetchedData)
             val fetchedDates = fetchedData.map { DateUtils.formatForApi(it.date) }.toSet()
@@ -772,16 +809,13 @@ class HealthRepository @Inject constructor(
             cachedList.forEach { entity ->
                  if (!fetchedDates.contains(entity.date)) {
                       try {
-                          try {
-                              val item = gson.fromJson(entity.data, ActivityData::class.java)
-                              finalRecords.add(item)
-                          } catch (e: Exception) {}
+                          val obj = gson.fromJson(entity.data, ActivityData::class.java)
+                          finalRecords.add(obj)
+                          _activityCache[entity.date] = obj // Populate memory
                       } catch (e: Exception) {}
                  }
             }
-            
             Result.success(finalRecords.sortedBy { it.date })
-            
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -904,12 +938,19 @@ class HealthRepository @Inject constructor(
         try {
             val dateString = DateUtils.formatForApi(date)
             
-            // Check cache first (unless forceRefresh)
+            // Check memory
+            if (!forceRefresh) {
+                val inMem = _intradayCache[dateString]
+                if (inMem != null) return@withContext Result.success(inMem)
+            }
+
+            // Check disk
             if (!forceRefresh) {
                 val cached = intradayDataDao.getByDate(dateString)
                 if (cached != null) {
                     try {
                         val data = gson.fromJson(cached.data, IntradayData::class.java)
+                        _intradayCache[dateString] = data // Populate memory
                         return@withContext Result.success(data)
                     } catch (e: Exception) { /* ignore */ }
                 }
@@ -922,6 +963,7 @@ class HealthRepository @Inject constructor(
                 val data = result.getOrNull()
                 // Cache
                 if (data != null) {
+                    _intradayCache[dateString] = data // Populate memory
                     val json = gson.toJson(data)
                     intradayDataDao.insert(
                         com.cardio.fitbit.data.local.entities.IntradayDataEntity(
@@ -1077,12 +1119,20 @@ class HealthRepository @Inject constructor(
                      val type = object : com.google.gson.reflect.TypeToken<List<com.cardio.fitbit.data.models.HrvRecord>>() {}.type
                      val records = gson.fromJson<List<com.cardio.fitbit.data.models.HrvRecord>>(entity.data, type)
                      
+                     _hrvCache[entity.date] = records // Populate memory
+                     
                      records.forEach { record ->
                          if (!fetchedDates.contains(DateUtils.formatForApi(record.time))) {
                              finalRecords.add(record)
                          }
                      }
                  } catch (e: Exception) { /* ignore */ }
+            }
+            
+            // Populate memory with fetched data too
+            val groupedHrv = fetchedData.groupBy { DateUtils.formatForApi(it.time) }
+            groupedHrv.forEach { (date, records) ->
+                _hrvCache[date] = records
             }
             
             Result.success(finalRecords.sortedBy { it.time })

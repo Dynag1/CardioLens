@@ -1,6 +1,7 @@
 package com.cardio.fitbit.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -30,7 +31,8 @@ import java.util.*
 fun CalendarScreen(
     viewModel: TrendsViewModel = hiltViewModel(),
     onNavigateToDashboard: (Date) -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    openDrawer: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentMonth by remember { mutableStateOf(Calendar.getInstance()) }
@@ -65,7 +67,7 @@ fun CalendarScreen(
             TopAppBar(
                 title = { Text("Calendrier Santé") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = openDrawer) {
                         Icon(Icons.Default.Menu, contentDescription = "Menu")
                     }
                 }
@@ -136,21 +138,35 @@ fun CalendarScreen(
                     val dateStr = DateUtils.formatForApi(date)
                     val point = dataMap[dateStr]
                     
+                    val moodColor = point?.moodRating?.let { mood ->
+                        when(mood) {
+                            5, 4 -> Color(0xFFA5D6A7) // Green 200
+                            3 -> Color(0xFFFFF59D) // Yellow 200
+                            else -> Color(0xFFEF9A9A) // Red 200
+                        }
+                    }
+
+                    val backgroundColor = moodColor ?: if (DateUtils.isSameDay(date, Date())) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                    val contentColor = if (moodColor != null) Color.Black else MaterialTheme.colorScheme.onSurface
+
                     Box(
                         modifier = Modifier
                             .aspectRatio(1f)
                             .padding(2.dp)
                             .clip(CircleShape)
-                            .background(
-                                if (DateUtils.isSameDay(date, Date())) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                            )
+                            .background(backgroundColor)
+                            .then(if (DateUtils.isSameDay(date, Date()) && moodColor != null) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier)
                             .clickable { onNavigateToDashboard(date) },
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = day.dayOfMonth.toString(),
-                                style = LocalTextStyle.current.copy(fontSize = 12.sp, fontWeight = if(point != null) FontWeight.Bold else FontWeight.Normal)
+                                style = LocalTextStyle.current.copy(
+                                    fontSize = 12.sp, 
+                                    fontWeight = if(point != null) FontWeight.Bold else FontWeight.Normal,
+                                    color = contentColor
+                                )
                             )
                             
                             if (point != null) {
@@ -158,24 +174,16 @@ fun CalendarScreen(
                                     horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally), 
                                     modifier = Modifier.height(12.dp)
                                 ) {
-                                    // Mood Dot
-                                    point.moodRating?.let { mood ->
-                                        val color = when(mood) {
-                                            5, 4 -> Color.Green
-                                            3 -> Color.Yellow
-                                            else -> Color.Red
-                                        }
-                                        Box(Modifier.size(6.dp).clip(CircleShape).background(color))
-                                    }
+                                    // Removed Mood Dot (redundant with background)
                                     
                                     // Symptom Dot
                                     if (!point.symptoms.isNullOrEmpty()) {
-                                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFE57373))) // Red for symptoms
+                                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFD32F2F))) // Darker Red for visibility
                                     }
 
                                     // Workout Dot
                                     if ((point.workoutDurationMinutes ?: 0) > 0) {
-                                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF42A5F5))) // Blue
+                                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF1976D2))) // Darker Blue for visibility
                                     }
                                 }
                             }
@@ -204,22 +212,22 @@ fun CalendarScreen(
                     // Mood
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color.Green))
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color.Yellow))
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color.Red))
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFA5D6A7))) // Green 200
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFFF59D))) // Yellow 200
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFEF9A9A))) // Red 200
                         }
-                        Text("Humeur", style = MaterialTheme.typography.labelSmall)
+                        Text("Humeur (Fond)", style = MaterialTheme.typography.labelSmall)
                     }
 
                     // Symptoms
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFE57373)))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFD32F2F)))
                         Text("Symptômes", style = MaterialTheme.typography.labelSmall)
                     }
 
                     // Workouts
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF42A5F5)))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF1976D2)))
                         Text("Activités", style = MaterialTheme.typography.labelSmall)
                     }
                 }

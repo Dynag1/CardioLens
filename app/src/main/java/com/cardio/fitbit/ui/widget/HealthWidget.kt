@@ -93,16 +93,16 @@ class HealthWidget : GlanceAppWidget() {
                     // RHR
                     MetricItem(context.getString(R.string.widget_rhr), displayRhr, "")
 
-                    Spacer(GlanceModifier.width(24.dp))
+                    Spacer(GlanceModifier.width(16.dp))
 
                     // Last HR
                     MetricItem(context.getString(R.string.widget_last), displayLastHr, "")
                 }
 
-                Spacer(GlanceModifier.size(8.dp))
+                Spacer(GlanceModifier.size(4.dp))
 
-                // Bottom Row: Steps
-                MetricItem(context.getString(R.string.widget_steps), displaySteps, "", isLarge = true)
+                // Bottom Row: Steps (No Label)
+                MetricItem("", displaySteps, "", isLarge = true)
             }
         }
     }
@@ -111,28 +111,33 @@ class HealthWidget : GlanceAppWidget() {
     private fun MetricItem(label: String, value: String, unit: String, isLarge: Boolean = false) {
         val fontSize = if (isLarge) {
             when {
-                value.length > 6 -> 18.sp
-                value.length > 5 -> 22.sp
-                else -> 26.sp
+                value.length > 6 -> 11.sp
+                value.length > 5 -> 12.sp
+                value.length > 4 -> 13.sp
+                else -> 15.sp
             }
         } else {
             when {
-                value.length > 5 -> 14.sp
-                value.length > 4 -> 16.sp
-                else -> 20.sp
+                value.length > 5 -> 11.sp
+                value.length > 4 -> 12.sp
+                else -> 13.sp
             }
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = label,
-                style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
+                style = TextStyle(
+                    fontSize = 10.sp, 
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontWeight = FontWeight.Normal
+                )
             )
             Text(
                 text = value,
                 maxLines = 1,
                 style = TextStyle(
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Medium,
                     fontSize = fontSize,
                     color = GlanceTheme.colors.onSurface
                 )
@@ -140,7 +145,7 @@ class HealthWidget : GlanceAppWidget() {
             if (unit.isNotEmpty()) {
                 Text(
                     text = unit,
-                    style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
+                    style = TextStyle(fontSize = 10.sp, color = GlanceTheme.colors.onSurfaceVariant)
                 )
             }
         }
