@@ -1,0 +1,5 @@
+- New Feature: Global navigation drawer for better app navigation
+- Fix: Health Connect now correctly syncs average heart rate for workouts
+- Improvement: Added multi-level caching for faster data loading
+- UI: Cleaner widget design (removed "steps" label)
+- Fix: Resolved infinite loading issues on dashboard
