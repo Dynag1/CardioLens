@@ -39,6 +39,7 @@ class BackupRepository @Inject constructor(
                 moodEntries = database.moodDao().getAll(),
                 spo2Data = database.spo2Dao().getAll(),
                 symptomEntries = database.symptomDao().getAllSymptoms(),
+                workoutIntensities = database.workoutIntensityDao().getAllIntensities(),
                 dateOfBirth = userPreferencesRepository.dateOfBirth.firstOrNull()
             )
 
@@ -76,6 +77,7 @@ class BackupRepository @Inject constructor(
                         "moodEntries" -> parseAndInsertBatch(reader, MoodEntry::class.java) { database.moodDao().insertAll(it) }
                         "spo2Data" -> parseAndInsertBatch(reader, SpO2DataEntity::class.java) { database.spo2Dao().insertAll(it) }
                         "symptomEntries" -> parseAndInsertBatch(reader, SymptomEntry::class.java) { database.symptomDao().insertAll(it) }
+                        "workoutIntensities" -> parseAndInsertBatch(reader, WorkoutIntensityEntity::class.java) { database.workoutIntensityDao().insertAll(it) }
                         else -> reader.skipValue() // Skip version, timestamp, etc.
                     }
                 }

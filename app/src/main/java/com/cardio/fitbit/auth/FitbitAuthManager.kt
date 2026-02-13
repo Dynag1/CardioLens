@@ -60,13 +60,23 @@ class FitbitAuthManager @Inject constructor(
         }
     }
 
+    private companion object {
+        private const val CLIENT_ID = "23TWWX"
+        private const val CLIENT_SECRET = "5592a50d9fe4ae1f564cc07275b1b8c0"
+        private const val KEY_ACCESS_TOKEN = "access_token"
+        private const val KEY_REFRESH_TOKEN = "refresh_token"
+        private const val KEY_EXPIRES_AT = "expires_at"
+        private const val KEY_USER_ID = "user_id"
+        private const val KEY_CODE_VERIFIER = "code_verifier"
+    }
+
     /**
      * Start OAuth 2.0 authorization flow with PKCE
      */
     suspend fun startAuthorization(context: Context) {
-        val clientId = userPreferencesRepository.clientId.firstOrNull()
+        val clientId = CLIENT_ID
         
-        if (clientId.isNullOrBlank()) {
+        if (clientId.isBlank()) {
              _authState.value = AuthState.Error("ID Client Fitbit manquant. Veuillez configurer l'API.")
             return
         }
@@ -122,8 +132,8 @@ class FitbitAuthManager @Inject constructor(
      * Exchange authorization code for access token
      */
     private suspend fun exchangeCodeForToken(code: String, codeVerifier: String): TokenResponse {
-        val clientId = userPreferencesRepository.clientId.firstOrNull() ?: throw Exception("Client ID missing")
-        val clientSecret = userPreferencesRepository.clientSecret.firstOrNull() ?: throw Exception("Client Secret missing")
+        val clientId = CLIENT_ID
+        val clientSecret = CLIENT_SECRET
 
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val client = OkHttpClient()
@@ -185,8 +195,8 @@ class FitbitAuthManager @Inject constructor(
             val refreshToken = getRefreshToken()
                 ?: return@withContext Result.failure(Exception("No refresh token available"))
                 
-            val clientId = userPreferencesRepository.clientId.firstOrNull() ?: throw Exception("Client ID missing")
-            val clientSecret = userPreferencesRepository.clientSecret.firstOrNull() ?: throw Exception("Client Secret missing")
+            val clientId = CLIENT_ID
+            val clientSecret = CLIENT_SECRET
 
             val client = OkHttpClient()
             
@@ -335,13 +345,6 @@ class FitbitAuthManager @Inject constructor(
         return Base64.encodeToString(digest, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
     }
 
-    companion object {
-        private const val KEY_ACCESS_TOKEN = "access_token"
-        private const val KEY_REFRESH_TOKEN = "refresh_token"
-        private const val KEY_EXPIRES_AT = "expires_at"
-        private const val KEY_USER_ID = "user_id"
-        private const val KEY_CODE_VERIFIER = "code_verifier"
-    }
 }
 
 /**

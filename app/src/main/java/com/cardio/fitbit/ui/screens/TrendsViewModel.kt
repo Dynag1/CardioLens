@@ -28,6 +28,7 @@ data class TrendPoint(
     val moodRating: Int?,
     val steps: Int?,
     val workoutDurationMinutes: Int?,
+    val workoutMaxIntensity: Int?, // Max intensity (1-5) from activities
     val symptoms: String?,
     val sleepMinutes: Int?
 )
@@ -174,6 +175,8 @@ class TrendsViewModel @Inject constructor(
                     val workoutDurationMinutes = dailyActivity?.activities?.sumOf { it.duration }?.let { millis ->
                         (millis / 1000 / 60).toInt()
                     } ?: 0
+                    
+                    val workoutMaxIntensity = dailyActivity?.activities?.mapNotNull { it.intensity }?.maxOrNull()
 
                     val dailySleepMinutes = dailySleep.maxByOrNull { it.duration }?.let { (it.duration / (1000 * 60)).toInt() }
 
@@ -186,6 +189,7 @@ class TrendsViewModel @Inject constructor(
                         moodRating = moodRating,
                         steps = dailySteps,
                         workoutDurationMinutes = if (workoutDurationMinutes > 0) workoutDurationMinutes else null,
+                        workoutMaxIntensity = workoutMaxIntensity,
                         symptoms = dailySymptoms,
                         sleepMinutes = dailySleepMinutes
                     )

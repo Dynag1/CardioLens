@@ -29,6 +29,7 @@ class HealthRepository @Inject constructor(
     private val moodDao: com.cardio.fitbit.data.local.dao.MoodDao,
     private val spo2Dao: com.cardio.fitbit.data.local.dao.SpO2Dao,
     private val symptomDao: com.cardio.fitbit.data.local.dao.SymptomDao,
+    private val workoutIntensityDao: com.cardio.fitbit.data.local.dao.WorkoutIntensityDao,
     private val gson: com.google.gson.Gson
 ) {
     // Specialized Memory Caches (as requested)
@@ -70,6 +71,25 @@ class HealthRepository @Inject constructor(
         val startStr = DateUtils.formatForApi(startDate)
         val endStr = DateUtils.formatForApi(endDate)
         moodDao.getBetweenDates(startStr, endStr)
+    }
+    
+    // Workout Intensity Management
+    suspend fun saveWorkoutIntensity(activityId: Long, intensity: Int) = withContext(Dispatchers.IO) {
+        workoutIntensityDao.insertIntensity(
+            com.cardio.fitbit.data.local.entities.WorkoutIntensityEntity(
+                activityId = activityId,
+                intensity = intensity,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+    
+    suspend fun getWorkoutIntensity(activityId: Long): Int? = withContext(Dispatchers.IO) {
+        workoutIntensityDao.getIntensity(activityId)?.intensity
+    }
+    
+    suspend fun getAllWorkoutIntensities(): Map<Long, Int> = withContext(Dispatchers.IO) {
+        workoutIntensityDao.getAllIntensities().associate { it.activityId to it.intensity }
     }
 
     private suspend fun getProvider(): HealthDataProvider {
@@ -646,7 +666,11 @@ class HealthRepository @Inject constructor(
             // Check memory
             if (!forceRefresh) {
                 val inMem = _activityCache[dateString]
-                if (inMem != null) return@withContext Result.success(inMem)
+                if (inMem != null) {
+                    // Load intensities and merge
+                    val withIntensities = mergeIntensities(inMem)
+                    return@withContext Result.success(withIntensities)
+                }
             }
 
             // Check disk
@@ -655,8 +679,10 @@ class HealthRepository @Inject constructor(
                 if (cached != null) {
                     try {
                         val data = gson.fromJson(cached.data, ActivityData::class.java)
-                        _activityCache[dateString] = data // Populate memory
-                        return@withContext Result.success(data)
+                        // Load intensities and merge
+                        val withIntensities = mergeIntensities(data)
+                        _activityCache[dateString] = withIntensities // Populate memory
+                        return@withContext Result.success(withIntensities)
                     } catch (e: Exception) {}
                 }
             }
@@ -668,8 +694,10 @@ class HealthRepository @Inject constructor(
                 val data = result.getOrNull()
                 // Cache
                 if (data != null) {
-                    _activityCache[dateString] = data // Populate memory
-                    val json = gson.toJson(data)
+                    // Load intensities and merge
+                    val withIntensities = mergeIntensities(data)
+                    _activityCache[dateString] = withIntensities // Populate memory
+                    val json = gson.toJson(data) // Save original without intensities to cache
                     activityDataDao.insert(
                         com.cardio.fitbit.data.local.entities.ActivityDataEntity(
                             date = dateString,
@@ -677,14 +705,29 @@ class HealthRepository @Inject constructor(
                             timestamp = System.currentTimeMillis()
                         )
                     )
+                    Result.success(withIntensities)
+                } else {
+                    Result.success(null)
                 }
-                Result.success(data)
             } else {
                 result
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+    
+    private suspend fun mergeIntensities(activityData: ActivityData): ActivityData {
+        val intensities = getAllWorkoutIntensities()
+        val updatedActivities = activityData.activities.map { activity ->
+            val intensity = intensities[activity.activityId]
+            if (intensity != null) {
+                activity.copy(intensity = intensity)
+            } else {
+                activity
+            }
+        }
+        return activityData.copy(activities = updatedActivities)
     }
 
     /**
@@ -703,7 +746,10 @@ class HealthRepository @Inject constructor(
                 }
             }.sortedByDescending { it.date } // Most recent first
             
-            Result.success(result)
+            // Merge manual intensities
+            val resultWithIntensities = result.map { mergeIntensities(it) }
+            
+            Result.success(resultWithIntensities)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -805,7 +851,6 @@ class HealthRepository @Inject constructor(
             val finalRecords = mutableListOf<ActivityData>()
             finalRecords.addAll(fetchedData)
             val fetchedDates = fetchedData.map { DateUtils.formatForApi(it.date) }.toSet()
-            
             cachedList.forEach { entity ->
                  if (!fetchedDates.contains(entity.date)) {
                       try {
@@ -815,7 +860,11 @@ class HealthRepository @Inject constructor(
                       } catch (e: Exception) {}
                  }
             }
-            Result.success(finalRecords.sortedBy { it.date })
+
+            // 4. Merge manual intensities
+            val recordsWithIntensities = finalRecords.map { mergeIntensities(it) }
+             
+            Result.success(recordsWithIntensities.sortedBy { it.date })
         } catch (e: Exception) {
             Result.failure(e)
         }

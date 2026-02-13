@@ -514,7 +514,10 @@ fun DashboardScreen(
                                     activity = activity,
                                     allMinuteData = intradayData?.preciseData ?: intradayData?.minuteData ?: emptyList(),
                                     selectedDate = selectedDate,
-                                    dateOfBirth = dateOfBirth
+                                    dateOfBirth = dateOfBirth,
+                                    onIntensityChange = { activityId, intensity ->
+                                        viewModel.saveWorkoutIntensity(activityId, intensity)
+                                    }
                                 )
                             }
                         }

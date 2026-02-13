@@ -80,4 +80,9 @@ object DatabaseModule {
     fun provideActivityDetailsDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.ActivityDetailsDao {
         return database.activityDetailsDao()
     }
+
+    @Provides
+    fun provideWorkoutIntensityDao(database: AppDatabase): com.cardio.fitbit.data.local.dao.WorkoutIntensityDao {
+        return database.workoutIntensityDao()
+    }
 }

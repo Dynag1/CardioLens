@@ -170,64 +170,65 @@ fun WorkoutsScreen(
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                         
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceEvenly
-                                        ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(
-                                                    "${stats.totalActivities}",
-                                                    style = MaterialTheme.typography.headlineSmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                                Text(
-                                                    "Activités",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                                )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceEvenly
+                                            ) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(
+                                                        "${stats.totalActivities}",
+                                                        style = MaterialTheme.typography.headlineSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                    Text(
+                                                        "Activités",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                                
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    val totalMinutes = stats.avgDuration / (1000 * 60)
+                                                    val hours = totalMinutes / 60
+                                                    val minutes = totalMinutes % 60
+                                                    Text(
+                                                        if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m",
+                                                        style = MaterialTheme.typography.headlineSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                    Text(
+                                                        "Durée moy.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                                
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(
+                                                        if (stats.avgIntensity > 0) String.format("%.1f", stats.avgIntensity) else "-",
+                                                        style = MaterialTheme.typography.headlineSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                    Text(
+                                                        "Intensité",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                                
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(
+                                                        "${stats.totalCalories}",
+                                                        style = MaterialTheme.typography.headlineSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                    Text(
+                                                        "Calories",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                                    )
+                                                }
                                             }
-                                            
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                val hours = stats.totalDuration / (1000 * 60 * 60)
-                                                val minutes = (stats.totalDuration / (1000 * 60)) % 60
-                                                Text(
-                                                    "${hours}h ${minutes}m",
-                                                    style = MaterialTheme.typography.headlineSmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                                Text(
-                                                    "Durée",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                            
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(
-                                                    "${String.format("%.1f", stats.totalDistance)} km",
-                                                    style = MaterialTheme.typography.headlineSmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                                Text(
-                                                    "Distance",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                            
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(
-                                                    "${stats.totalCalories}",
-                                                    style = MaterialTheme.typography.headlineSmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                                Text(
-                                                    "Calories",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                        }
                                     }
                                 }
                             }
@@ -486,7 +487,10 @@ fun WorkoutsScreen(
                                             activity = item.activity,
                                             allMinuteData = minuteData,
                                             selectedDate = item.date,
-                                            dateOfBirth = null
+                                            dateOfBirth = null,
+                                            onIntensityChange = { activityId, intensity ->
+                                                viewModel.saveWorkoutIntensity(activityId, intensity)
+                                            }
                                         )
                                     }
                                 }

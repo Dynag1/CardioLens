@@ -138,7 +138,7 @@ fun AppNavigation() {
                 },
                 onLogout = {
                     mainViewModel.logout()
-                    navController.navigate(Screen.Login.route) {
+                    navController.navigate(Screen.Welcome.route) {
                         popUpTo(0)
                     }
                 },
@@ -299,9 +299,6 @@ fun AppNavigation() {
 
         composable(Screen.ProviderSelection.route) {
             com.cardio.fitbit.ui.screens.ProviderSelectionScreen(
-                onNavigateToFitbitSetup = {
-                    navController.navigate(Screen.ApiSetup.route)
-                },
                 onNavigateToGoogleFitSetup = {
                     navController.navigate(Screen.GoogleFitSetup.route)
                 },
@@ -378,7 +375,7 @@ fun AppNavigation() {
             DashboardScreen(
                 initialDate = initialDate,
                 onLogout = {
-                    navController.navigate(Screen.Login.route) {
+                    navController.navigate(Screen.Welcome.route) {
                         popUpTo(Screen.Dashboard.route) { inclusive = true }
                     }
                 },

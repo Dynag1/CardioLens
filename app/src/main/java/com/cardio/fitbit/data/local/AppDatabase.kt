@@ -12,6 +12,7 @@ import com.cardio.fitbit.data.local.dao.MoodDao
 import com.cardio.fitbit.data.local.dao.SpO2Dao
 import com.cardio.fitbit.data.local.dao.SymptomDao
 import com.cardio.fitbit.data.local.dao.ActivityDetailsDao
+import com.cardio.fitbit.data.local.dao.WorkoutIntensityDao
 import com.cardio.fitbit.data.local.entities.IntradayDataEntity
 import com.cardio.fitbit.data.local.entities.SleepDataEntity
 import com.cardio.fitbit.data.local.entities.ActivityDataEntity
@@ -22,6 +23,7 @@ import com.cardio.fitbit.data.local.entities.MoodEntry
 import com.cardio.fitbit.data.local.entities.SpO2DataEntity
 import com.cardio.fitbit.data.local.entities.SymptomEntry
 import com.cardio.fitbit.data.local.entities.ActivityDetailsEntity
+import com.cardio.fitbit.data.local.entities.WorkoutIntensityEntity
 
 @Database(
     entities = [
@@ -34,9 +36,10 @@ import com.cardio.fitbit.data.local.entities.ActivityDetailsEntity
         MoodEntry::class,
         SpO2DataEntity::class,
         SymptomEntry::class,
-        ActivityDetailsEntity::class
+        ActivityDetailsEntity::class,
+        WorkoutIntensityEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -50,4 +53,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun spo2Dao(): SpO2Dao
     abstract fun symptomDao(): SymptomDao
     abstract fun activityDetailsDao(): ActivityDetailsDao
+    abstract fun workoutIntensityDao(): WorkoutIntensityDao
 }
