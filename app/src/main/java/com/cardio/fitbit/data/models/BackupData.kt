@@ -14,5 +14,6 @@ data class BackupData(
     val moodEntries: List<MoodEntry> = emptyList(),
     val spo2Data: List<SpO2DataEntity> = emptyList(),
     val symptomEntries: List<SymptomEntry> = emptyList(),
+    val workoutIntensities: List<WorkoutIntensityEntity> = emptyList(),
     val dateOfBirth: Long? = null
 )

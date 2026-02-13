@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -29,12 +30,12 @@ class MainViewModel @Inject constructor(
             useHealthConnect -> Screen.Dashboard.route
             !areKeysSet -> Screen.Welcome.route
             authState is AuthState.Authenticated -> Screen.Dashboard.route
-            else -> Screen.Login.route
+            else -> Screen.Welcome.route // Show Welcome Screen first
         }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = Screen.Login.route
+        initialValue = Screen.Welcome.route
     )
 
     val currentProviderId: kotlinx.coroutines.flow.Flow<String?> = combine(
@@ -53,6 +54,10 @@ class MainViewModel @Inject constructor(
     )
 
     fun logout() {
-        authManager.logout()
+        viewModelScope.launch {
+            authManager.logout()
+            userPreferencesRepository.setUseHealthConnect(false)
+            userPreferencesRepository.saveGoogleTokens("", null) // Clear Google Fit tokens
+        }
     }
 }

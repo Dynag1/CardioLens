@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
@@ -48,7 +50,8 @@ fun ActivityDetailCard(
     activity: Activity,
     allMinuteData: List<MinuteData>,
     selectedDate: Date,
-    dateOfBirth: Long?
+    dateOfBirth: Long?,
+    onIntensityChange: ((Long, Int) -> Unit)? = null
 ) {
     // Determine context for notification (optional trigger)
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -133,7 +136,72 @@ fun ActivityDetailCard(
                                 DateUtils.formatDuration(activity.duration),
                         style = MaterialTheme.typography.bodySmall
                     )
+                    // Intensity Display
+                    val intensity = activity.intensity
+                    if (intensity != null) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text(
+                                "Intensité: ",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            repeat(5) { index ->
+                                val starIndex = index + 1 // 1-5 scale
+                                Icon(
+                                    imageVector = if (starIndex <= (intensity ?: 0)) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                                    contentDescription = "Intensité $starIndex",
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clickable(enabled = onIntensityChange != null) {
+                                            onIntensityChange?.invoke(activity.activityId, starIndex)
+                                        }
+                                        .padding(horizontal = 1.dp),
+                                    tint = if (starIndex <= (intensity ?: 0)) {
+                                        when {
+                                            (intensity ?: 0) >= 4 -> androidx.compose.ui.graphics.Color(0xFFEF4444) // Red for high intensity
+                                            (intensity ?: 0) >= 3 -> androidx.compose.ui.graphics.Color(0xFFF59E0B) // Orange for moderate
+                                            else -> androidx.compose.ui.graphics.Color(0xFF10B981) // Green for light
+                                        }
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    }
+                                )
+                            }
+                        }
+                    } else if (onIntensityChange != null) {
+                        // Show empty stars if no intensity is set yet, but editing is enabled
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text(
+                                "Intensité: ",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            repeat(5) { index ->
+                                val starIndex = index + 1
+                                Icon(
+                                    imageVector = Icons.Outlined.StarOutline,
+                                    contentDescription = "Définir intensité $starIndex",
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clickable {
+                                            onIntensityChange.invoke(activity.activityId, starIndex)
+                                        }
+                                        .padding(horizontal = 1.dp),
+                                    tint = MaterialTheme.colorScheme.outlineVariant
+                                )
+                            }
+                        }
+                    }
                 }
+                
                 
                 if (avgHr > 0) {
                     Column(horizontalAlignment = Alignment.End) {

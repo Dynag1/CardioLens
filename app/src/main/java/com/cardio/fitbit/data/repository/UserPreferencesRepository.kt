@@ -80,8 +80,9 @@ class UserPreferencesRepository @Inject constructor(
 
     // Helper to check if API is configured
     val areKeysSet: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        !preferences[PreferencesKeys.CLIENT_ID].isNullOrBlank() && 
-        !preferences[PreferencesKeys.CLIENT_SECRET].isNullOrBlank()
+        // Since we now have hardcoded Fitbit credentials in FitbitAuthManager,
+        // we consider the keys as always "set" for the purpose of app flow.
+        true
     }
 
     suspend fun setHighHrThreshold(threshold: Int) {

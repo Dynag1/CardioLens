@@ -474,6 +474,14 @@ class DashboardViewModel @Inject constructor(
             _dailySymptoms.value = symptoms
         }
     }
+    
+    fun saveWorkoutIntensity(activityId: Long, intensity: Int) {
+        viewModelScope.launch {
+            healthRepository.saveWorkoutIntensity(activityId, intensity)
+            // Reload activity data to reflect the change
+            loadActivity(_selectedDate.value, forceRefresh = false)
+        }
+    }
 
     fun updateHighHrThreshold(value: Int) {
         viewModelScope.launch {

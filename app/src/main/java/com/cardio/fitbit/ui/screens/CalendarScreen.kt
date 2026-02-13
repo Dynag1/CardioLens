@@ -181,9 +181,24 @@ fun CalendarScreen(
                                         Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFD32F2F))) // Darker Red for visibility
                                     }
 
-                                    // Workout Dot
+                                    // Workout Dot with Intensity
                                     if ((point.workoutDurationMinutes ?: 0) > 0) {
-                                        Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF1976D2))) // Darker Blue for visibility
+                                        // Show intensity with color coding if available
+                                        point.workoutMaxIntensity?.let { intensity ->
+                                            val intensityColor = when {
+                                                intensity >= 4 -> Color(0xFFEF4444) // Red for high
+                                                intensity >= 3 -> Color(0xFFF59E0B) // Orange for moderate
+                                                else -> Color(0xFF10B981) // Green for light
+                                            }
+                                            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                                repeat(intensity.coerceIn(1, 5)) {
+                                                    Box(Modifier.size(3.dp).clip(CircleShape).background(intensityColor))
+                                                }
+                                            }
+                                        } ?: run {
+                                            // Fallback to simple workout dot if no intensity
+                                            Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF1976D2)))
+                                        }
                                     }
                                 }
                             }
@@ -225,10 +240,14 @@ fun CalendarScreen(
                         Text("Symptômes", style = MaterialTheme.typography.labelSmall)
                     }
 
-                    // Workouts
+                    // Workouts Intensity
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF1976D2)))
-                        Text("Activités", style = MaterialTheme.typography.labelSmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF10B981))) // Green - Light
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFF59E0B))) // Orange - Moderate
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFEF4444))) // Red - High
+                        }
+                        Text("Intensité", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

@@ -15,7 +15,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun ProviderSelectionScreen(
-    onNavigateToFitbitSetup: () -> Unit,
     onNavigateToGoogleFitSetup: () -> Unit,
     onNavigateToHealthConnectPermissions: () -> Unit,
     viewModel: WelcomeViewModel = hiltViewModel()
@@ -69,10 +68,10 @@ fun ProviderSelectionScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Fitbit Option
+        val context = androidx.compose.ui.platform.LocalContext.current
         Button(
             onClick = {
-                viewModel.onFitbitSelected()
-                onNavigateToFitbitSetup()
+                viewModel.startFitbitLogin(context)
             },
             modifier = Modifier
                 .fillMaxWidth()

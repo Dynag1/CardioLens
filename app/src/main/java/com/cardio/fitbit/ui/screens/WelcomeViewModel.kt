@@ -9,8 +9,16 @@ import javax.inject.Inject
 
 @HiltViewModel
 class WelcomeViewModel @Inject constructor(
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val fitbitAuthManager: com.cardio.fitbit.auth.FitbitAuthManager
 ) : ViewModel() {
+
+    fun startFitbitLogin(context: android.content.Context) {
+        viewModelScope.launch {
+            userPreferencesRepository.setUseHealthConnect(false)
+            fitbitAuthManager.startAuthorization(context)
+        }
+    }
 
     fun onFitbitSelected() {
         viewModelScope.launch {

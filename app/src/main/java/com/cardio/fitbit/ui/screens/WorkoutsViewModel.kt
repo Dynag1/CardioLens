@@ -68,8 +68,8 @@ class WorkoutsViewModel @Inject constructor(
     // Monthly statistics
     data class MonthlyStats(
         val totalActivities: Int = 0,
-        val totalDuration: Long = 0, // in milliseconds
-        val totalDistance: Double = 0.0, // in km
+        val avgDuration: Long = 0, // in milliseconds
+        val avgIntensity: Double = 0.0, // 1-5 scale
         val totalCalories: Int = 0
     )
     
@@ -366,14 +366,19 @@ class WorkoutsViewModel @Inject constructor(
         }
         
         val totalActivities = monthActivities.size
-        val totalDuration = monthActivities.sumOf { it.activity.duration }
-        val totalDistance = monthActivities.sumOf { it.activity.distance ?: 0.0 }
+        val avgDuration = if (totalActivities > 0) monthActivities.sumOf { it.activity.duration } / totalActivities else 0L
         val totalCalories = monthActivities.sumOf { it.activity.calories }
+        
+        // Calculate average manual intensity (1-5)
+        val activitiesWithIntensity = monthActivities.filter { (it.activity.intensity ?: 0) > 0 }
+        val avgIntensity = if (activitiesWithIntensity.isNotEmpty()) {
+            activitiesWithIntensity.map { it.activity.intensity!! }.average()
+        } else 0.0
         
         _monthlyStats.value = MonthlyStats(
             totalActivities = totalActivities,
-            totalDuration = totalDuration,
-            totalDistance = totalDistance,
+            avgDuration = avgDuration,
+            avgIntensity = avgIntensity,
             totalCalories = totalCalories
         )
     }
@@ -467,6 +472,14 @@ class WorkoutsViewModel @Inject constructor(
             appendLine("🔥 Calories: ${activity.calories} kcal")
             activity.averageHeartRate?.let { appendLine("❤️ FC moy: $it bpm") }
             activity.steps?.let { appendLine("👟 Pas: $it") }
+        }
+    }
+
+    fun saveWorkoutIntensity(activityId: Long, intensity: Int) {
+        viewModelScope.launch {
+            healthRepository.saveWorkoutIntensity(activityId, intensity)
+            // Reload workouts to reflect the change
+            loadWorkouts()
         }
     }
 }
