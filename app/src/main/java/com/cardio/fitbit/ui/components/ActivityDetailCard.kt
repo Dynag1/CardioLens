@@ -98,7 +98,8 @@ fun ActivityDetailCard(
                      allMinuteData.filter { 
                         val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
                         val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                        fullDataTime >= startTimeMs && fullDataTime <= (endTimeMs + 10 * 60 * 1000)
+                        // Extend window to 20 mins to ensuring capturing the 10-min recovery point properly
+                        fullDataTime >= startTimeMs && fullDataTime <= (endTimeMs + 20 * 60 * 1000)
                     }
                 } else {
                     emptyList()
@@ -303,18 +304,30 @@ fun ActivityDetailCard(
             val calculatedSteps = continuousMinutes.sumOf { it.steps }
             val displaySteps = if (activity.steps != null && activity.steps > 0) activity.steps else calculatedSteps
 
+            // Logic to determine if activity is "walking" based on step density
+            // User requirement: < 60% steps on duration treated as non-walking
+            // Threshold: 0.6 steps per second (36 steps/min)
+            val durationSeconds = durationMs / 1000.0
+            val stepsPerSecond = if (durationSeconds > 0) displaySteps / durationSeconds else 0.0
+            val isWalking = stepsPerSecond >= 0.6
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem(label = "Pas", value = displaySteps.toString(), icon = Icons.Filled.DirectionsRun)
+                if (isWalking) {
+                    StatItem(label = "Pas", value = displaySteps.toString(), icon = Icons.Filled.DirectionsRun)
+                }
                 StatItem(label = "Calories", value = "${activity.calories}", icon = Icons.Filled.LocalFireDepartment)
-                val distStr = if (activity.distance != null) String.format("%.2f km", activity.distance) else "N/A"
-                StatItem(label = "Distance", value = distStr, icon = Icons.Filled.Straighten)
+                
+                if (isWalking) {
+                    val distStr = if (activity.distance != null) String.format("%.2f km", activity.distance) else "N/A"
+                    StatItem(label = "Distance", value = distStr, icon = Icons.Filled.Straighten)
+                }
             }
 
             // --- Speed Stats ---
-            if (activity.distance != null && activity.distance > 0.0 && durationMinutes > 0) {
+            if (isWalking && activity.distance != null && activity.distance > 0.0 && durationMinutes > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -361,34 +374,57 @@ fun ActivityDetailCard(
                     
                      val oneMinPost = startTimeMs + durationMs + 60000
                      val twoMinPost = startTimeMs + durationMs + 120000
+                     val fiveMinPost = startTimeMs + durationMs + 300000
+                     val tenMinPost = startTimeMs + durationMs + 600000
                      
-                     val hr1Min = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - oneMinPost)) }?.heartRate
-                     val hr2Min = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - twoMinPost)) }?.heartRate
+                     val getHr = { target: Long -> 
+                         continuousMinutes.minByOrNull { 
+                            kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - target)) 
+                         }?.let { match ->
+                            val matchTime = DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(match.time)?.time ?: 0)
+                            if (kotlin.math.abs(matchTime - target) <= 90000) match.heartRate else null // Allow up to 90s tolerance
+                         }
+                     }
+
+                     val hr1Min = getHr(oneMinPost)
+                     val hr2Min = getHr(twoMinPost)
+                     val hr5Min = getHr(fiveMinPost)
+                     val hr10Min = getHr(tenMinPost)
                      
                      val endHr = endHrEntry?.heartRate ?: 0
                      
-                     if (endHr > 0 && (hr1Min != null || hr2Min != null)) {
+                     if (endHr > 0 && (hr1Min != null || hr2Min != null || hr5Min != null || hr10Min != null)) {
                          Spacer(modifier = Modifier.height(8.dp))
                          HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
                          Spacer(modifier = Modifier.height(8.dp))
                          
                          Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
                              Text("Récupération", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                                 if (hr1Min != null && hr1Min > 0) {
-                                     val drop = endHr - hr1Min
+                             
+                             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceAround) {
+                                 // Helper Composable for Recovery Item
+                                 @Composable
+                                 fun RecoveryItem(label: String, valHr: Int?) {
+                                     val drop = if (valHr != null) endHr - valHr else 0
                                      Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                         Text("$hr1Min bpm", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                         Text("1 min (${if(drop>=0) "-" else "+"}$drop)", style = MaterialTheme.typography.labelSmall, color = if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                         Text(
+                                             if (valHr != null) "$valHr bpm" else "--", 
+                                             style = MaterialTheme.typography.titleMedium, 
+                                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                             color = if (valHr != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f)
+                                         )
+                                         Text(
+                                             if (valHr != null) "$label (${if(drop>=0) "-" else "+"}$drop)" else label, 
+                                             style = MaterialTheme.typography.labelSmall, 
+                                             color = if (valHr != null) (if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f)
+                                         )
                                      }
                                  }
-                                 if (hr2Min != null && hr2Min > 0) {
-                                     val drop = endHr - hr2Min
-                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                         Text("$hr2Min bpm", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                         Text("2 min (${if(drop>=0) "-" else "+"}$drop)", style = MaterialTheme.typography.labelSmall, color = if(drop>0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                                     }
-                                 }
+
+                                 RecoveryItem("1 min", hr1Min)
+                                 RecoveryItem("2 min", hr2Min)
+                                 RecoveryItem("5 min", hr5Min)
+                                 RecoveryItem("10 min", hr10Min)
                              }
                          }
                      }
@@ -406,7 +442,8 @@ fun ActivityDetailCard(
                         activityStartTime = activity.startTime.time,
                         cutoffIndex = durationMinutes.toFloat(),
                         userMaxHr = userMaxHr,
-                        selectedDate = selectedDate
+                        selectedDate = selectedDate,
+                        showSteps = isWalking // Pass restriction
                     )
                 }
             } else {
@@ -445,7 +482,8 @@ fun ActivityHeartRateChart(
     activityStartTime: Long,
     cutoffIndex: Float,
     userMaxHr: Int,
-    selectedDate: Date
+    selectedDate: Date,
+    showSteps: Boolean = true
 ) {
     if (activityMinutes.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -518,7 +556,7 @@ fun ActivityHeartRateChart(
                 }
 
                 axisRight.apply {
-                    isEnabled = true
+                    isEnabled = showSteps
                     setDrawLabels(false)
                     setDrawGridLines(false)
                     textColor = Color.GRAY
@@ -555,22 +593,51 @@ fun ActivityHeartRateChart(
 
             val combinedData = CombinedData()
 
-            // 1. Bar Data (HR) High Precision
+            // Optimized Bar Width Logic & Dynamic Density Handling
+            // If we have high density data (approx > 1 point per minute), use thin bars (1 sec = ~0.016 min)
+            val isHighDensity = activityMinutes.size > (cutoffIndex * 2)
+            val barWidth = if (isHighDensity) 0.02f else 0.8f
+
+            // 1. Bar Data (HR)
+            // Sort to ensure sequential gap calculation
+            val sortedMinutes = activityMinutes.sortedBy { it.time }
             val hrEntries = mutableListOf<BarEntry>()
             
-            activityMinutes.forEach { data ->
+            for (i in sortedMinutes.indices) {
+                val data = sortedMinutes[i]
                 if (data.heartRate > 0) {
                     val dataTime = DateUtils.parseTimeToday(data.time)?.time ?: 0L
                     val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
                     val diffMin = (fullDataTime - activityStartTime) / 60000f // Float index
                     
                     if (diffMin >= 0) {
-                        hrEntries.add(BarEntry(diffMin, data.heartRate.toFloat(), data))
+                        // Calculate gap to next point to detect density change (e.g. switch from 1s to 1min resolution)
+                        var gapToNext = 1.0f // Default 1 min for last point
+                        if (i < sortedMinutes.size - 1) {
+                             val nextTime = DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(sortedMinutes[i+1].time)?.time ?: 0L)
+                             gapToNext = (nextTime - fullDataTime) / 60000f
+                        }
+                        
+                        // Special Handling:
+                        // If we are in High Density mode (thin bars), but this specific point has a large gap (> 30s)
+                        // it means we fell back to low resolution (e.g. Recovery data).
+                        // We visually "widen" this bar by stacking thin bars to fill the gap.
+                        if (isHighDensity && gapToNext > 0.5f) {
+                            val count = (gapToNext / barWidth).toInt().coerceAtMost(60) // Cap to ~1 min width max to prevent filling massive gaps
+                            // Fill mostly, leave 10% gap
+                            val fillCount = (count * 0.9f).toInt().coerceAtLeast(1)
+                            
+                            for (j in 0 until fillCount) {
+                                hrEntries.add(BarEntry(diffMin + (j * barWidth), data.heartRate.toFloat(), data))
+                            }
+                        } else {
+                            // Standard entry (Thin or Wide depending on isHighDensity)
+                            hrEntries.add(BarEntry(diffMin, data.heartRate.toFloat(), data))
+                        }
                     }
                 }
             }
 
-            // Color Interpolation Function (Copied from HeartRateDetailChart)
             fun interpolateColor(color1: Int, color2: Int, fraction: Float): Int {
                 val a = (Color.alpha(color1) + (Color.alpha(color2) - Color.alpha(color1)) * fraction).toInt()
                 val r = (Color.red(color1) + (Color.red(color2) - Color.red(color1)) * fraction).toInt()
@@ -617,14 +684,7 @@ fun ActivityHeartRateChart(
                     highLightColor = Color.GRAY
                 }
                 val barData = BarData(hrDataSet)
-                
-                // Optimized Bar Width
-                // If we have high density data (approx > 1 point per minute), use thin bars (1 sec = ~0.016 min)
-                // If low density (1 point per min), use wide bars (0.8 min)
-                val isHighDensity = activityMinutes.size > (cutoffIndex * 2) 
-                
-                // Use slightly wider bars than mathematical 0.016 to ensure visibility/overlap (0.02)
-                barData.barWidth = if (isHighDensity) 0.02f else 0.8f
+                barData.barWidth = barWidth
                 
                 combinedData.setData(barData)
             }
@@ -643,7 +703,7 @@ fun ActivityHeartRateChart(
                 }
             }
 
-            if (stepEntries.isNotEmpty()) {
+            if (stepEntries.isNotEmpty() && showSteps) {
                 val stepDataSet = LineDataSet(stepEntries, "Steps").apply {
                     color = Color.parseColor("#9C27B0")
                     setCircleColor(Color.parseColor("#9C27B0"))

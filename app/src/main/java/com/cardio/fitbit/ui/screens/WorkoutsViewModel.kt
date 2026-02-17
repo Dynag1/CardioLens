@@ -313,11 +313,18 @@ class WorkoutsViewModel @Inject constructor(
                 validHrActs.map { it.activity.averageHeartRate!! }.average().toInt()
             } else 0
             
-            // Avg Speed (only for Walk/Run acts with distance)
+            // Avg Speed (only for Walk/Run acts with distance AND sufficient step density)
             val speedActs = acts.filter { 
                 val name = it.activity.activityName.lowercase()
-                (name.contains("walk") || name.contains("marche") || name.contains("run") || name.contains("course")) &&
-                (it.activity.distance ?: 0.0) > 0.0 && it.activity.duration > 0
+                val isWalkRun = (name.contains("walk") || name.contains("marche") || name.contains("run") || name.contains("course"))
+                val hasDistance = (it.activity.distance ?: 0.0) > 0.0 && it.activity.duration > 0
+                
+                // Density Check
+                val durationSec = it.activity.duration / 1000.0
+                val steps = it.activity.steps ?: 0
+                val density = if (durationSec > 0) steps / durationSec else 0.0
+                
+                isWalkRun && hasDistance && density >= 0.6
             }
             val avgSpeed = if (speedActs.isNotEmpty()) {
                 // Total Distance / Total Duration (hours)
@@ -326,10 +333,17 @@ class WorkoutsViewModel @Inject constructor(
                 if (totalDurHours > 0) totalDist / totalDurHours else 0.0
             } else 0.0
             
-            // Avg Steps (only for Walk/Run)
+            // Avg Steps (only for Walk/Run AND sufficient step density)
             val stepActs = acts.filter {
                 val name = it.activity.activityName.lowercase()
-                (name.contains("walk") || name.contains("marche") || name.contains("run") || name.contains("course"))
+                val isWalkRun = (name.contains("walk") || name.contains("marche") || name.contains("run") || name.contains("course"))
+                
+                // Density Check
+                val durationSec = it.activity.duration / 1000.0
+                val steps = it.activity.steps ?: 0
+                val density = if (durationSec > 0) steps / durationSec else 0.0
+                
+                isWalkRun && density >= 0.6
             }
             val totalSteps = stepActs.sumOf { it.activity.steps ?: 0 }
             val avgSteps = if (stepActs.isNotEmpty()) totalSteps / stepActs.size else 0

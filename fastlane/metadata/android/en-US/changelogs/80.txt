@@ -1,0 +1,3 @@
+Ajout des métriques de récupération à 5 et 10 minutes après l'exercice.
+Amélioration de graphique d'activité : les pas ne s'affichent que pour la marche.
+Amélioration de l'affichage de la densité de données cardiaques pour les graphiques détaillés.
