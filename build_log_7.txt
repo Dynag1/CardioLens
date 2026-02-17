@@ -1,0 +1,72 @@
+> Task :app:checkKotlinGradlePluginConfigurationErrors
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeDebugStartupProfile UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:kaptGenerateStubsDebugKotlin
+> Task :app:kaptDebugKotlin
+
+> Task :app:compileDebugKotlin
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:41:5 Parameter 'onLogout' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:42:5 Parameter 'onNavigateToTrends' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:43:5 Parameter 'onNavigateToBackup' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:44:5 Parameter 'onNavigateToCalendar' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:45:5 Parameter 'onNavigateToSleep' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:46:5 Parameter 'onNavigateToWorkouts' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:58:9 Variable 'aggregatedMinuteData' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:127:9 Variable 'getProviderIcon' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardScreen.kt:336:45 Parameter 'data' is never used, could be renamed to _
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/DashboardViewModel.kt:553:13 Variable 'hrvHistoryDeferred' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/SleepScreen.kt:56:5 Parameter 'onNavigateBack' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/SleepScreen.kt:288:29 Variable 'comparisonText' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/SleepScreen.kt:436:5 Parameter 'heartRateData' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/SleepScreen.kt:683:5 Parameter 'totalMinutes' is never used
+w: file:///home/hemge/Cloud/021%20-%20Programmation/Android/Cardio/app/src/main/java/com/cardio/fitbit/ui/screens/TrendsScreen.kt:39:5 Parameter 'onNavigateBack' is never used
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:hiltAggregateDepsDebug UP-TO-DATE
+> Task :app:hiltJavaCompileDebug
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:transformDebugClassesWithAsm
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :app:mergeProjectDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+
+> Task :app:installDebug
+Installing APK 'app-debug.apk' on 'Pixel 8a - 16' for :app:debug
+Installed on 1 device.
+
+BUILD SUCCESSFUL in 18s
+43 actionable tasks: 11 executed, 32 up-to-date

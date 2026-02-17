@@ -1,0 +1,3 @@
+List of devices attached
+3C211JEKB00478	unauthorized
+
