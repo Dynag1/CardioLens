@@ -330,36 +330,26 @@ fun HeartRateDetailChart(
                     // Zone 5: 90-100% (Peak)
                     
                     // Adjusted for Visuals (Gradient starts earlier):
-                    val zoneStart = maxHr * 0.30f // Start showing color changes from 30% (Blue -> Cyan)
-                    val zone1End = maxHr * 0.40f  // 40% (Cyan -> Green)
-                    val zone2End = maxHr * 0.50f  // 50% (Green -> Yellow) - "Active" starts here
-                    val zone3End = maxHr * 0.65f  // 65% (Yellow -> Orange)
-                    val zone4End = maxHr * 0.80f  // 80% (Orange -> Red) - "Intense" starts here
+                    // Adjusted for Visuals (Gradient starts earlier):
+                    val zoneStart = maxHr * 0.30f 
+                    val zone1End = maxHr * 0.40f  
+                    val zone2End = maxHr * 0.50f  
+                    val zone3End = maxHr * 0.65f  
+                    val zone4End = maxHr * 0.80f  
 
-                    val colorBlue = Color.parseColor("#42A5F5")   // < 30% (Deep sleep / heavy rest)
-                    val colorCyan = Color.parseColor("#06B6D4")   // 30-40% (Resting)
-                    val colorGreen = Color.parseColor("#10B981")  // 40-50% (Very Light)
-                    val colorYellow = Color.parseColor("#FFD600") // 50-65% (Light / Moderate)
-                    val colorOrange = Color.parseColor("#F59E0B") // 65-80% (Moderate / Hard)
-                    val colorRed = Color.parseColor("#EF4444")    // > 80% (Peak)
+                    val colorBlue = Color.parseColor("#42A5F5")
+                    val colorCyan = Color.parseColor("#06B6D4")
+                    val colorGreen = Color.parseColor("#10B981")
+                    val colorYellow = Color.parseColor("#FFD600")
+                    val colorOrange = Color.parseColor("#F59E0B")
+                    val colorRed = Color.parseColor("#EF4444")
 
                     return when {
-                        // Below Zone 1 (Resting / Sleeping)
                         bpm < zoneStart -> colorBlue
-                        
-                        // Zone 0-1 Transition (Blue -> Cyan)
                         bpm < zone1End -> interpolateColor(colorCyan, colorGreen, (bpm - zoneStart) / (zone1End - zoneStart))
-                        
-                        // Zone 1-2 Transition (Green -> Yellow)
                         bpm < zone2End -> interpolateColor(colorGreen, colorYellow, (bpm - zone1End) / (zone2End - zone1End))
-                        
-                        // Zone 2-3 Transition (Yellow -> Orange)
                         bpm < zone3End -> interpolateColor(colorYellow, colorOrange, (bpm - zone2End) / (zone3End - zone2End))
-                        
-                        // Zone 3-4 Transition (Orange -> Red)
                         bpm < zone4End -> interpolateColor(colorOrange, colorRed, (bpm - zone3End) / (zone4End - zone3End))
-                        
-                        // Peak
                         else -> colorRed
                     }
                 }
