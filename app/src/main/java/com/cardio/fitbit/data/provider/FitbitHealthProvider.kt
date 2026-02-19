@@ -77,34 +77,52 @@ class FitbitHealthProvider @Inject constructor(
             activities.forEach { activity ->
                  // Logic to confirm it's a "workout" -> maybe based on type or duration?
                  // For now, take all recorded activities as workouts worth zooming in.
-                 // Use Locale.US for API consistency
-                 val apiTimeFormat = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-                 val startTimeStr = apiTimeFormat.format(activity.startTime)
                  
-                 // Handle Activity end time
-                 // IF activity ends on NEXT day, we must clamp request to TODAY'S 23:59:59
-                 // Cap duration to 4 hours (14400000 ms) to avoid accidental "All Day" activities draining quota
+                 // Fitbit API requires HH:mm format for start and end time.
+                 // To ensure we capture the entire activity (which might start at :30s),
+                 // we round the Start Time DOWN to the nearest minute,
+                 // and the End Time UP to the nearest minute.
+                 
+                 // 1. Calculate Start Time (Rounded Down)
+                 val startCal = java.util.Calendar.getInstance()
+                 startCal.time = activity.startTime
+                 startCal.set(java.util.Calendar.SECOND, 0)
+                 startCal.set(java.util.Calendar.MILLISECOND, 0)
+                 val startTimeStr = DateUtils.formatTimeForDisplay(startCal.time) // HH:mm
+
+                 // 2. Calculate End Time (Rounded Up)
+                 // Start with exact end time
                  val maxDuration = 4 * 60 * 60 * 1000L
                  val effectiveDuration = if (activity.duration > maxDuration) maxDuration else activity.duration
-
                  val activityEnd = Date(activity.startTime.time + effectiveDuration)
+                 
+                 val endCal = java.util.Calendar.getInstance()
+                 endCal.time = activityEnd
+                 
+                 // If we have any seconds/millis, bump to next minute to cover them
+                 if (endCal.get(java.util.Calendar.SECOND) > 0 || endCal.get(java.util.Calendar.MILLISECOND) > 0) {
+                     endCal.add(java.util.Calendar.MINUTE, 1)
+                 }
+                 endCal.set(java.util.Calendar.SECOND, 0)
+                 endCal.set(java.util.Calendar.MILLISECOND, 0)
+
+                 // 3. Handle End of Day Boundary
                  val endOfDay = DateUtils.getEndOfDay(date)
                  
-                 val effectiveEnd = if (activityEnd.after(endOfDay)) {
-                     endOfDay
+                 // If the rounded-up time goes into next day (or is after end of today), clamp to 23:59
+                 // Fitbit API usually accepts 23:59 as the last minute.
+                 val endTimeStr = if (endCal.time.after(endOfDay) || (endCal.get(java.util.Calendar.HOUR_OF_DAY) == 0 && endCal.get(java.util.Calendar.MINUTE) == 0)) {
+                     "23:59"
                  } else {
-                     activityEnd
+                     DateUtils.formatTimeForDisplay(endCal.time)
                  }
-                 
-                 // Fix: Ensure 23:59:59 formatting is correct
-                 val endTimeStr = if (DateUtils.formatTimeForDisplay(effectiveEnd) == "00:00" && effectiveEnd.time > date.time) "23:59:59" else apiTimeFormat.format(effectiveEnd)
                  
                  android.util.Log.d("FitbitHealthProvider", "Processing Activity: ${activity.activityName} ($startTimeStr - $endTimeStr) ID: ${activity.activityId}")
 
                  // Avoid tiny activities or 0 duration
                  // Also avoid invalid range (start >= end) which causes 400
                  // Use 1 min minimum to be safe
-                 if (activity.duration > 60000 && effectiveEnd.time > activity.startTime.time) { 
+                 if (activity.duration > 60000 && startTimeStr != endTimeStr) { 
                      try {
                          // CACHE CHECK
                          val activityId = activity.activityId.toString()

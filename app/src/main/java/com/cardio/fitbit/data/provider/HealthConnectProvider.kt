@@ -141,7 +141,7 @@ class HealthConnectProvider @Inject constructor(
                     ReadRecordsRequest(
                         ExerciseSessionRecord::class,
                         timeRangeFilter = TimeRangeFilter.between(
-                            startOfDay.toInstant(),
+                            startOfDay.toInstant(), // Exercise sessions are not widened
                             endOfDay.toInstant()
                         ),
                         pageToken = exPageToken
@@ -152,17 +152,16 @@ class HealthConnectProvider @Inject constructor(
             } while (exPageToken != null)
             
 
-            // 2. Paginate Heart Rate Records
+            // 2. Paginate Heart Rate Records (Use Widened Window)
+            val startInstant = startOfDay.toInstant().minusSeconds(1800)
+            val endInstant = endOfDay.toInstant().plusSeconds(1800)
             val allHrRecords = mutableListOf<HeartRateRecord>()
             var hrPageToken: String? = null
             do {
                 val response = healthConnectClient.readRecords(
                     ReadRecordsRequest(
-                        HeartRateRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(
-                            startOfDay.toInstant(),
-                            endOfDay.toInstant()
-                        ),
+                        recordType = HeartRateRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startInstant, endInstant),
                         pageSize = 5000,
                         pageToken = hrPageToken
                     )
@@ -172,7 +171,7 @@ class HealthConnectProvider @Inject constructor(
             } while (hrPageToken != null)
 
 
-            // 3. Paginate Steps Records
+            // 3. Paginate Steps Records (Use Original Window)
             val allStepsRecords = mutableListOf<StepsRecord>()
             var stepsPageToken: String? = null
             do {
@@ -191,52 +190,7 @@ class HealthConnectProvider @Inject constructor(
                 stepsPageToken = response.pageToken
             } while (stepsPageToken != null)
 
-
-            val minuteDataMap = mutableMapOf<String, MinuteData>()
-            // Helper to check if a time is inside an exercise
-            fun isDuringExercise(time: java.time.Instant): Boolean {
-                return exercises.any { ex -> 
-                    !time.isBefore(ex.startTime) && !time.isAfter(ex.endTime)
-                }
-            }
-
-            // Buckets for NON-exercise minutes to average them
-            val pendingAverages = mutableMapOf<String, MutableList<Int>>()
-
-            allHrRecords.forEach { record ->
-                record.samples.forEach { sample ->
-                    if (isDuringExercise(sample.time)) {
-                        // High Precision: Use exact time
-                        val time = sample.time.atZone(ZoneId.systemDefault())
-                        val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
-                        
-                        // If collision (multiple samples same second), overwrite/keep last
-                        val existing = minuteDataMap[timeKey]
-                        minuteDataMap[timeKey] = existing?.copy(heartRate = sample.beatsPerMinute.toInt()) 
-                            ?: MinuteData(timeKey, sample.beatsPerMinute.toInt(), 0)
-                    } else {
-                        // Low Precision: Aggregate to Minute
-                        val time = sample.time.atZone(ZoneId.systemDefault())
-                        val timeKey = String.format("%02d:%02d:00", time.hour, time.minute) // Force 00s
-                        
-                        pendingAverages.getOrPut(timeKey) { mutableListOf() }.add(sample.beatsPerMinute.toInt())
-                    }
-                }
-            }
-
-            // Process Averages
-            pendingAverages.forEach { (key, values) ->
-                val avg = values.average().toInt()
-                val existing = minuteDataMap[key]
-                // Only write if not overwriting high precision (though keys differ by seconds usually)
-                // If key is HH:mm:00, it might collide with a high precision sample at exactly 00s.
-                // We prioritize High Precision if exists.
-                if (existing == null) {
-                    minuteDataMap[key] = MinuteData(key, avg, 0)
-                }
-            }
-
-            // Calculate Total Steps per Minute for Display
+            // Calculate Total Steps per Minute (Base for both lists)
             val stepsPerMinute = mutableMapOf<String, Int>()
             allStepsRecords.forEach { record ->
                 val time = record.startTime.atZone(ZoneId.systemDefault())
@@ -244,36 +198,109 @@ class HealthConnectProvider @Inject constructor(
                 stepsPerMinute[minuteKey] = (stepsPerMinute[minuteKey] ?: 0) + record.count.toInt()
             }
 
-            allStepsRecords.forEach { record ->
-                val time = record.startTime.atZone(ZoneId.systemDefault())
-                val timeKey = String.format("%02d:%02d:00", time.hour, time.minute)
-                val minuteKey = String.format("%02d:%02d", time.hour, time.minute)
-                val minuteTotal = stepsPerMinute[minuteKey] ?: 0
-                
-                val existing = minuteDataMap[timeKey] ?: MinuteData(timeKey, 0, 0, minuteTotal)
-                minuteDataMap[timeKey] = existing.copy(
-                    steps = existing.steps + record.count.toInt(),
-                    displaySteps = minuteTotal
-                )
-            }
-            
-            // Backfill displaySteps for HR entries that might have been created before Steps (or purely HR)
-            // This ensures "0 steps" entries still get the "Minute Total" for display if steps exist for that minute
-            minuteDataMap.keys.toList().forEach { key ->
-                 val data = minuteDataMap[key] ?: return@forEach
-                 if (data.displaySteps == 0) {
-                     val minuteKey = key.substring(0, 5) // HH:mm
-                     val total = stepsPerMinute[minuteKey] ?: 0
-                     if (total > 0) {
-                         minuteDataMap[key] = data.copy(displaySteps = total)
-                     }
-                 }
+            // Helper to check if a time is inside an exercise (with buffer)
+            fun isDuringExercise(time: java.time.Instant): Boolean {
+                // Add 1 minute buffer before and after to ensure edges are captured
+                val buffer = java.time.Duration.ofMinutes(1)
+                return exercises.any { ex -> 
+                    val startWithBuffer = ex.startTime.minus(buffer)
+                    val endWithBuffer = ex.endTime.plus(buffer)
+                    !time.isBefore(startWithBuffer) && !time.isAfter(endWithBuffer)
+                }
             }
 
-            val minuteDataList = minuteDataMap.values.sortedBy { it.time }
+            // --- Construct Standard List (1-min aggregation) ---
+            val standardMap = mutableMapOf<String, MinuteData>()
+            val minuteBuckets = mutableMapOf<String, MutableList<Int>>()
+            val zoneId = ZoneId.systemDefault()
+
+            allHrRecords.forEach { record ->
+                record.samples.forEach { sample ->
+                    val time = sample.time.atZone(zoneId)
+                    // Filter to strictly today for standard list
+                    if (time.toLocalDate() == startOfDay.toInstant().atZone(zoneId).toLocalDate()) {
+                        val timeKey = String.format("%02d:%02d", time.hour, time.minute) // Key is HH:mm
+                        minuteBuckets.getOrPut(timeKey) { mutableListOf() }.add(sample.beatsPerMinute.toInt())
+                    }
+                }
+            }
+
+            minuteBuckets.forEach { (key, values) ->
+                val avg = values.average().toInt()
+                val fullTime = "$key:00" // HH:mm:00
+                val displaySteps = stepsPerMinute[key] ?: 0
+                standardMap[fullTime] = MinuteData(fullTime, avg, 0, displaySteps)
+            }
             
-            return Result.success(IntradayData(date, minuteDataList, null))
+            // Inject Steps-only minutes into Standard Map
+            stepsPerMinute.forEach { (key, steps) ->
+                val fullTime = "$key:00"
+                if (!standardMap.containsKey(fullTime)) {
+                     standardMap[fullTime] = MinuteData(fullTime, 0, 0, steps)
+                }
+            }
+            
+            val standardMinuteList = standardMap.values.sortedBy { it.time }
+
+            // --- Construct Precise List (Seeded + Raw) ---
+            val preciseMap = mutableMapOf<String, MinuteData>()
+            
+            // 1. Seed with Standard Data (Baseline)
+            standardMinuteList.forEach { 
+                // Ensure HH:mm becomes HH:mm:00 for key consistency
+                val fullTime = if (it.time.length == 5) "${it.time}:00" else it.time
+                preciseMap[fullTime] = it.copy(time = fullTime)
+            }
+            
+            var samplesWithSeconds = 0
+            var totalSamples = 0
+
+            
+            // android.util.Log.d("HealthConnectProvider", "Processing Intraday Data for $date")
+
+            allHrRecords.forEach { record ->
+                record.samples.forEach { sample ->
+                    val time = sample.time.atZone(zoneId)
+                    
+                    // Filter to strictly today to clean up widened window
+                    if (time.toLocalDate() == startOfDay.toInstant().atZone(zoneId).toLocalDate()) {
+                        totalSamples++
+                        
+                        val timeKey = String.format("%02d:%02d:%02d", time.hour, time.minute, time.second)
+                        
+                        if (time.second > 0) samplesWithSeconds++
+                        
+                        // Preserve existing steps if we are overwriting a :00 slot
+                        // If separate second, steps are 0 (as we don't know them)
+                        val existingSteps = preciseMap[timeKey]?.steps ?: 0
+                        val finalSteps = if (existingSteps > 0) existingSteps else 0
+                        
+                        // We also need displaySteps (total for minute)
+                        val minuteKey = String.format("%02d:%02d", time.hour, time.minute)
+                        val dispSteps = stepsPerMinute[minuteKey] ?: 0
+
+                        preciseMap[timeKey] = MinuteData(
+                            time = timeKey,
+                            heartRate = sample.beatsPerMinute.toInt(),
+                            steps = finalSteps,
+                            displaySteps = dispSteps
+                        )
+                    }
+                }
+            }
+            
+            if (samplesWithSeconds > 0) {
+                android.util.Log.i("HealthConnectProvider", "Found $samplesWithSeconds high-precision (second-level) samples.")
+            }
+            
+            val preciseList = preciseMap.values.sortedBy { it.time }
+
+            // Always return preciseList to ensure we use what we built
+            val finalPrecise = if (preciseList.isNotEmpty()) preciseList else null
+
+            return Result.success(IntradayData(date, standardMinuteList, finalPrecise))
         } catch (e: Exception) {
+            android.util.Log.e("HealthConnectProvider", "Error in getIntradayData", e)
             return Result.failure(e)
         }
     }

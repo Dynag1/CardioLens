@@ -492,234 +492,253 @@ fun ActivityHeartRateChart(
         return
     }
 
-    AndroidView(
-        factory = { context ->
-            CombinedChart(context).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                
-                description.isEnabled = false
-                legend.isEnabled = false
-                setTouchEnabled(true)
-                setExtraOffsets(0f, 0f, 0f, 0f)
-                minOffset = 0f
-                isDragEnabled = true
-                setScaleEnabled(true)
-                setPinchZoom(true)
-                setDrawGridBackground(false)
-
-                // Interactivity
-                setOnTouchListener { v, event ->
-                    v.parent.requestDisallowInterceptTouchEvent(true) // Always consume touch
-                    false
-                }
-
-                xAxis.apply {
-                    position = XAxis.XAxisPosition.BOTTOM
-                    setDrawGridLines(false)
-                    textColor = Color.GRAY
-                    textSize = 10f
-                    labelCount = 5
+    Column(modifier = Modifier.fillMaxSize()) {
+        AndroidView(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            factory = { context ->
+                CombinedChart(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
                     
-                    // Add LimitLine for Activity End
-                    removeAllLimitLines()
-                    val limitLine = LimitLine(cutoffIndex, "Fin").apply {
-                        lineWidth = 1f
-                        lineColor = Color.DKGRAY
-                        enableDashedLine(10f, 10f, 0f)
-                        labelPosition = LimitLine.LimitLabelPosition.RIGHT_TOP
+                    description.isEnabled = false
+                    legend.isEnabled = false
+                    setTouchEnabled(true)
+                    setExtraOffsets(0f, 0f, 0f, 0f)
+                    minOffset = 0f
+                    isDragEnabled = true
+                    setScaleEnabled(true)
+                    setPinchZoom(true)
+                    setDrawGridBackground(false)
+
+                    // Interactivity
+                    setOnTouchListener { v, event ->
+                        v.parent.requestDisallowInterceptTouchEvent(true) // Always consume touch
+                        false
+                    }
+
+                    xAxis.apply {
+                        position = XAxis.XAxisPosition.BOTTOM
+                        setDrawGridLines(false)
+                        textColor = Color.GRAY
                         textSize = 10f
-                    }
-                    addLimitLine(limitLine)
-                    
-                    valueFormatter = object : ValueFormatter() {
-                        override fun getFormattedValue(value: Float): String {
-                            // value is Minutes from Start
-                            val timeMs = activityStartTime + (value * 60000).toLong()
-                            val date = Date(timeMs)
-                            val format = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-                            return format.format(date)
-                        }
-                    }
-                }
-
-                axisLeft.apply {
-                    setDrawGridLines(true)
-                    gridColor = Color.LTGRAY
-                    textColor = Color.GRAY
-                    textSize = 10f
-                    axisMinimum = 40f
-                    val maxHrInGraph = activityMinutes.maxOfOrNull { it.heartRate } ?: 150
-                    axisMaximum = (maxHrInGraph + 10).toFloat().coerceAtLeast(100f)
-                }
-
-                axisRight.apply {
-                    isEnabled = showSteps
-                    setDrawLabels(false)
-                    setDrawGridLines(false)
-                    textColor = Color.GRAY
-                    axisMinimum = 0f
-                    val maxSteps = activityMinutes.maxOfOrNull { it.steps } ?: 50
-                    axisMaximum = (maxSteps * 1.5f).coerceAtLeast(10f)
-                }
-                
-                val mv = CustomMarkerView(context, R.layout.marker_view)
-                mv.chartView = this
-                marker = mv
-
-                drawOrder = arrayOf(
-                    CombinedChart.DrawOrder.BAR, 
-                    CombinedChart.DrawOrder.LINE 
-                )
-            }
-        },
-        update = { chart ->
-            if (activityMinutes.isEmpty()) {
-                 if (chart.data != null && chart.data.entryCount > 0) {
-                     chart.clear()
-                 }
-                return@AndroidView
-            }
-            
-            // OPTIMIZATION: Check tag. If tag == activityMinutes.hashCode(), skip.
-             val dataHash = activityMinutes.hashCode().toString()
-            
-            if (chart.tag == dataHash) {
-                return@AndroidView 
-            }
-            chart.tag = dataHash
-
-            val combinedData = CombinedData()
-
-            // Optimized Bar Width Logic & Dynamic Density Handling
-            // If we have high density data (approx > 1 point per minute), use thin bars (1 sec = ~0.016 min)
-            val isHighDensity = activityMinutes.size > (cutoffIndex * 2)
-            val barWidth = if (isHighDensity) 0.02f else 0.8f
-
-            // 1. Bar Data (HR)
-            // Sort to ensure sequential gap calculation
-            val sortedMinutes = activityMinutes.sortedBy { it.time }
-            val hrEntries = mutableListOf<BarEntry>()
-            
-            for (i in sortedMinutes.indices) {
-                val data = sortedMinutes[i]
-                if (data.heartRate > 0) {
-                    val dataTime = DateUtils.parseTimeToday(data.time)?.time ?: 0L
-                    val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                    val diffMin = (fullDataTime - activityStartTime) / 60000f // Float index
-                    
-                    if (diffMin >= 0) {
-                        // Calculate gap to next point to detect density change (e.g. switch from 1s to 1min resolution)
-                        var gapToNext = 1.0f // Default 1 min for last point
-                        if (i < sortedMinutes.size - 1) {
-                             val nextTime = DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(sortedMinutes[i+1].time)?.time ?: 0L)
-                             gapToNext = (nextTime - fullDataTime) / 60000f
-                        }
+                        labelCount = 6 // Increase label count
+                        granularity = 0.01f // Allow fine grained intervals (approx 1 sec)
+                        isGranularityEnabled = true
                         
-                        // Special Handling:
-                        // If we are in High Density mode (thin bars), but this specific point has a large gap (> 30s)
-                        // it means we fell back to low resolution (e.g. Recovery data).
-                        // We visually "widen" this bar by stacking thin bars to fill the gap.
-                        if (isHighDensity && gapToNext > 0.5f) {
-                            val count = (gapToNext / barWidth).toInt().coerceAtMost(60) // Cap to ~1 min width max to prevent filling massive gaps
-                            // Fill mostly, leave 10% gap
-                            val fillCount = (count * 0.9f).toInt().coerceAtLeast(1)
-                            
-                            for (j in 0 until fillCount) {
-                                hrEntries.add(BarEntry(diffMin + (j * barWidth), data.heartRate.toFloat(), data))
+                        // Add LimitLine for Activity End
+                        removeAllLimitLines()
+                        val limitLine = LimitLine(cutoffIndex, "Fin").apply {
+                            lineWidth = 1f
+                            lineColor = Color.DKGRAY
+                            enableDashedLine(10f, 10f, 0f)
+                            labelPosition = LimitLine.LimitLabelPosition.RIGHT_TOP
+                            textSize = 10f
+                        }
+                        addLimitLine(limitLine)
+                        
+                        valueFormatter = object : ValueFormatter() {
+                            override fun getFormattedValue(value: Float): String {
+                                // value is Minutes from Start
+                                val timeMs = activityStartTime + (value * 60000).toLong()
+                                val date = Date(timeMs)
+                                val format = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                                return format.format(date)
                             }
-                        } else {
-                            // Standard entry (Thin or Wide depending on isHighDensity)
-                            hrEntries.add(BarEntry(diffMin, data.heartRate.toFloat(), data))
+                        }
+                    }
+
+                    axisLeft.apply {
+                        setDrawGridLines(true)
+                        gridColor = Color.LTGRAY
+                        textColor = Color.GRAY
+                        textSize = 10f
+                        axisMinimum = 40f
+                        val maxHrInGraph = activityMinutes.maxOfOrNull { it.heartRate } ?: 150
+                        axisMaximum = (maxHrInGraph + 10).toFloat().coerceAtLeast(100f)
+                    }
+
+                    axisRight.apply {
+                        isEnabled = showSteps
+                        setDrawLabels(false)
+                        setDrawGridLines(false)
+                        textColor = Color.GRAY
+                        axisMinimum = 0f
+                        val maxSteps = activityMinutes.maxOfOrNull { it.steps } ?: 50
+                        axisMaximum = (maxSteps * 1.5f).coerceAtLeast(10f)
+                    }
+                    
+                    val mv = CustomMarkerView(context, R.layout.marker_view)
+                    mv.chartView = this
+                    marker = mv
+
+                    drawOrder = arrayOf(
+                        CombinedChart.DrawOrder.BAR, 
+                        CombinedChart.DrawOrder.LINE 
+                    )
+                }
+            },
+            update = { chart ->
+                if (activityMinutes.isEmpty()) {
+                     if (chart.data != null && chart.data.entryCount > 0) {
+                         chart.clear()
+                     }
+                    return@AndroidView
+                }
+                
+                // OPTIMIZATION: Check tag. If tag == activityMinutes.hashCode(), skip.
+                val dataHash = activityMinutes.hashCode().toString()
+                
+                if (chart.tag == dataHash) {
+                    return@AndroidView 
+                }
+                chart.tag = dataHash
+
+                val combinedData = CombinedData()
+
+                // Optimized Bar Width Logic & Dynamic Density Handling
+                // If we have high density data (approx > 1 point per minute), use thin bars (1 sec = ~0.016 min)
+                val isHighDensity = activityMinutes.size > (cutoffIndex * 1.1f)
+                val barWidth = if (isHighDensity) 0.015f else 0.8f // Slightly thinner for seconds to avoid overlap
+
+                // Enable Second-by-Second Navigation
+                chart.isScaleXEnabled = true
+                chart.isScaleYEnabled = false // Lock Y axis
+                
+                // If high density, zoom in by default to show ~5 minutes of data
+                if (isHighDensity) {
+                    chart.setVisibleXRangeMaximum(5f) // Show max 5 mins at a time (300 seconds)
+                } else {
+                    chart.fitScreen()
+                }
+
+                // 1. Bar Data (HR)
+                // Sort to ensure sequential gap calculation
+                val sortedMinutes = activityMinutes.sortedBy { it.time }
+                val hrEntries = mutableListOf<BarEntry>()
+                
+                for (i in sortedMinutes.indices) {
+                    val data = sortedMinutes[i]
+                    if (data.heartRate > 0) {
+                        val dataTime = DateUtils.parseTimeToday(data.time)?.time ?: 0L
+                        val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
+                        val diffMin = (fullDataTime - activityStartTime) / 60000f // Float index
+                        
+                        if (diffMin >= 0) {
+                            // Calculate gap to next point to detect density change (e.g. switch from 1s to 1min resolution)
+                            var gapToNext = 1.0f // Default 1 min for last point
+                            if (i < sortedMinutes.size - 1) {
+                                 val nextTime = DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(sortedMinutes[i+1].time)?.time ?: 0L)
+                                 gapToNext = (nextTime - fullDataTime) / 60000f
+                            }
+                            
+                            // Special Handling:
+                            // If we are in High Density mode (thin bars), but this specific point has a large gap (> 30s)
+                            // it means we fell back to low resolution (e.g. Recovery data).
+                            // We visually "widen" this bar by stacking thin bars to fill the gap.
+                            if (isHighDensity && gapToNext > 0.5f) {
+                                val count = (gapToNext / barWidth).toInt().coerceAtMost(60) // Cap to ~1 min width max to prevent filling massive gaps
+                                // Fill mostly, leave 10% gap
+                                val fillCount = (count * 0.9f).toInt().coerceAtLeast(1)
+                                
+                                for (j in 0 until fillCount) {
+                                    hrEntries.add(BarEntry(diffMin + (j * barWidth), data.heartRate.toFloat(), data))
+                                }
+                            } else {
+                                // Standard entry (Thin or Wide depending on isHighDensity)
+                                hrEntries.add(BarEntry(diffMin, data.heartRate.toFloat(), data))
+                            }
                         }
                     }
                 }
-            }
 
-            fun interpolateColor(color1: Int, color2: Int, fraction: Float): Int {
-                val a = (Color.alpha(color1) + (Color.alpha(color2) - Color.alpha(color1)) * fraction).toInt()
-                val r = (Color.red(color1) + (Color.red(color2) - Color.red(color1)) * fraction).toInt()
-                val g = (Color.green(color1) + (Color.green(color2) - Color.green(color1)) * fraction).toInt()
-                val b = (Color.blue(color1) + (Color.blue(color2) - Color.blue(color1)) * fraction).toInt()
-                return Color.argb(a, r, g, b)
-            }
-
-            fun getHeartRateColor(bpm: Float): Int {
-                val maxHr = userMaxHr.toFloat()
-                
-                val zoneStart = maxHr * 0.30f
-                val zone1End = maxHr * 0.40f
-                val zone2End = maxHr * 0.50f
-                val zone3End = maxHr * 0.65f
-                val zone4End = maxHr * 0.80f
-
-                val colorBlue = Color.parseColor("#42A5F5")
-                val colorCyan = Color.parseColor("#06B6D4")
-                val colorGreen = Color.parseColor("#10B981")
-                val colorYellow = Color.parseColor("#FFD600")
-                val colorOrange = Color.parseColor("#F59E0B")
-                val colorRed = Color.parseColor("#EF4444")
-
-                return when {
-                    bpm < zoneStart -> colorBlue
-                    bpm < zone1End -> interpolateColor(colorCyan, colorGreen, (bpm - zoneStart) / (zone1End - zoneStart))
-                    bpm < zone2End -> interpolateColor(colorGreen, colorYellow, (bpm - zone1End) / (zone2End - zone1End))
-                    bpm < zone3End -> interpolateColor(colorYellow, colorOrange, (bpm - zone2End) / (zone3End - zone2End))
-                    bpm < zone4End -> interpolateColor(colorOrange, colorRed, (bpm - zone3End) / (zone4End - zone3End))
-                    else -> colorRed
+                fun interpolateColor(color1: Int, color2: Int, fraction: Float): Int {
+                    val a = (Color.alpha(color1) + (Color.alpha(color2) - Color.alpha(color1)) * fraction).toInt()
+                    val r = (Color.red(color1) + (Color.red(color2) - Color.red(color1)) * fraction).toInt()
+                    val g = (Color.green(color1) + (Color.green(color2) - Color.green(color1)) * fraction).toInt()
+                    val b = (Color.blue(color1) + (Color.blue(color2) - Color.blue(color1)) * fraction).toInt()
+                    return Color.argb(a, r, g, b)
                 }
-            }
 
-            if (hrEntries.isNotEmpty()) {
-                val hrDataSet = BarDataSet(hrEntries, "Heart Rate").apply {
-                    // Apply fluid colors
-                    val colors = hrEntries.map { entry -> getHeartRateColor(entry.y) }
-                    setColors(colors)
+                fun getHeartRateColor(bpm: Float): Int {
+                    val maxHr = userMaxHr.toFloat()
                     
-                    setDrawValues(false)
-                    axisDependency = YAxis.AxisDependency.LEFT
-                    isHighlightEnabled = true
-                    highLightColor = Color.GRAY
-                }
-                val barData = BarData(hrDataSet)
-                barData.barWidth = barWidth
-                
-                combinedData.setData(barData)
-            }
+                    val zoneStart = maxHr * 0.30f
+                    val zone1End = maxHr * 0.40f
+                    val zone2End = maxHr * 0.50f
+                    val zone3End = maxHr * 0.65f
+                    val zone4End = maxHr * 0.80f
 
-            // 2. Steps Line (Purple)
-            val stepEntries = mutableListOf<Entry>()
-             activityMinutes.forEach { data ->
-                if (data.steps > 0) {
-                     val dataTime = DateUtils.parseTimeToday(data.time)?.time ?: 0L
-                    val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                    val diffMin = (fullDataTime - activityStartTime) / 60000f
-                    
-                    if (diffMin >= 0) {
-                        stepEntries.add(Entry(diffMin, data.steps.toFloat(), data))
+                    val colorBlue = Color.parseColor("#42A5F5")
+                    val colorCyan = Color.parseColor("#06B6D4")
+                    val colorGreen = Color.parseColor("#10B981")
+                    val colorYellow = Color.parseColor("#FFD600")
+                    val colorOrange = Color.parseColor("#F59E0B")
+                    val colorRed = Color.parseColor("#EF4444")
+
+                    return when {
+                        bpm < zoneStart -> colorBlue
+                        bpm < zone1End -> interpolateColor(colorCyan, colorGreen, (bpm - zoneStart) / (zone1End - zoneStart))
+                        bpm < zone2End -> interpolateColor(colorGreen, colorYellow, (bpm - zone1End) / (zone2End - zone1End))
+                        bpm < zone3End -> interpolateColor(colorYellow, colorOrange, (bpm - zone2End) / (zone3End - zone2End))
+                        bpm < zone4End -> interpolateColor(colorOrange, colorRed, (bpm - zone3End) / (zone4End - zone3End))
+                        else -> colorRed
                     }
                 }
-            }
 
-            if (stepEntries.isNotEmpty() && showSteps) {
-                val stepDataSet = LineDataSet(stepEntries, "Steps").apply {
-                    color = Color.parseColor("#9C27B0")
-                    setCircleColor(Color.parseColor("#9C27B0"))
-                    circleRadius = 1.5f
-                    setDrawCircles(false)
-                    setDrawValues(false)
-                    lineWidth = 2f
-                    mode = LineDataSet.Mode.CUBIC_BEZIER
-                    axisDependency = YAxis.AxisDependency.RIGHT
-                    isHighlightEnabled = false
+                if (hrEntries.isNotEmpty()) {
+                    val hrDataSet = BarDataSet(hrEntries, "Heart Rate").apply {
+                        // Apply fluid colors
+                        val colors = hrEntries.map { entry -> getHeartRateColor(entry.y) }
+                        setColors(colors)
+                        
+                        setDrawValues(false)
+                        axisDependency = YAxis.AxisDependency.LEFT
+                        isHighlightEnabled = true
+                        highLightColor = Color.GRAY
+                    }
+                    val barData = BarData(hrDataSet)
+                    barData.barWidth = barWidth
+                    
+                    combinedData.setData(barData)
                 }
-                combinedData.setData(LineData(stepDataSet))
-            }
 
-            chart.data = combinedData
-            chart.invalidate()
-        }
-    )
+                // 2. Steps Line (Purple)
+                val stepEntries = mutableListOf<Entry>()
+                 activityMinutes.forEach { data ->
+                    if (data.steps > 0) {
+                         val dataTime = DateUtils.parseTimeToday(data.time)?.time ?: 0L
+                        val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
+                        val diffMin = (fullDataTime - activityStartTime) / 60000f
+                        
+                        if (diffMin >= 0) {
+                            stepEntries.add(Entry(diffMin, data.steps.toFloat(), data))
+                        }
+                    }
+                }
+
+                if (stepEntries.isNotEmpty() && showSteps) {
+                    val stepDataSet = LineDataSet(stepEntries, "Steps").apply {
+                        color = Color.parseColor("#9C27B0")
+                        setCircleColor(Color.parseColor("#9C27B0"))
+                        circleRadius = 1.5f
+                        setDrawCircles(false)
+                        setDrawValues(false)
+                        lineWidth = 2f
+                        mode = LineDataSet.Mode.CUBIC_BEZIER
+                        axisDependency = YAxis.AxisDependency.RIGHT
+                        isHighlightEnabled = false
+                    }
+                    combinedData.setData(LineData(stepDataSet))
+                }
+
+                chart.data = combinedData
+                chart.invalidate()
+            }
+        )
+        
+    }
 }

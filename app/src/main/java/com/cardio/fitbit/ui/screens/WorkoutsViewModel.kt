@@ -255,12 +255,19 @@ class WorkoutsViewModel @Inject constructor(
         fetchIntradayForItems(displayList.takeLast(pageSize))
     }
 
+    private val _intradayRefreshed = mutableSetOf<String>()
+
     private fun fetchIntradayForItems(items: List<ActivityItem>) {
         val uniqueDates = items.map { DateUtils.formatForApi(it.date) }.distinct()
         
         uniqueDates.forEach { dateStr ->
             // Check if already cached OR already loading
-            if (_intradayCache.value.containsKey(dateStr)) return@forEach
+            if (_intradayCache.value.containsKey(dateStr) && !_intradayRefreshed.contains(dateStr)) {
+                 // Even if cached, check precision (handled inside launch)
+            } else if (_intradayCache.value.containsKey(dateStr) && _intradayRefreshed.contains(dateStr)) {
+                 return@forEach // Already refreshed, stop
+            }
+            
             if (_loadingIntraday.value.contains(dateStr)) return@forEach
             
             viewModelScope.launch {
@@ -268,16 +275,41 @@ class WorkoutsViewModel @Inject constructor(
                 
                 val date = DateUtils.parseApiDate(dateStr)
                 if (date != null) {
-                    val result = healthRepository.getIntradayData(date)
-                    if (result.isSuccess) {
-                        val data = result.getOrNull()
-                        val minuteData = data?.minuteData ?: data?.preciseData ?: emptyList() // Prefer minute data for charts, precise if available? Chart handles both.
-                        // Actually ActivityDetailCard uses 'allMinuteData'. 
-                        // IntradayData object contains 'minuteData' (1min) and 'preciseData' (1sec). 
-                        // Let's store the BEST available.
+                    // 1. Try Cache First
+                    val cacheResult = healthRepository.getIntradayData(date)
+                    val cacheData = cacheResult.getOrNull()
+                    var bestData = if (!cacheData?.preciseData.isNullOrEmpty()) cacheData?.preciseData!! else (cacheData?.minuteData ?: emptyList())
+                    
+                    // 2. Check Data Quality
+                    // Assume precision if we scan non-:00 timestamps
+                    val hasSeconds = bestData.any { !it.time.endsWith(":00") && !it.time.endsWith("00") }
+                    
+                    val relevantActivities = items.filter { 
+                        DateUtils.formatForApi(it.date) == dateStr && it.activity.duration > 60000 
+                    }
+                    val needsPrecision = relevantActivities.isNotEmpty()
+                    val alreadyRefreshed = _intradayRefreshed.contains(dateStr)
+                    
+                    var finalSuccess = cacheResult.isSuccess
+                    
+                    // If we have activities but cache is low-precision, force ONE refresh
+                    if (needsPrecision && !hasSeconds && !alreadyRefreshed) {
+                        android.util.Log.d("WorkoutsViewModel", "Detected low precision for $dateStr with activities. Forcing refresh.")
                         
-                        val bestData = if (!data?.preciseData.isNullOrEmpty()) data?.preciseData!! else (data?.minuteData ?: emptyList())
+                        val refreshResult = healthRepository.getIntradayData(date, forceRefresh = true)
+                        _intradayRefreshed.add(dateStr) // Mark done
                         
+                        if (refreshResult.isSuccess) {
+                            val refreshData = refreshResult.getOrNull()
+                            bestData = if (!refreshData?.preciseData.isNullOrEmpty()) refreshData?.preciseData!! else (refreshData?.minuteData ?: emptyList())
+                            finalSuccess = true
+                        } else {
+                            // Keep using cache if refresh fails
+                            finalSuccess = cacheResult.isSuccess
+                        }
+                    }
+                    
+                    if (finalSuccess) {
                         _intradayCache.value += (dateStr to bestData)
                     }
                 }
