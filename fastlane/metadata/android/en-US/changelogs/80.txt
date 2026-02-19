@@ -1,0 +1,2 @@
+Amélioration de la précision des graphiques de fréquence cardiaque (données seconde par seconde via Health Connect).
+Correction de l'affichage des graphiques d'activité.
