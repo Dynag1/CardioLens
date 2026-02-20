@@ -92,21 +92,29 @@ fun ActivityDetailCard(
             val durationMs = activity.duration
             val endTimeMs = startTimeMs + durationMs
 
-            // Filter data within range (with 10 min margin) - OPTIMIZED: Only if expanded
-            val relevantData = remember(activity.startTime, activity.duration, allMinuteData, selectedDate, isExpanded) {
+            // Filter data within activity range (Always needed for speed/stats calculation)
+            val continuousMinutes = remember(activity.startTime, activity.duration, allMinuteData, selectedDate) {
+                 allMinuteData.filter { 
+                    val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
+                    val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
+                    fullDataTime >= startTimeMs && fullDataTime <= endTimeMs
+                }
+            }
+
+            // Filter data for recovery range - Only if expanded
+            val recoveryData = remember(activity.startTime, activity.duration, allMinuteData, selectedDate, isExpanded) {
                 if (isExpanded) {
                      allMinuteData.filter { 
                         val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
                         val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
-                        // Extend window to 20 mins to ensuring capturing the 10-min recovery point properly
-                        fullDataTime >= startTimeMs && fullDataTime <= (endTimeMs + 20 * 60 * 1000)
+                        fullDataTime > endTimeMs && fullDataTime <= (endTimeMs + 20 * 60 * 1000)
                     }
                 } else {
                     emptyList()
                 }
             }
             
-            val continuousMinutes = if (relevantData.isNotEmpty()) relevantData else emptyList()
+            val allRelevantData = remember(continuousMinutes, recoveryData) { continuousMinutes + recoveryData }
 
             // Calculate duration in minutes (float) for Stats
             val durationMinutes = durationMs / 60000.0
@@ -244,16 +252,21 @@ fun ActivityDetailCard(
                  var z4 = 0 // 65-80% (Peak)
                  var z5 = 0 // > 80% (Max) - Sometimes merged with Peak
                  
-                 continuousMinutes.forEach { 
+                 allRelevantData.forEach { 
                      val hr = it.heartRate
                      if (hr > 0) {
-                         when {
-                             hr < zoneStart -> z0++
-                             hr < zone1End -> z1++
-                             hr < zone2End -> z2++
-                             hr < zone3End -> z3++
-                             hr < zone4End -> z4++
-                             else -> z5++
+                         // Only count stats during the activity range for the summary zones
+                         val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
+                         val fullDataTime = DateUtils.combineDateAndTime(selectedDate, dataTime)
+                         if (fullDataTime <= endTimeMs) {
+                             when {
+                                 hr < zoneStart -> z0++
+                                 hr < zone1End -> z1++
+                                 hr < zone2End -> z2++
+                                 hr < zone3End -> z3++
+                                 hr < zone4End -> z4++
+                                 else -> z5++
+                             }
                          }
                      }
                  }
@@ -300,40 +313,53 @@ fun ActivityDetailCard(
 
 
 
-            // --- Basic Stats ---
+            // Basic Stats calculation using all filtered activity data
             val calculatedSteps = continuousMinutes.sumOf { it.steps }
             val displaySteps = if (activity.steps != null && activity.steps > 0) activity.steps else calculatedSteps
 
-            // Logic to determine if activity is "walking" based on step density
-            // User requirement: < 60% steps on duration treated as non-walking
-            // Threshold: 0.6 steps per second (36 steps/min)
+            // Logic to determine if activity is "walking" based on active movement minutes
+            val activeMovingMinutesCount = continuousMinutes
+                .groupBy { it.time.substring(0, 5) }
+                .values
+                .count { it.sumOf { m -> m.steps } > 50 }
+
             val durationSeconds = durationMs / 1000.0
-            val stepsPerSecond = if (durationSeconds > 0) displaySteps / durationSeconds else 0.0
-            val isWalking = stepsPerSecond >= 0.6
+            
+            // If we have active minutes data, use it for step density check if total duration suggests a pause
+            val effectiveMovingDurationMinutes = if (activeMovingMinutesCount > 0) activeMovingMinutesCount.toDouble() else durationMinutes
+            val stepsPerMinute = if (effectiveMovingDurationMinutes > 0) displaySteps / effectiveMovingDurationMinutes else 0.0
+            
+            // Threshold for walking: ~36 steps/min (0.6 steps/sec)
+            val isWalking = stepsPerMinute >= 36.0
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                if (isWalking) {
+                if (displaySteps > 0) {
                     StatItem(label = "Pas", value = displaySteps.toString(), icon = Icons.Filled.DirectionsRun)
                 }
                 StatItem(label = "Calories", value = "${activity.calories}", icon = Icons.Filled.LocalFireDepartment)
                 
-                if (isWalking) {
-                    val distStr = if (activity.distance != null) String.format("%.2f km", activity.distance) else "N/A"
+                if (activity.distance != null && activity.distance > 0.0) {
+                    val distStr = String.format("%.2f km", activity.distance)
                     StatItem(label = "Distance", value = distStr, icon = Icons.Filled.Straighten)
                 }
             }
 
             // --- Speed Stats ---
-            if (isWalking && activity.distance != null && activity.distance > 0.0 && durationMinutes > 0) {
+            if (activity.distance != null && activity.distance > 0.0 && durationMinutes > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val hours = durationMs / 3600000.0
-                val avgSpeedKmph = activity.distance / hours
+                val effectiveDurationHours = if (activeMovingMinutesCount > 0) {
+                     activeMovingMinutesCount / 60.0
+                } else {
+                    durationMs / 3600000.0
+                }
+
+                val avgSpeedKmph = activity.distance / effectiveDurationHours
                 val paceMinPerKm = if (avgSpeedKmph > 0) 60 / avgSpeedKmph else 0.0
                 val paceSeconds = ((paceMinPerKm - paceMinPerKm.toInt()) * 60).toInt()
 
@@ -366,11 +392,11 @@ fun ActivityDetailCard(
 
             // --- Recovery Stats ---
             if (isExpanded) {
-                // Calculate HR at End, +1 min, +2 min
-                val endHrEntry = continuousMinutes.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - (startTimeMs + durationMs))) }
+                // Calculate HR at End, +1 min, +2 min using full relevant data (including recovery)
+                val endHrEntry = allRelevantData.minByOrNull { kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - (startTimeMs + durationMs))) }
                 
                 // Only show recovery if we have data AFTER the end
-                if (continuousMinutes.any { (DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0)) > (startTimeMs + durationMs + 30000) }) { 
+                if (allRelevantData.any { (DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0)) > (startTimeMs + durationMs + 30000) }) { 
                     
                      val oneMinPost = startTimeMs + durationMs + 60000
                      val twoMinPost = startTimeMs + durationMs + 120000
@@ -378,7 +404,7 @@ fun ActivityDetailCard(
                      val tenMinPost = startTimeMs + durationMs + 600000
                      
                      val getHr = { target: Long -> 
-                         continuousMinutes.minByOrNull { 
+                         allRelevantData.minByOrNull { 
                             kotlin.math.abs((DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(it.time)?.time ?: 0) - target)) 
                          }?.let { match ->
                             val matchTime = DateUtils.combineDateAndTime(selectedDate, DateUtils.parseTimeToday(match.time)?.time ?: 0)
@@ -438,7 +464,7 @@ fun ActivityDetailCard(
                         .padding(top = 16.dp)
                 ) {
                     ActivityHeartRateChart(
-                        activityMinutes = continuousMinutes,
+                        activityMinutes = allRelevantData,
                         activityStartTime = activity.startTime.time,
                         cutoffIndex = durationMinutes.toFloat(),
                         userMaxHr = userMaxHr,
