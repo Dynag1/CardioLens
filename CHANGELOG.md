@@ -1,5 +1,18 @@
 # Historique des Versions (Changelog)
 
+## Version 81 (v1.3.21) - 2026-02-20
+### Améliorations de l'Analyse des Activités
+- **Calcul de la Vitesse & Allure** : Optimisation du calcul pour exclure les périodes d'inactivité. Seules les minutes avec un mouvement significatif (>50 pas) sont désormais prises en compte pour une précision accrue.
+- **Généralisation des Stats** : Les statistiques de vitesse, allure et pas sont maintenant disponibles pour tous les types d'exercices (Vélo, Fitness, etc.) dès que la distance est présente, et non plus uniquement pour la marche et la course.
+- **Interface Graphique** : Retrait des indicateurs redondants (pas, pouls au repos) dans les en-têtes des détails d'activité pour une lecture plus claire.
+- **Rapports PDF** : Mise à jour des labels pour refléter l'inclusion de tous les sports dans les statistiques de vitesse moyenne.
+
+## Version 79 (v1.3.19) - 2026-02-15
+### Améliorations
+- Améliorations de la synchronisation Health Connect.
+- Correction de bugs mineurs de l'interface.
+
+
 ## Version 73 (v1.3.13) - 2026-02-10
 ### Correctif Critique
 - **Déploiement** : Correction d'un problème où les modifications de l'interface (Sommeil, Widget) n'étaient pas incluses dans la version précédente (v1.3.12). Cette mise à jour force l'application des changements.

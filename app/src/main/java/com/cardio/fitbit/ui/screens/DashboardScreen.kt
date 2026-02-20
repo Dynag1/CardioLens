@@ -410,24 +410,9 @@ fun DashboardScreen(
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                                            horizontalArrangement = Arrangement.SpaceAround,
+                                            horizontalArrangement = Arrangement.Center,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            // Resting HR
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(
-                                                    text = "${rhrNight ?: "--"} / ${rhrDay ?: "--"}",
-                                                    style = MaterialTheme.typography.titleLarge,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = stringResource(R.string.label_resting_hr),
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                            
                                             // Min/Max
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Text(
@@ -438,22 +423,6 @@ fun DashboardScreen(
                                                 )
                                                 Text(
                                                     text = "${minHr?.time?.take(5) ?: "--"} / ${maxHr?.time?.take(5) ?: "--"}", // Show time (HH:mm)
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                            
-                                            // Steps
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                val totalSteps = activityData?.summary?.steps ?: 0
-                                                Text(
-                                                    text = totalSteps.toString(),
-                                                    style = MaterialTheme.typography.titleLarge,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = stringResource(R.string.label_steps),
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )

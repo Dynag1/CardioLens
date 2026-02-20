@@ -125,11 +125,11 @@ object PdfGenerator {
         drawStatRow(canvas, "Fréquence Cardiaque Moy.", "${summary.avgHeartRate} bpm", centerX, y)
         y += 30f
         if (summary.avgSpeed > 0) {
-            drawStatRow(canvas, "Vitesse Moyenne (Marche/Course)", String.format("%.1f km/h", summary.avgSpeed), centerX, y)
+            drawStatRow(canvas, "Vitesse Moyenne", String.format("%.1f km/h", summary.avgSpeed), centerX, y)
             y += 30f
         }
         if (summary.avgSteps > 0) {
-            drawStatRow(canvas, "Pas Moyens (Marche/Course)", "${summary.avgSteps}", centerX, y)
+            drawStatRow(canvas, "Pas Moyens", "${summary.avgSteps}", centerX, y)
             y += 30f
         }
     }
