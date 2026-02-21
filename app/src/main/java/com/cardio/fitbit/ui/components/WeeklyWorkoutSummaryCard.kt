@@ -12,7 +12,11 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.Alignment
 
 @Composable
-fun WeeklyWorkoutSummaryCard(summary: WeeklySummary, onExportClick: (WeeklySummary) -> Unit) {
+fun WeeklyWorkoutSummaryCard(
+    summary: WeeklySummary, 
+    onExportClick: (WeeklySummary) -> Unit,
+    onVibrantShareClick: (WeeklySummary) -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -24,7 +28,7 @@ fun WeeklyWorkoutSummaryCard(summary: WeeklySummary, onExportClick: (WeeklySumma
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // Header: Date Range + Export Button
+            // Header: Date Range + Export Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -36,11 +40,21 @@ fun WeeklyWorkoutSummaryCard(summary: WeeklySummary, onExportClick: (WeeklySumma
                     modifier = Modifier.weight(1f)
                 )
                 
+                // Formal PDF Share
                 IconButton(onClick = { onExportClick(summary) }) {
                     Icon(
-                        imageVector = Icons.Default.Share, 
-                        contentDescription = "Exporter PDF",
+                        imageVector = Icons.Default.PictureAsPdf, 
+                        contentDescription = "Exporter PDF (Formel)",
                         tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Vibrant Image Share (Instagram/Strava style)
+                IconButton(onClick = { onVibrantShareClick(summary) }) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome, 
+                        contentDescription = "Partage Social (Vibrant)",
+                        tint = androidx.compose.ui.graphics.Color(0xFFE91E63) // Pink/Vibrant color
                     )
                 }
             }

@@ -69,11 +69,48 @@ class DashboardViewModel @Inject constructor(
         val hrvAvg: Int?,
         val rhrNightAvg: Int?,
         val rhrDayAvg: Int?,
-        val stepsAvg: Int?
+        val stepsAvg: Int?,
+        val deepSleepAvg: Int?, // in minutes
+        val remSleepAvg: Int?,   // in minutes
+        val recentNightRhrs: List<Int> = emptyList() // Last few days for trend detection
+    )
+    
+    data class HealthInsight(
+        val type: InsightType,
+        val message: String,
+        val color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Gray
+    )
+    
+    enum class InsightType { SLEEP_HRV, ACTIVITY_RHR, GENERAL_TREND, CORRELATION, HEALTH_ALERT }
+    
+    data class ReadinessData(
+        val score: Int,
+        val message: String,
+        val sleepContribution: Int,
+        val hrvContribution: Int,
+        val rhrContribution: Int,
+        val activityContribution: Int
     )
 
     private val _comparisonStats = MutableStateFlow<ComparisonStats?>(null)
     val comparisonStats: StateFlow<ComparisonStats?> = _comparisonStats.asStateFlow()
+    
+    private val _readinessData = MutableStateFlow<ReadinessData?>(null)
+    val readinessData: StateFlow<ReadinessData?> = _readinessData.asStateFlow()
+
+    data class GoalProgress(
+        val type: GoalType,
+        val current: Int,
+        val goal: Int,
+        val progress: Float // 0..1
+    )
+    enum class GoalType { STEPS, WORKOUTS }
+
+    private val _goalProgress = MutableStateFlow<List<GoalProgress>>(emptyList())
+    val goalProgress = _goalProgress.asStateFlow()
+    
+    private val _insights = MutableStateFlow<List<HealthInsight>>(emptyList())
+    val insights: StateFlow<List<HealthInsight>> = _insights.asStateFlow()
 
     // Settings
     val highHrThreshold = userPreferencesRepository.highHrThreshold
@@ -83,6 +120,8 @@ class DashboardViewModel @Inject constructor(
     val appLanguage = userPreferencesRepository.appLanguage
     val appTheme = userPreferencesRepository.appTheme
     val sleepGoalMinutes = userPreferencesRepository.sleepGoalMinutes
+    val weeklyWorkoutGoal = userPreferencesRepository.weeklyWorkoutGoal
+    val dailyStepGoal = userPreferencesRepository.dailyStepGoal
     
     // Dynamic HR Zones
     val dateOfBirth = userPreferencesRepository.dateOfBirth
@@ -115,6 +154,8 @@ class DashboardViewModel @Inject constructor(
 
     private val _maxHr = MutableStateFlow<MinuteData?>(null)
     val maxHr = _maxHr.asStateFlow()
+
+    private val _weeklyWorkoutsCount = MutableStateFlow(0)
 
     // Current Provider ID (for showing the appropriate icon on logout button)
     private val _currentProviderId = MutableStateFlow<String>("FITBIT")
@@ -240,10 +281,12 @@ class DashboardViewModel @Inject constructor(
                     launch { loadMood(selectedDate) },
                     launch { loadSymptoms(selectedDate) },
                     launch { loadSpO2(selectedDate, forceRefresh) },
-                    launch { loadComparisonStats(selectedDate) }
+                    launch { loadComparisonStats(selectedDate) },
+                    launch { loadWeeklyWorkouts() }
                 )
                 jobs.forEach { it.join() }
                 
+                calculateGoalProgress()
                 computeDerivedMetrics()
 
                 computeDerivedMetrics()
@@ -346,7 +389,172 @@ class DashboardViewModel @Inject constructor(
                   _minHr.value = null
                   _maxHr.value = null
               }
+              
+              computeReadinessAndInsights()
         }
+    }
+    
+    private suspend fun computeReadinessAndInsights() {
+        val stats = _comparisonStats.value ?: return
+        val currentHrv = _hrvDailyAverage.value
+        val currentRhrNight = _rhrNight.value
+        val currentSleepMinutes = _sleepData.value.sumOf { it.duration } / 60000
+        val sleepGoal = userPreferencesRepository.sleepGoalMinutes.first() ?: 480
+        
+        // --- 1. Readiness Score Calculation (0-100) ---
+        var sleepScore = 0
+        var hrvScore = 0
+        var rhrScore = 0
+        var activityScore = 15 // Base stability score
+        
+        // Sleep (Max 40 pts)
+        // Split into Duration (30 pts) and Quality (10 pts)
+        val sleepRatio = if (sleepGoal > 0) currentSleepMinutes.toFloat() / sleepGoal else 0f
+        val durationScore = when {
+            sleepRatio >= 1.0f -> 30
+            else -> (sleepRatio * 30).toInt()
+        }
+        
+        // Quality score based on Deep + REM sleep vs 15-day average
+        val currentDeepRem = _sleepData.value.sumOf { (it.stages?.deep ?: 0) + (it.stages?.rem ?: 0) }
+        val avgDeepRem = (stats.deepSleepAvg ?: 0) + (stats.remSleepAvg ?: 0)
+        
+        val qualityScore = if (avgDeepRem > 0) {
+            val qualityRatio = currentDeepRem.toFloat() / avgDeepRem.toFloat()
+            (qualityRatio.coerceAtMost(1.2f) * 10).toInt()
+        } else if (currentDeepRem > 90) 8 else 0 // Fallback if no history but > 1.5h deep/rem
+
+        sleepScore = durationScore + qualityScore
+
+        // HRV (Max 30 pts)
+        // Baseline (ratio 1.0) = 20 pts. Better than average (> 1.0) = up to 30 pts.
+        if (currentHrv != null && stats.hrvAvg != null && stats.hrvAvg > 0) {
+            val hrvRatio = currentHrv.toFloat() / stats.hrvAvg
+            hrvScore = when {
+                hrvRatio >= 1.15f -> 30
+                hrvRatio >= 1.0f -> 20 + ((hrvRatio - 1.0f) * 66).toInt().coerceAtMost(10)
+                else -> (hrvRatio * 20).toInt().coerceAtLeast(0)
+            }
+        } else if (currentHrv != null) {
+            hrvScore = 15 // Partial if no history
+        }
+
+        // RHR (Max 15 pts)
+        // Baseline (diff 0) = 10 pts. Lower RHR is better.
+        if (currentRhrNight != null && stats.rhrNightAvg != null) {
+            val rhrDiff = currentRhrNight - stats.rhrNightAvg
+            rhrScore = when {
+                rhrDiff <= -3 -> 15
+                rhrDiff <= 0 -> 10 + (rhrDiff * -1.6).toInt().coerceAtLeast(0)
+                else -> (10 - (rhrDiff * 2)).coerceAtLeast(0)
+            }
+        } else if (currentRhrNight != null) {
+            rhrScore = 8
+        }
+        
+        val totalScore = (sleepScore + hrvScore + rhrScore + activityScore).coerceIn(0, 100)
+        val message = when {
+            totalScore >= 85 -> "Excellente forme. C'est le jour idéal pour un effort intense !"
+            totalScore >= 70 -> "Bonne condition physique. Vous êtes prêt pour la journée."
+            totalScore >= 50 -> "État équilibré. Écoutez votre corps pendant l'effort."
+            else -> "Besoin de récupération. Privilégiez l'échauffement léger et le repos."
+        }
+
+        _readinessData.value = ReadinessData(
+            score = totalScore,
+            message = message,
+            sleepContribution = sleepScore,
+            hrvContribution = hrvScore,
+            rhrContribution = rhrScore,
+            activityContribution = activityScore
+        )
+
+        // --- 2. Push to Wear OS Companion ---
+        viewModelScope.launch {
+            com.cardio.fitbit.utils.WearIntegrationManager.pushStatsToWear(
+                context = context,
+                    rhr = currentRhrNight,
+                    hrv = currentHrv,
+                    readiness = totalScore,
+                    steps = _stepsData.value.find { DateUtils.isSameDay(it.date, java.util.Date()) }?.steps ?: 0
+            )
+        }
+
+        // --- 3. Intelligent Insights Generation ---
+        generateInsights(stats, currentSleepMinutes, currentHrv, currentRhrNight, currentDeepRem)
+    }
+
+    private fun generateInsights(stats: ComparisonStats, currentSleep: Long, currentHrv: Int?, currentRhr: Int?, currentDeepRem: Int) {
+        val newInsights = mutableListOf<HealthInsight>()
+        
+        // --- 1. Health Alert: RHR Increase Trend ---
+        if (currentRhr != null && stats.rhrNightAvg != null) {
+            val rhrDiff = currentRhr - stats.rhrNightAvg
+            
+            // A. Sharp Jump Alert (> 6 bpm)
+            if (rhrDiff >= 6) {
+                newInsights.add(HealthInsight(
+                    type = InsightType.HEALTH_ALERT,
+                    message = "Alerte Santé : Votre pouls au repos a bondi de +$rhrDiff bpm. Cela peut être un signe précoce de fatigue intense ou d'incubation d'une maladie.",
+                    color = androidx.compose.ui.graphics.Color(0xFFD32F2F)
+                ))
+            } 
+            // B. Rising Trend Alert (3+ days of increase)
+            else if (stats.recentNightRhrs.size >= 2) {
+                val lastValues = stats.recentNightRhrs.takeLast(2)
+                if (currentRhr > lastValues[1] && lastValues[1] > lastValues[0]) {
+                     newInsights.add(HealthInsight(
+                        type = InsightType.HEALTH_ALERT,
+                        message = "Alerte Tendance : Votre pouls au repos augmente continuellement depuis 3 jours. Pensez à lever le pied.",
+                        color = androidx.compose.ui.graphics.Color(0xFFD32F2F)
+                    ))
+                } else if (rhrDiff >= 3) {
+                    newInsights.add(HealthInsight(
+                        type = InsightType.ACTIVITY_RHR,
+                        message = "Fréquence cardiaque nocturne en hausse (+${rhrDiff} bpm). Surveillez votre récupération.",
+                        color = androidx.compose.ui.graphics.Color(0xFFFFB74D)
+                    ))
+                }
+            }
+        }
+
+        // --- 2. Sleep Quality & Stages ---
+        val avgDeepRem = (stats.deepSleepAvg ?: 0) + (stats.remSleepAvg ?: 0)
+        if (currentDeepRem > 0 && avgDeepRem > 0 && currentDeepRem < avgDeepRem * 0.8) {
+             newInsights.add(HealthInsight(
+                type = InsightType.SLEEP_HRV,
+                message = "Qualité de sommeil en baisse : votre temps en sommeil profond/REM est 20% inférieur à votre moyenne.",
+                color = androidx.compose.ui.graphics.Color(0xFFFFB74D)
+            ))
+        }
+
+        // --- 3. HRV Insights ---
+        if (currentHrv != null && stats.hrvAvg != null && stats.hrvAvg > 0) {
+            if (currentHrv < stats.hrvAvg * 0.85) {
+                newInsights.add(HealthInsight(
+                    type = InsightType.SLEEP_HRV,
+                    message = "VFC sensiblement basse today. Risque de fatigue nerveuse ; privilégiez une séance légère.",
+                    color = androidx.compose.ui.graphics.Color(0xFFE57373)
+                ))
+            } else if (currentHrv > stats.hrvAvg * 1.15) {
+                newInsights.add(HealthInsight(
+                    type = InsightType.GENERAL_TREND,
+                    message = "Excellente VFC ! Votre système nerveux est très bien équilibré.",
+                    color = androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                ))
+            }
+        }
+        
+        // --- 4. Correlations ---
+        if (currentSleep < 360 && currentHrv != null && stats.hrvAvg != null && currentHrv < stats.hrvAvg) {
+            newInsights.add(HealthInsight(
+                type = InsightType.CORRELATION,
+                message = "Corrélation : Votre VFC baisse toujours quand vous dormez < 6h. Visez 7h ce soir.",
+                color = androidx.compose.ui.graphics.Color(0xFF64B5F6)
+            ))
+        }
+
+        _insights.value = newInsights
     }
 
     private suspend fun loadHeartRate(date: java.util.Date, forceRefresh: Boolean = false) {
@@ -413,6 +621,64 @@ class DashboardViewModel @Inject constructor(
         val result = healthRepository.getActivityData(date, forceRefresh)
         result.onSuccess { data ->
             _activityData.value = data
+        }
+    }
+
+    private suspend fun loadWeeklyWorkouts() {
+        try {
+            val now = java.util.Date()
+            val cal = java.util.Calendar.getInstance()
+            cal.time = now
+            cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+            val startOfWeek = cal.time
+            
+            val result = healthRepository.getActivityHistory(startOfWeek, now) 
+            result.onSuccess { data ->
+                // Filter activities that are "real" workouts (not just sedentary)
+                val workoutCount = data.flatMap { day -> 
+                    day.activities.filter { it.duration > 15 * 60 * 1000 } // > 15 min
+                }.size
+                _weeklyWorkoutsCount.value = workoutCount
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DashboardVM", "Error loading weekly workouts", e)
+        }
+    }
+
+    private fun calculateGoalProgress() {
+        val currentGoals = mutableListOf<GoalProgress>()
+        
+        // 1. Steps Goal
+        val todaySteps = _stepsData.value.find { DateUtils.isSameDay(it.date, java.util.Date()) }?.steps ?: 0
+        // Wait, stepsData is a list of StepsData (history).
+        // Let's get the most recent one if today isn't explicitly there or if we just want today's.
+        val stepsGoalVal = viewModelScope.async { dailyStepGoal.first() }
+        val workoutGoalVal = viewModelScope.async { weeklyWorkoutGoal.first() }
+        
+        viewModelScope.launch {
+            val sGoal = stepsGoalVal.await()
+            val wGoal = workoutGoalVal.await()
+            
+            // Steps Progress
+            val stepsProgress = if (sGoal > 0) todaySteps.toFloat() / sGoal else 0f
+            currentGoals.add(GoalProgress(
+                type = GoalType.STEPS,
+                current = todaySteps,
+                goal = sGoal,
+                progress = stepsProgress.coerceAtMost(1f)
+            ))
+            
+            // Workouts Progress
+            val wCount = _weeklyWorkoutsCount.value
+            val workoutProgress = if (wGoal > 0) wCount.toFloat() / wGoal else 0f
+            currentGoals.add(GoalProgress(
+                type = GoalType.WORKOUTS,
+                current = wCount,
+                goal = wGoal,
+                progress = workoutProgress.coerceAtMost(1f)
+            ))
+            
+            _goalProgress.value = currentGoals
         }
     }
 
@@ -524,6 +790,20 @@ class DashboardViewModel @Inject constructor(
             userPreferencesRepository.setSleepGoalMinutes(minutes)
         }
     }
+
+    fun updateWeeklyWorkoutGoal(goal: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setWeeklyWorkoutGoal(goal)
+            calculateGoalProgress()
+        }
+    }
+
+    fun updateDailyStepGoal(goal: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDailyStepGoal(goal)
+            calculateGoalProgress()
+        }
+    }
     
     fun setDateOfBirth(timestamp: Long) {
         viewModelScope.launch {
@@ -601,6 +881,18 @@ class DashboardViewModel @Inject constructor(
                     } else null
                 } else null
                 
+                // Process Sleep Stages
+                var deepAvg: Int? = null
+                var remAvg: Int? = null
+                if (sleepResult.isSuccess) {
+                    val sleepList = sleepResult.getOrNull() ?: emptyList<SleepData>()
+                    val validDeep = sleepList.map { it.stages?.deep ?: 0 }.filter { it > 0 }
+                    val validRem = sleepList.map { it.stages?.rem ?: 0 }.filter { it > 0 }
+                    
+                    if (validDeep.isNotEmpty()) deepAvg = validDeep.average().toInt()
+                    if (validRem.isNotEmpty()) remAvg = validRem.average().toInt()
+                }
+
                 // Process RHR (Day/Night)
                 
                 // Process RHR (Day/Night)
@@ -609,15 +901,13 @@ class DashboardViewModel @Inject constructor(
                 var rhrNightCount = 0
                 var rhrDaySum = 0
                 var rhrDayCount = 0
+                val dailyNightRhrs = mutableListOf<Int>()
                 
                 if (intradayResult.isSuccess && sleepResult.isSuccess) {
                     val intradayList = intradayResult.getOrNull() ?: emptyList<IntradayData>()
                     val intradayMap = intradayList.associateBy { DateUtils.formatForApi(it.date) }
                     
                     val sleepList = sleepResult.getOrNull() ?: emptyList<SleepData>()
-                    // Sleep needs to be grouped by day? Or passed as list to utility? Utility takes full list and filters? checks implementation...
-                    // HeartRateAnalysisUtils.calculateDailyRHR(date, intraday, sleep, activity?, preMidnight?)
-                    // It filters sleep sessions overlapping with 'date'.
                     
                     // Iterate each day in range
                     val loopCal = java.util.Calendar.getInstance()
@@ -643,6 +933,7 @@ class DashboardViewModel @Inject constructor(
                             if (rhr.rhrNight != null) {
                                 rhrNightSum += rhr.rhrNight
                                 rhrNightCount++
+                                dailyNightRhrs.add(rhr.rhrNight)
                             }
                             if (rhr.rhrDay != null) {
                                 rhrDaySum += rhr.rhrDay
@@ -657,7 +948,7 @@ class DashboardViewModel @Inject constructor(
                 val rhrNightAvg = if (rhrNightCount > 0) rhrNightSum / rhrNightCount else null
                 val rhrDayAvg = if (rhrDayCount > 0) rhrDaySum / rhrDayCount else null
                 
-                _comparisonStats.value = ComparisonStats(hrvAvg, rhrNightAvg, rhrDayAvg, stepsAvg)
+                _comparisonStats.value = ComparisonStats(hrvAvg, rhrNightAvg, rhrDayAvg, stepsAvg, deepAvg, remAvg, dailyNightRhrs)
             }
         } catch (e: Exception) {
             // fail silently, just no comparison shown

@@ -43,6 +43,8 @@ class UserPreferencesRepository @Inject constructor(
         val GOOGLE_DRIVE_BACKUP_ENABLED = booleanPreferencesKey("google_drive_backup_enabled")
         val BACKUP_URI = androidx.datastore.preferences.core.stringPreferencesKey("backup_uri")
         val SLEEP_GOAL_MINUTES = intPreferencesKey("sleep_goal_minutes")
+        val WEEKLY_WORKOUT_GOAL = intPreferencesKey("weekly_workout_goal")
+        val DAILY_STEP_GOAL = intPreferencesKey("daily_step_goal")
     }
 
     val highHrThreshold: Flow<Int> = context.dataStore.data.map { preferences ->
@@ -224,6 +226,26 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setSleepGoalMinutes(minutes: Int) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.SLEEP_GOAL_MINUTES] = minutes
+        }
+    }
+
+    val weeklyWorkoutGoal: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.WEEKLY_WORKOUT_GOAL] ?: 3 // Default 3 workouts
+    }
+
+    suspend fun setWeeklyWorkoutGoal(goal: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.WEEKLY_WORKOUT_GOAL] = goal
+        }
+    }
+
+    val dailyStepGoal: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.DAILY_STEP_GOAL] ?: 10000 // Default 10,000 steps
+    }
+
+    suspend fun setDailyStepGoal(goal: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DAILY_STEP_GOAL] = goal
         }
     }
 }

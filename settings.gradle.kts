@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CardioLens"
 include(":app")
+include(":wear")

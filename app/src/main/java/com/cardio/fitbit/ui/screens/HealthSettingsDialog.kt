@@ -28,6 +28,10 @@ fun HealthSettingsDialog(
     onLowThresholdChange: (Int) -> Unit,
     sleepGoalMinutes: Int,
     onSleepGoalChange: (Int) -> Unit,
+    weeklyWorkoutGoal: Int,
+    onWeeklyWorkoutGoalChange: (Int) -> Unit,
+    dailyStepGoal: Int,
+    onDailyStepGoalChange: (Int) -> Unit,
     dateOfBirthState: Long?,
     onDateOfBirthChange: (Long) -> Unit
 ) {
@@ -86,6 +90,30 @@ fun HealthSettingsDialog(
                     }
                 }
                 
+                Divider()
+
+                // Weekly Workout Goal
+                Column {
+                    Text("Objectif Entraînements : $weeklyWorkoutGoal / semaine", style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = weeklyWorkoutGoal.toFloat(),
+                        onValueChange = { onWeeklyWorkoutGoalChange(it.toInt()) },
+                        valueRange = 1f..7f,
+                        steps = 5
+                    )
+                }
+
+                // Daily Step Goal
+                Column {
+                    Text("Objectif Pas : $dailyStepGoal / jour", style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = dailyStepGoal.toFloat(),
+                        onValueChange = { onDailyStepGoalChange(it.toInt()) },
+                        valueRange = 1000f..20000f,
+                        steps = 19 // increments of 1000
+                    )
+                }
+
                 Divider()
 
                 // Sleep Goal Slider

@@ -145,6 +145,19 @@ fun ActivityDetailCard(
                                 DateUtils.formatDuration(activity.duration),
                         style = MaterialTheme.typography.bodySmall
                     )
+                    
+                    // --- Cardio Intensity Estimation (New) ---
+                    val cardioIntensity = if (avgHr > 0) {
+                        val hrRatio = avgHr.toFloat() / userMaxHr.toFloat()
+                        when {
+                            hrRatio >= 0.90f -> 5
+                            hrRatio >= 0.80f -> 4
+                            hrRatio >= 0.70f -> 3
+                            hrRatio >= 0.60f -> 2
+                            else -> 1
+                        }
+                    } else null
+
                     // Intensity Display
                     val intensity = activity.intensity
                     if (intensity != null) {
@@ -208,6 +221,21 @@ fun ActivityDetailCard(
                                 )
                             }
                         }
+                    }
+                    
+                    // Comparison Insight
+                    if (intensity != null && cardioIntensity != null && isExpanded) {
+                        val diffMsg = when {
+                            intensity > cardioIntensity -> "Perception d'effort élevée (Sur-estimé)"
+                            intensity < cardioIntensity -> "Effort cardio intense (Sous-estimé)"
+                            else -> "Perception d'effort en accord avec le cardio"
+                        }
+                        Text(
+                            text = diffMsg,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                        )
                     }
                 }
                 

@@ -16,8 +16,14 @@ class CardioApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var notificationHelper: NotificationHelper
 
+    companion object {
+        var instance: CardioApplication? = null
+            private set
+    }
+
     override fun onCreate() {
         super.onCreate()
+        instance = this
         notificationHelper.createNotificationChannel()
         setupRecurringBackup()
     }

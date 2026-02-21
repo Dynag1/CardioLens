@@ -187,20 +187,26 @@ fun AppNavigation() {
              val highThreshold by settingsViewModel.highHrThreshold.collectAsState(initial = 120)
              val lowThreshold by settingsViewModel.lowHrThreshold.collectAsState(initial = 50)
              val sleepGoalMinutes by settingsViewModel.sleepGoalMinutes.collectAsState(initial = 480)
+             val weeklyWorkoutGoal by settingsViewModel.weeklyWorkoutGoal.collectAsState(initial = 3)
+             val dailyStepGoal by settingsViewModel.dailyStepGoal.collectAsState(initial = 10000)
              val dateOfBirth by settingsViewModel.dateOfBirth.collectAsState(initial = null)
-
-             HealthSettingsDialog(
-                onDismiss = { showHealthSettingsDialog = false },
-                notificationsEnabled = notificationsEnabled,
-                onNotificationsChange = settingsViewModel::toggleNotifications,
-                highThreshold = highThreshold,
-                onHighThresholdChange = settingsViewModel::updateHighHrThreshold,
-                lowThreshold = lowThreshold,
-                onLowThresholdChange = settingsViewModel::updateLowHrThreshold,
-                sleepGoalMinutes = sleepGoalMinutes,
-                onSleepGoalChange = settingsViewModel::updateSleepGoalMinutes,
-                dateOfBirthState = dateOfBirth,
-                onDateOfBirthChange = settingsViewModel::setDateOfBirth
+ 
+              HealthSettingsDialog(
+                 onDismiss = { showHealthSettingsDialog = false },
+                 notificationsEnabled = notificationsEnabled,
+                 onNotificationsChange = settingsViewModel::toggleNotifications,
+                 highThreshold = highThreshold,
+                 onHighThresholdChange = settingsViewModel::updateHighHrThreshold,
+                 lowThreshold = lowThreshold,
+                 onLowThresholdChange = settingsViewModel::updateLowHrThreshold,
+                 sleepGoalMinutes = sleepGoalMinutes,
+                 onSleepGoalChange = settingsViewModel::updateSleepGoalMinutes,
+                 weeklyWorkoutGoal = weeklyWorkoutGoal,
+                 onWeeklyWorkoutGoalChange = settingsViewModel::updateWeeklyWorkoutGoal,
+                 dailyStepGoal = dailyStepGoal,
+                 onDailyStepGoalChange = settingsViewModel::updateDailyStepGoal,
+                 dateOfBirthState = dateOfBirth,
+                 onDateOfBirthChange = settingsViewModel::setDateOfBirth
             )
         }
 

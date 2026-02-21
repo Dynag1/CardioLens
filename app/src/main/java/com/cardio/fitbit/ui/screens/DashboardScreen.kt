@@ -1,5 +1,7 @@
 package com.cardio.fitbit.ui.screens
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -65,6 +67,10 @@ fun DashboardScreen(
     val dailySymptoms by viewModel.dailySymptoms.collectAsState()
     val comparisonStats by viewModel.comparisonStats.collectAsState()
     val dateOfBirth by viewModel.dateOfBirth.collectAsState(initial = null)
+    
+    val readiness by viewModel.readinessData.collectAsState()
+    val insights by viewModel.insights.collectAsState()
+    val goalProgress by viewModel.goalProgress.collectAsState()
 
     // Handle Deep Linking / Navigation with Date
     LaunchedEffect(initialDate) {
@@ -144,6 +150,8 @@ fun DashboardScreen(
     // Swipe detection state
     // We lift gesturesEnabled to Scaffold content or keep it local
     var drawerGesturesEnabled by remember { mutableStateOf(true) }
+
+    var isReadinessExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -269,6 +277,148 @@ fun DashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         
+                        // Personalized Goals Section
+                        if (goalProgress.isNotEmpty()) {
+                            item {
+                                GoalProgressCard(goals = goalProgress)
+                            }
+                        }
+                        
+                        // Readiness & Insights Section (Collapsible)
+                        if (readiness != null) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateContentSize()
+                                        .clickable { isReadinessExpanded = !isReadinessExpanded },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                                    ),
+                                    shape = RoundedCornerShape(20.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, 
+                                        when {
+                                            readiness!!.score >= 80 -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                                            readiness!!.score >= 60 -> androidx.compose.ui.graphics.Color(0xFFFFB74D)
+                                            else -> androidx.compose.ui.graphics.Color(0xFFE57373)
+                                        }.copy(alpha = 0.4f)
+                                    )
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        // Header (Always Visible)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(if (isReadinessExpanded) 64.dp else 48.dp)) {
+                                                CircularProgressIndicator(
+                                                    progress = readiness!!.score / 100f,
+                                                    modifier = Modifier.matchParentSize(),
+                                                    color = when {
+                                                        readiness!!.score >= 80 -> androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                                                        readiness!!.score >= 60 -> androidx.compose.ui.graphics.Color(0xFFFFB74D)
+                                                        else -> androidx.compose.ui.graphics.Color(0xFFE57373)
+                                                    },
+                                                    strokeWidth = if (isReadinessExpanded) 6.dp else 4.dp,
+                                                    trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                )
+                                                Text(
+                                                    text = readiness!!.score.toString(),
+                                                    style = if (isReadinessExpanded) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Score de Récupération",
+                                                    style = if (isReadinessExpanded) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                if (!isReadinessExpanded) {
+                                                    val hasAlert = insights.any { it.type == DashboardViewModel.InsightType.HEALTH_ALERT }
+                                                    if (hasAlert) {
+                                                        Text(
+                                                            text = "â  ALERTE SANTÃ",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = androidx.compose.ui.graphics.Color(0xFFD32F2F),
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    } else {
+                                                        Text(
+                                                            text = readiness!!.message.take(30) + "...",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Icon(
+                                                imageVector = if (isReadinessExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+
+                                        // Expanded Content
+                                        if (isReadinessExpanded) {
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Text(
+                                                text = readiness!!.message,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            
+                                            if (insights.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.height(16.dp))
+                                                Text(
+                                                    text = "Analyses & Corrélations",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(bottom = 8.dp)
+                                                )
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    insights.forEach { insight ->
+                                                        Card(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            colors = CardDefaults.cardColors(
+                                                                containerColor = insight.color.copy(alpha = 0.1f)
+                                                            ),
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            border = androidx.compose.foundation.BorderStroke(1.dp, insight.color.copy(alpha = 0.2f))
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier.padding(10.dp),
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = when(insight.type) {
+                                                                        DashboardViewModel.InsightType.SLEEP_HRV -> Icons.Default.Nightlight
+                                                                        DashboardViewModel.InsightType.ACTIVITY_RHR -> Icons.Default.MonitorHeart
+                                                                        DashboardViewModel.InsightType.CORRELATION -> Icons.Default.Troubleshoot
+                                                                        DashboardViewModel.InsightType.HEALTH_ALERT -> Icons.Default.Warning
+                                                                        else -> Icons.Default.Info
+                                                                    },
+                                                                    contentDescription = null,
+                                                                    tint = insight.color,
+                                                                    modifier = Modifier.size(20.dp)
+                                                                )
+                                                                Text(
+                                                                    text = insight.message,
+                                                                    style = MaterialTheme.typography.bodySmall,
+                                                                    color = MaterialTheme.colorScheme.onSurface
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Comparison Section (Trends vs 7-Day Average)
                         if (comparisonStats != null) {
                             item {

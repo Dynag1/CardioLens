@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CardioLens</string>
+    <string name="complication_label">CardioLens</string>
+    <string name="complication_no_data">--</string>
+</resources>

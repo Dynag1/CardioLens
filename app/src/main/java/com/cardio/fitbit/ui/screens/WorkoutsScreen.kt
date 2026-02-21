@@ -70,6 +70,8 @@ fun WorkoutsScreen(
     val isExporting by viewModel.isExporting.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     
+    val vibrantExportFile by viewModel.vibrantExportEvent.collectAsState()
+    
     LaunchedEffect(exportFile) {
         exportFile?.let { file ->
             val uri = androidx.core.content.FileProvider.getUriForFile(
@@ -82,8 +84,25 @@ fun WorkoutsScreen(
                 putExtra(android.content.Intent.EXTRA_STREAM, uri)
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(android.content.Intent.createChooser(intent, "Partager le rapport"))
+            context.startActivity(android.content.Intent.createChooser(intent, "Partager le rapport (PDF)"))
             viewModel.clearExportEvent()
+        }
+    }
+
+    LaunchedEffect(vibrantExportFile) {
+        vibrantExportFile?.let { file ->
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                file
+            )
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(android.content.Intent.createChooser(intent, "Partage Social (Vibrant)"))
+            viewModel.clearVibrantExportEvent()
         }
     }
 
@@ -259,9 +278,15 @@ fun WorkoutsScreen(
                                             pageSpacing = 16.dp
                                         ) { page ->
                                             val context = androidx.compose.ui.platform.LocalContext.current
-                                            com.cardio.fitbit.ui.components.WeeklyWorkoutSummaryCard(summary = weeklySummaries[page], onExportClick = { 
-                                                viewModel.exportPdf(context, it)
-                                            })
+                                            com.cardio.fitbit.ui.components.WeeklyWorkoutSummaryCard(
+                                                summary = weeklySummaries[page], 
+                                                onExportClick = { 
+                                                    viewModel.exportPdf(context, it)
+                                                },
+                                                onVibrantShareClick = {
+                                                    viewModel.exportVibrantSummary(context, it)
+                                                }
+                                            )
                                         }
                                         
                                         // Simple Pager Indicator

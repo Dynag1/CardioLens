@@ -452,6 +452,9 @@ class WorkoutsViewModel @Inject constructor(
     private val _isExporting = MutableStateFlow(false)
     val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
 
+    private val _vibrantExportEvent = MutableStateFlow<java.io.File?>(null)
+    val vibrantExportEvent: StateFlow<java.io.File?> = _vibrantExportEvent.asStateFlow()
+
     fun exportPdf(context: android.content.Context, summary: WeeklySummary) {
         viewModelScope.launch {
             _isExporting.value = true
@@ -503,7 +506,26 @@ class WorkoutsViewModel @Inject constructor(
     fun clearExportEvent() {
         _exportEvent.value = null
     }
-    
+
+    fun clearVibrantExportEvent() {
+        _vibrantExportEvent.value = null
+    }
+
+    fun exportVibrantSummary(context: android.content.Context, summary: WeeklySummary) {
+        viewModelScope.launch {
+            _isExporting.value = true
+            try {
+                // We use the SocialShareGenerator to generate a beautiful image
+                val file = com.cardio.fitbit.utils.SocialShareGenerator.generateWeeklyVibrantCard(context, summary)
+                _vibrantExportEvent.value = file
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutsViewModel", "Error exporting vibrant summary", e)
+            } finally {
+                _isExporting.value = false
+            }
+        }
+    }
+
     // Delete activity
     fun deleteActivity(activityId: Long) {
         viewModelScope.launch {

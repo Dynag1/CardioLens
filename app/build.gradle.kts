@@ -14,8 +14,8 @@ android {
         applicationId = "com.cardio.fitbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 82
-        versionName = "1.3.32"
+        versionCode = 83
+        versionName = "1.3.33"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -164,5 +164,6 @@ dependencies {
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.glance:glance-material3:1.1.1")
 
-    // Testing
+    // Wearable Data Layer
+    implementation("com.google.android.gms:play-services-wearable:18.1.0")
 }
