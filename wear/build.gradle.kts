@@ -11,8 +11,8 @@ android {
         applicationId = "com.cardio.fitbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 82
-        versionName = "1.3.32"
+        versionCode = 87
+        versionName = "1.3.37"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

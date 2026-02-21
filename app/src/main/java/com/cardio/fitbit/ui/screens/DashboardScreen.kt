@@ -277,12 +277,6 @@ fun DashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         
-                        // Personalized Goals Section
-                        if (goalProgress.isNotEmpty()) {
-                            item {
-                                GoalProgressCard(goals = goalProgress)
-                            }
-                        }
                         
                         // Readiness & Insights Section (Collapsible)
                         if (readiness != null) {
@@ -409,6 +403,47 @@ fun DashboardScreen(
                                                                     color = MaterialTheme.colorScheme.onSurface
                                                                 )
                                                             }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Personalized Goals (Integrated)
+                                            if (goalProgress.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.height(16.dp))
+                                                Text(
+                                                    text = "Objectifs du jour",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(bottom = 8.dp)
+                                                )
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    goalProgress.forEach { goal ->
+                                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                val label = when (goal.type) {
+                                                                    DashboardViewModel.GoalType.STEPS -> "Pas"
+                                                                    DashboardViewModel.GoalType.WORKOUTS -> "Entraînements (semaine)"
+                                                                }
+                                                                Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                                                Text(
+                                                                    "${goal.current} / ${goal.goal}",
+                                                                    style = MaterialTheme.typography.bodySmall,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = if (goal.progress >= 1f) androidx.compose.ui.graphics.Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
+                                                                )
+                                                            }
+                                                            LinearProgressIndicator(
+                                                                progress = { goal.progress },
+                                                                modifier = Modifier.fillMaxWidth().height(6.dp),
+                                                                color = if (goal.progress >= 1f) androidx.compose.ui.graphics.Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                                                                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                                                                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                                                            )
                                                         }
                                                     }
                                                 }

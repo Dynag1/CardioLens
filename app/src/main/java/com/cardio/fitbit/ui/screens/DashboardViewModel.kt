@@ -231,6 +231,7 @@ class DashboardViewModel @Inject constructor(
                     launch { loadComparisonStats(newDate) } // Load comparison stats
                 )
                 jobs.forEach { it.join() } // Wait for all data
+                calculateGoalProgress()
                 computeDerivedMetrics()
                 
                 // Switch back to success
@@ -626,13 +627,16 @@ class DashboardViewModel @Inject constructor(
 
     private suspend fun loadWeeklyWorkouts() {
         try {
-            val now = java.util.Date()
+            val date = _selectedDate.value
             val cal = java.util.Calendar.getInstance()
-            cal.time = now
+            cal.time = date
+            // Set to beginning of the week for the selected date
             cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
             val startOfWeek = cal.time
+            // Filter activities up to the selected date
+            val endOfRange = DateUtils.getEndOfDay(date)
             
-            val result = healthRepository.getActivityHistory(startOfWeek, now) 
+            val result = healthRepository.getActivityHistory(startOfWeek, endOfRange) 
             result.onSuccess { data ->
                 // Filter activities that are "real" workouts (not just sedentary)
                 val workoutCount = data.flatMap { day -> 
@@ -646,24 +650,31 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun calculateGoalProgress() {
-        val currentGoals = mutableListOf<GoalProgress>()
-        
-        // 1. Steps Goal
-        val todaySteps = _stepsData.value.find { DateUtils.isSameDay(it.date, java.util.Date()) }?.steps ?: 0
-        // Wait, stepsData is a list of StepsData (history).
-        // Let's get the most recent one if today isn't explicitly there or if we just want today's.
-        val stepsGoalVal = viewModelScope.async { dailyStepGoal.first() }
-        val workoutGoalVal = viewModelScope.async { weeklyWorkoutGoal.first() }
-        
         viewModelScope.launch {
-            val sGoal = stepsGoalVal.await()
-            val wGoal = workoutGoalVal.await()
+            val currentGoals = mutableListOf<GoalProgress>()
+            val date = _selectedDate.value
+            
+            // 1. Steps Calculation (More robust)
+            // Priority 1: Activity Summary
+            // Priority 2: Intraday Sum
+            // Priority 3: Steps History (_stepsData)
+            
+            var steps = _activityData.value?.summary?.steps ?: 0
+            if (steps == 0) {
+                steps = _intradayData.value?.minuteData?.sumOf { it.steps } ?: 0
+            }
+            if (steps == 0) {
+                steps = _stepsData.value.find { DateUtils.isSameDay(it.date, date) }?.steps ?: 0
+            }
+            
+            val sGoal = dailyStepGoal.first()
+            val wGoal = weeklyWorkoutGoal.first()
             
             // Steps Progress
-            val stepsProgress = if (sGoal > 0) todaySteps.toFloat() / sGoal else 0f
+            val stepsProgress = if (sGoal > 0) steps.toFloat() / sGoal else 0f
             currentGoals.add(GoalProgress(
                 type = GoalType.STEPS,
-                current = todaySteps,
+                current = steps,
                 goal = sGoal,
                 progress = stepsProgress.coerceAtMost(1f)
             ))
