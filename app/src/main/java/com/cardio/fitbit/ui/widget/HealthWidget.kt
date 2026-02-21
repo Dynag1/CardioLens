@@ -39,6 +39,10 @@ class HealthWidget : GlanceAppWidget() {
         val KEY_STEPS = intPreferencesKey("steps")
         val KEY_LAST_TIME = stringPreferencesKey("last_time")
         val KEY_LAST_SYNC_STATUS = stringPreferencesKey("last_sync_status") // For "...", "Err", etc.
+        val KEY_READINESS = intPreferencesKey("readiness")
+        val KEY_STEP_GOAL = intPreferencesKey("step_goal")
+        val KEY_WORKOUT_COUNT = intPreferencesKey("workout_count")
+        val KEY_WORKOUT_GOAL = intPreferencesKey("workout_goal")
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -55,14 +59,22 @@ class HealthWidget : GlanceAppWidget() {
         val rhr = prefs[KEY_RHR]
         val lastHr = prefs[KEY_LAST_HR]
         val steps = prefs[KEY_STEPS]
+        val stepGoal = prefs[KEY_STEP_GOAL] ?: 10000
+        val workoutCount = prefs[KEY_WORKOUT_COUNT] ?: 0
+        val workoutGoal = prefs[KEY_WORKOUT_GOAL] ?: 3
+        val readiness = prefs[KEY_READINESS]
         val lastTime = prefs[KEY_LAST_TIME]
-        // Default to "..." if null, or error text if status indicates error
         val status = prefs[KEY_LAST_SYNC_STATUS]
 
         val displayRhr = rhr?.toString() ?: "--"
         val displayLastHr = lastHr?.toString() ?: "--"
         val displaySteps = steps?.toString() ?: "--"
+        val displayReadiness = readiness?.toString() ?: "--"
         val displayTime = if (lastTime != null) "$lastTime" else (status ?: "...")
+
+        // Progress calculations
+        val stepProgress = if (stepGoal > 0) (steps ?: 0).toFloat() / stepGoal else 0f
+        val workoutProgress = if (workoutGoal > 0) workoutCount.toFloat() / workoutGoal else 0f
 
         Box(
             modifier = GlanceModifier
@@ -84,26 +96,57 @@ class HealthWidget : GlanceAppWidget() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
-                // Top Row: RHR and Last HR
+                // Top Row: Readiness & RHR
                 Row(
+                    modifier = GlanceModifier.padding(bottom = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // RHR
-                    MetricItem(context.getString(R.string.widget_rhr), displayRhr, "")
-
-                    Spacer(GlanceModifier.width(16.dp))
-
-                    // Last HR
-                    MetricItem(context.getString(R.string.widget_last), displayLastHr, "")
+                    MetricItem("REC", displayReadiness, "")
+                    Spacer(GlanceModifier.width(12.dp))
+                    MetricItem("RHR", displayRhr, "")
+                    Spacer(GlanceModifier.width(12.dp))
+                    MetricItem("DER", displayLastHr, "")
                 }
 
-                Spacer(GlanceModifier.size(4.dp))
+                // Middle: Large Steps
+                Text(
+                    text = displaySteps,
+                    style = TextStyle(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = GlanceTheme.colors.onSurface
+                    )
+                )
 
-                // Bottom Row: Steps (No Label)
-                MetricItem("", displaySteps, "", isLarge = true)
+                // Bottom: Goals Progress Mini-Bars (Simple indicators)
+                Row(
+                    modifier = GlanceModifier.padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    GoalIndicator("Pas", stepProgress)
+                    Spacer(GlanceModifier.width(8.dp))
+                    GoalIndicator("Entr", workoutProgress)
+                }
             }
+        }
+    }
+
+    @Composable
+    private fun GoalIndicator(label: String, progress: Float) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = GlanceModifier
+                    .size(width = 32.dp, height = 4.dp)
+                    .background(GlanceTheme.colors.onSurface.copy(alpha = 0.1f))
+            ) {
+                Box(
+                    modifier = GlanceModifier
+                        .size(width = (32 * progress.coerceIn(0f, 1f)).dp, height = 4.dp)
+                        .background(if (progress >= 1f) androidx.glance.unit.ColorProvider(androidx.compose.ui.graphics.Color(0xFF4CAF50)) else GlanceTheme.colors.primary)
+                )
+            }
+            Text(label, style = TextStyle(fontSize = 8.sp, color = GlanceTheme.colors.onSurfaceVariant))
         }
     }
 

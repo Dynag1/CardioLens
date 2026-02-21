@@ -16,17 +16,19 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.flow.first
 
 @HiltWorker
 class WidgetUpdateWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val healthRepository: HealthRepository
+    private val healthRepository: com.cardio.fitbit.data.repository.HealthRepository,
+    private val userPreferencesRepository: com.cardio.fitbit.data.repository.UserPreferencesRepository
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
         return try {
-            val (rhr, lastHr, steps, lastTime) = fetchData()
+            val data = fetchData()
 
             val manager = GlanceAppWidgetManager(applicationContext)
             val glanceIds = manager.getGlanceIds(HealthWidget::class.java)
@@ -34,30 +36,16 @@ class WidgetUpdateWorker @AssistedInject constructor(
             if (glanceIds.isNotEmpty()) {
                 glanceIds.forEach { glanceId ->
                     updateAppWidgetState(applicationContext, glanceId) { prefs ->
-                        if (rhr != null) {
-                            prefs[HealthWidget.KEY_RHR] = rhr
-                        } else {
-                            prefs.minusAssign(HealthWidget.KEY_RHR)
-                        }
-
-                        if (lastHr != null) {
-                            prefs[HealthWidget.KEY_LAST_HR] = lastHr
-                        } else {
-                            prefs.minusAssign(HealthWidget.KEY_LAST_HR)
-                        }
-
-                        if (steps != null) {
-                            prefs[HealthWidget.KEY_STEPS] = steps
-                        } else {
-                            prefs.minusAssign(HealthWidget.KEY_STEPS)
-                        }
-
-                        if (lastTime != null) {
-                            prefs[HealthWidget.KEY_LAST_TIME] = lastTime
-                        } else {
-                            prefs.minusAssign(HealthWidget.KEY_LAST_TIME)
-                        }
+                        data.rhr?.let { prefs[HealthWidget.KEY_RHR] = it } ?: prefs.minusAssign(HealthWidget.KEY_RHR)
+                        data.lastHr?.let { prefs[HealthWidget.KEY_LAST_HR] = it } ?: prefs.minusAssign(HealthWidget.KEY_LAST_HR)
+                        data.steps?.let { prefs[HealthWidget.KEY_STEPS] = it } ?: prefs.minusAssign(HealthWidget.KEY_STEPS)
+                        data.lastTime?.let { prefs[HealthWidget.KEY_LAST_TIME] = it } ?: prefs.minusAssign(HealthWidget.KEY_LAST_TIME)
+                        data.readiness?.let { prefs[HealthWidget.KEY_READINESS] = it } ?: prefs.minusAssign(HealthWidget.KEY_READINESS)
                         
+                        prefs[HealthWidget.KEY_STEP_GOAL] = data.stepGoal
+                        prefs[HealthWidget.KEY_WORKOUT_COUNT] = data.workoutCount
+                        prefs[HealthWidget.KEY_WORKOUT_GOAL] = data.workoutGoal
+                         
                         // Clear error status if successful
                         prefs.minusAssign(HealthWidget.KEY_LAST_SYNC_STATUS)
                     }
@@ -85,27 +73,36 @@ class WidgetUpdateWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun fetchData(): Quad<Int?, Int?, Int?, String?> {
+    private suspend fun fetchData(): WidgetData {
         // 1. Try Today
         val today = Date()
         var result = tryFetchForDate(today)
 
         // 2. Fallback to Yesterday if BOTH RHR and LastHR are missing
-        if (result.first == null && result.second == null) {
+        if (result.rhr == null && result.lastHr == null) {
             val yesterday = DateUtils.getDaysAgo(1, today)
             val resultYesterday = tryFetchForDate(yesterday)
             
             // Use yesterday's data if found
-            if (resultYesterday.first != null || resultYesterday.second != null) {
+            if (resultYesterday.rhr != null || resultYesterday.lastHr != null) {
                 return resultYesterday
             }
         }
         return result
     }
 
-    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+    private data class WidgetData(
+        val rhr: Int?,
+        val lastHr: Int?,
+        val steps: Int?,
+        val lastTime: String?,
+        val readiness: Int?,
+        val stepGoal: Int,
+        val workoutCount: Int,
+        val workoutGoal: Int
+    )
 
-    private suspend fun tryFetchForDate(date: Date): Quad<Int?, Int?, Int?, String?> {
+    private suspend fun tryFetchForDate(date: Date): WidgetData {
         // 1. Fetch Sleep (Needed for RHR Calc)
         var sleep = healthRepository.getSleepData(date, forceRefresh = false).getOrNull()
         if (sleep.isNullOrEmpty()) {
@@ -198,6 +195,37 @@ class WidgetUpdateWorker @AssistedInject constructor(
                 e.printStackTrace()
             }
         }
-        return Quad(computedRhr, computedLastHr, computedSteps, computedLastTime)
+        // -- Logic for Goals and Readiness --
+        val sGoal = userPreferencesRepository.dailyStepGoal.first()
+        val wGoal = userPreferencesRepository.weeklyWorkoutGoal.first()
+        
+        // Fetch weekly workouts
+        val cal = java.util.Calendar.getInstance()
+        cal.time = date
+        cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+        val startOfWeek = cal.time
+        val activities = healthRepository.getActivityHistory(startOfWeek, date).getOrNull() ?: emptyList()
+        val wCount = activities.flatMap { it.activities }.filter { it.duration > 15 * 60 * 1000 }.size
+
+        // Simple Readiness Score (if RHR is available)
+        var computedReadiness: Int? = null
+        if (computedRhr != null) {
+            // Very basic logic for widget: map RHR to a score relative to 7-day average if we had it,
+            // or just use a fixed range for now
+            val baseline = 55 // Rough baseline
+            val diff = (computedRhr - baseline).coerceIn(-15, 15)
+            computedReadiness = (80 - diff * 2).coerceIn(0, 100)
+        }
+
+        return WidgetData(
+            rhr = computedRhr,
+            lastHr = computedLastHr,
+            steps = computedSteps,
+            lastTime = computedLastTime,
+            readiness = computedReadiness,
+            stepGoal = sGoal,
+            workoutCount = wCount,
+            workoutGoal = wGoal
+        )
     }
 }
