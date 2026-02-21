@@ -70,7 +70,8 @@ class WorkoutsViewModel @Inject constructor(
         val totalActivities: Int = 0,
         val avgDuration: Long = 0, // in milliseconds
         val avgIntensity: Double = 0.0, // 1-5 scale
-        val totalCalories: Int = 0
+        val totalCalories: Int = 0,
+        val avgSpeed: Double = 0.0 // km/h
     )
     
     private val _monthlyStats = MutableStateFlow(MonthlyStats())
@@ -92,7 +93,7 @@ class WorkoutsViewModel @Inject constructor(
     )
     
     // Grouped Activities derived from current UI State (paged)
-    val groupedActivities: StateFlow<List<WeekGroup>> = _uiState.map { state ->
+    val groupedActivities: StateFlow<List<WeekGroup>> = kotlinx.coroutines.flow.combine(_uiState, _intradayCache) { state, _ ->
         if (state is WorkoutsUiState.Success) {
             groupActivitiesByWeek(state.activities)
         } else {
@@ -114,6 +115,16 @@ class WorkoutsViewModel @Inject constructor(
 
     init {
         loadWorkouts()
+        
+        // Recalculate summaries when intraday data is loaded
+        viewModelScope.launch {
+            _intradayCache.collect {
+                if (allActivities.isNotEmpty()) {
+                    calculateWeeklySummaries(allActivities)
+                    calculateMonthlyStats(allActivities)
+                }
+            }
+        }
     }
 
     fun loadWorkouts() {
@@ -224,13 +235,18 @@ class WorkoutsViewModel @Inject constructor(
             val sdf = java.text.SimpleDateFormat("d MMM", java.util.Locale.FRENCH)
             val weekLabel = "Semaine du ${sdf.format(weekStart)}"
             
+            val cache = _intradayCache.value
+            val totalDuration = items.sumOf { item -> 
+                calculateEffectiveDurationMs(item, cache[DateUtils.formatForApi(item.date)])
+            }
+
             WeekGroup(
                 weekLabel = weekLabel,
                 weekNumber = week,
                 year = year,
                 activities = items,
                 totalActivities = items.size,
-                totalDuration = items.sumOf { it.activity.duration },
+                totalDuration = totalDuration,
                 totalCalories = items.sumOf { it.activity.calories }
             )
         }.sortedByDescending { it.year * 100 + it.weekNumber }
@@ -287,70 +303,99 @@ class WorkoutsViewModel @Inject constructor(
     }
 
     private fun calculateWeeklySummaries(activities: List<ActivityItem>) {
+        val cache = _intradayCache.value
         val grouped = activities.groupBy { DateUtils.getYearWeek(it.fullDateOfActivity) }
         
         val summaries = grouped.map { (yearWeek, acts) ->
             val parts = yearWeek.split("-")
             val year = parts[0].toIntOrNull() ?: 0
             val week = parts[1].toIntOrNull() ?: 0
-            val startDate = DateUtils.getWeekStartDate(year, week)
-            val endDate = DateUtils.getDaysAgo(-6, startDate) // +6 days
-
-            val count = acts.size
-            val totalDuration = acts.sumOf { it.activity.duration }
-            val avgDuration = if (count > 0) totalDuration / count else 0L
             
-            // Intensity (Calories / min)
-            val totalCalories = acts.sumOf { it.activity.calories }
-            // Avoid division by zero for duration (convert ms to min)
-            val totalMinutes = totalDuration / 60000.0
-            val intensity = if (totalMinutes > 0) totalCalories / totalMinutes else 0.0
-            
-            // Avg HR (Weighted by duration?? or simple average of averages?)
-            // Simple average of non-zero HRs
-            val validHrActs = acts.filter { (it.activity.averageHeartRate ?: 0) > 0 }
-            val avgHr = if (validHrActs.isNotEmpty()) {
-                validHrActs.map { it.activity.averageHeartRate!! }.average().toInt()
-            } else 0
-            
-            // Avg Speed (for all acts with distance)
-            val speedActs = acts.filter { 
-                (it.activity.distance ?: 0.0) > 0.0 && it.activity.duration > 0
-            }
-            val avgSpeed = if (speedActs.isNotEmpty()) {
-                // Total Distance / Total Duration (hours)
-                val totalDist = speedActs.sumOf { it.activity.distance!! }
-                val totalDurHours = speedActs.sumOf { it.activity.duration } / 3600000.0
-                if (totalDurHours > 0) totalDist / totalDurHours else 0.0
-            } else 0.0
-            
-            // Avg Steps (for all acts with steps)
-            val stepActs = acts.filter { (it.activity.steps ?: 0) > 0 }
-            val totalSteps = stepActs.sumOf { it.activity.steps ?: 0 }
-            val avgSteps = if (stepActs.isNotEmpty()) totalSteps / stepActs.size else 0
-
-            WeeklySummary(
-                year = year,
-                week = week,
-                startDate = startDate,
-                endDate = endDate,
-                count = count,
-                totalDuration = totalDuration,
-                avgDuration = avgDuration,
-                avgIntensity = intensity,
-                avgHeartRate = avgHr,
-                avgSpeed = avgSpeed,
-                avgSteps = avgSteps
-            )
+            calculateWeeklySummaryForActivities(year, week, acts, cache)
         }.sortedByDescending { it.startDate } // Recent weeks first
 
         _weeklySummaries.value = summaries
+    }
+
+    private fun calculateWeeklySummaryForActivities(year: Int, week: Int, acts: List<ActivityItem>, cache: Map<String, List<MinuteData>>): WeeklySummary {
+        val startDate = DateUtils.getWeekStartDate(year, week)
+        val endDate = DateUtils.getDaysAgo(-6, startDate) // +6 days
+
+        val count = acts.size
         
-        // Auto-select first week (current) if we want? 
-        // Or UI handles paging.
+        // Calculate effective durations for all activities
+        val effectiveActs = acts.map { item ->
+            val minuteData = cache[DateUtils.formatForApi(item.date)]
+            val effectiveDurationMs = calculateEffectiveDurationMs(item, minuteData)
+            item to effectiveDurationMs
+        }
+
+        val totalDuration = effectiveActs.sumOf { it.second }
+        val avgDuration = if (count > 0) totalDuration / count else 0L
+        
+        // Intensity (Calories / min)
+        val totalCalories = acts.sumOf { it.activity.calories }
+        // Avoid division by zero for duration (convert ms to min)
+        val totalMinutes = totalDuration / 60000.0
+        val intensity = if (totalMinutes > 0) totalCalories / totalMinutes else 0.0
+        
+        // Avg HR
+        val validHrActs = acts.filter { (it.activity.averageHeartRate ?: 0) > 0 }
+        val avgHr = if (validHrActs.isNotEmpty()) {
+            validHrActs.map { it.activity.averageHeartRate!! }.average().toInt()
+        } else 0
+        
+        // Avg Speed (for all acts with distance)
+        val speedActs = effectiveActs.filter { (item, _) ->
+            (item.activity.distance ?: 0.0) > 0.0 && item.activity.duration > 0
+        }
+        val avgSpeed = if (speedActs.isNotEmpty()) {
+            val totalDist = speedActs.sumOf { it.first.activity.distance!! }
+            val totalDurHours = speedActs.sumOf { it.second } / 3600000.0
+            if (totalDurHours > 0) totalDist / totalDurHours else 0.0
+        } else 0.0
+        
+        // Avg Steps (for all acts with steps)
+        val stepActs = acts.filter { (it.activity.steps ?: 0) > 0 }
+        val totalSteps = stepActs.sumOf { it.activity.steps ?: 0 }
+        val avgSteps = if (stepActs.isNotEmpty()) totalSteps / stepActs.size else 0
+
+        return WeeklySummary(
+            year = year,
+            week = week,
+            startDate = startDate,
+            endDate = endDate,
+            count = count,
+            totalDuration = totalDuration,
+            avgDuration = avgDuration,
+            avgIntensity = intensity,
+            avgHeartRate = avgHr,
+            avgSpeed = avgSpeed,
+            avgSteps = avgSteps
+        )
+    }
+    
+    private fun calculateEffectiveDurationMs(item: ActivityItem, minuteData: List<MinuteData>?): Long {
+        if (minuteData == null || minuteData.isEmpty()) return item.activity.duration
+        
+        val startTimeMs = item.fullDateOfActivity.time
+        val endTimeMs = startTimeMs + item.activity.duration
+        
+        // Filter and count active minutes (>50 steps)
+        val activeMinutesCount = minuteData.filter { 
+            val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
+            val fullDataTime = DateUtils.combineDateAndTime(item.date, dataTime)
+            fullDataTime >= startTimeMs && fullDataTime <= endTimeMs
+        }
+        .groupBy { it.time.substring(0, 5) }
+        .values
+        .count { it.sumOf { m -> m.steps } > 50 }
+        
+        return if (activeMinutesCount > 0) activeMinutesCount.toLong() * 60000L else item.activity.duration
     }
     
     private fun calculateMonthlyStats(activities: List<ActivityItem>) {
+        val cache = _intradayCache.value
         val now = Calendar.getInstance()
         val currentMonth = now.get(Calendar.MONTH)
         val currentYear = now.get(Calendar.YEAR)
@@ -361,8 +406,26 @@ class WorkoutsViewModel @Inject constructor(
         }
         
         val totalActivities = monthActivities.size
-        val avgDuration = if (totalActivities > 0) monthActivities.sumOf { it.activity.duration } / totalActivities else 0L
+        
+        val effectiveActs = monthActivities.map { item ->
+            val minuteData = cache[DateUtils.formatForApi(item.date)]
+            val effectiveDurationMs = calculateEffectiveDurationMs(item, minuteData)
+            item to effectiveDurationMs
+        }
+        
+        val totalDuration = effectiveActs.sumOf { it.second }
+        val avgDuration = if (totalActivities > 0) totalDuration / totalActivities else 0L
         val totalCalories = monthActivities.sumOf { it.activity.calories }
+        
+        // Average speed for month
+        val speedActs = effectiveActs.filter { (item, _) ->
+            (item.activity.distance ?: 0.0) > 0.0 && item.activity.duration > 0
+        }
+        val avgSpeed = if (speedActs.isNotEmpty()) {
+            val totalDist = speedActs.sumOf { it.first.activity.distance!! }
+            val totalDurHours = speedActs.sumOf { it.second } / 3600000.0
+            if (totalDurHours > 0) totalDist / totalDurHours else 0.0
+        } else 0.0
         
         // Calculate average manual intensity (1-5)
         val activitiesWithIntensity = monthActivities.filter { (it.activity.intensity ?: 0) > 0 }
@@ -374,7 +437,8 @@ class WorkoutsViewModel @Inject constructor(
             totalActivities = totalActivities,
             avgDuration = avgDuration,
             avgIntensity = avgIntensity,
-            totalCalories = totalCalories
+            totalCalories = totalCalories,
+            avgSpeed = avgSpeed
         )
     }
 
@@ -422,8 +486,11 @@ class WorkoutsViewModel @Inject constructor(
                 dataList.add(item.activity to (minuteData ?: emptyList()))
             }
 
-            // 3. Generate PDF
-            val file = com.cardio.fitbit.utils.PdfGenerator.generateWeeklyReport(context, summary, dataList)
+            // 3. Recalculate summary with ALL fetched data for accuracy
+            val freshSummary = calculateWeeklySummaryForActivities(summary.year, summary.week, weekActivities, _intradayCache.value)
+
+            // 4. Generate PDF
+            val file = com.cardio.fitbit.utils.PdfGenerator.generateWeeklyReport(context, freshSummary, dataList)
             
             if (file != null) {
                 _exportEvent.value = file

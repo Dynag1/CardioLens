@@ -1,4 +1,11 @@
 # Historique des Versions (Changelog)
++
++## Version 82 (v1.3.32) - 2026-02-21
++### Optimisations des Performances & Analyses
++- **Calculs de Vitesse Avancés** : Intégration globale du filtrage des périodes d'inactivité (siestes/pauses) dans tous les résumés (hebdomadaires et mensuels).
++- **Visibilité Accrue** : Ajout de la vitesse moyenne mensuelle directement sur le tableau de bord des entraînements.
++- **Rapports PDFs Intelligents** : Les rapports incluent désormais l'allure détaillée (min/km) et la vitesse, calculées dynamiquement sur le temps de mouvement effectif.
++- **Réactivité UI** : Les résumés se mettent à jour instantanément lors du chargement des données détaillées en arrière-plan.
 
 ## Version 81 (v1.3.21) - 2026-02-20
 ### Améliorations de l'Analyse des Activités

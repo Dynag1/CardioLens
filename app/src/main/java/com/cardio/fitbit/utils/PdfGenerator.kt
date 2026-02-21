@@ -180,8 +180,20 @@ object PdfGenerator {
         canvas.drawText("${activity.activityName} - ${DateUtils.formatDate(activity.startTime)} ($startTimeStr - $endTimeStr)", margin, y + 20, titlePaint)
         
         // Details
+        val effectiveDurationMs = calculateEffectiveDurationMs(activity, minuteData)
         val avgHrStr = if (activity.averageHeartRate != null && activity.averageHeartRate > 0) "${activity.averageHeartRate} bpm avg" else "N/A"
-        val details = "${DateUtils.formatDuration(activity.duration)} | ${activity.calories} cal | $avgHrStr"
+        var details = "${DateUtils.formatDuration(effectiveDurationMs)} | ${activity.calories} cal | $avgHrStr"
+        
+        if (activity.distance != null && activity.distance > 0 && effectiveDurationMs > 0) {
+            val speed = activity.distance / (effectiveDurationMs / 3600000.0)
+            details += String.format(" | %.1f km/h", speed)
+            
+            val paceMinPerKm = 60.0 / speed
+            val paceMin = paceMinPerKm.toInt()
+            val paceSec = ((paceMinPerKm - paceMin) * 60).toInt()
+            details += String.format(" (%d'%02d\"/km)", paceMin, paceSec)
+        }
+        
         canvas.drawText(details, margin, y + 45, textPaint)
 
         // --- Heart Rate Zones Bar ---
@@ -454,5 +466,23 @@ object PdfGenerator {
             bpm < zone4End -> interpolateColor(colorOrange, colorRed, (bpm - zone3End) / (zone4End - zone3End))
             else -> colorRed
         }
+    }
+
+    private fun calculateEffectiveDurationMs(activity: Activity, minuteData: List<MinuteData>?): Long {
+        if (minuteData.isNullOrEmpty()) return activity.duration
+        
+        val startTimeMs = activity.startTime.time
+        val endTimeMs = startTimeMs + activity.duration
+        
+        val activeMinutesCount = minuteData.filter { 
+            val dataTime = DateUtils.parseTimeToday(it.time)?.time ?: 0L
+            val fullDataTime = DateUtils.combineDateAndTime(activity.startTime, dataTime)
+            fullDataTime >= startTimeMs && fullDataTime <= endTimeMs
+        }
+        .groupBy { it.time.substring(0, 5) }
+        .values
+        .count { it.sumOf { m -> m.steps } > 50 }
+        
+        return if (activeMinutesCount > 0) activeMinutesCount.toLong() * 60000L else activity.duration
     }
 }
