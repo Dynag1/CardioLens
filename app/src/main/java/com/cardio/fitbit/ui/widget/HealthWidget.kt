@@ -138,13 +138,13 @@ class HealthWidget : GlanceAppWidget() {
             Box(
                 modifier = GlanceModifier
                     .size(width = 32.dp, height = 4.dp)
-                    .background(GlanceTheme.colors.onSurface.copy(alpha = 0.1f))
+                    .background(androidx.glance.unit.ColorProvider(androidx.compose.ui.graphics.Color.Gray.copy(alpha = 0.2f)))
             ) {
                 Box(
                     modifier = GlanceModifier
                         .size(width = (32 * progress.coerceIn(0f, 1f)).dp, height = 4.dp)
                         .background(if (progress >= 1f) androidx.glance.unit.ColorProvider(androidx.compose.ui.graphics.Color(0xFF4CAF50)) else GlanceTheme.colors.primary)
-                )
+                ) {}
             }
             Text(label, style = TextStyle(fontSize = 8.sp, color = GlanceTheme.colors.onSurfaceVariant))
         }
