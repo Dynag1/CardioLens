@@ -8,13 +8,16 @@ import androidx.wear.protolayout.LayoutElementBuilders
 import androidx.wear.protolayout.LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER
 import androidx.wear.protolayout.ResourceBuilders
 import androidx.wear.protolayout.TimelineBuilders
+import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.protolayout.material.CircularProgressIndicator
-import androidx.wear.protolayout.material.LayoutDefaults
 import androidx.wear.protolayout.material.Text
 import androidx.wear.protolayout.material.Typography
+import androidx.wear.protolayout.material.LayoutDefaults
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
+import androidx.wear.tiles.TimelineBuilders as TileTimelineBuilders
+import androidx.wear.tiles.ResourceBuilders as TileResourceBuilders
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.*
@@ -29,11 +32,11 @@ class HealthTileService : TileService() {
             TileBuilders.Tile.Builder()
                 .setResourcesVersion("1")
                 .setTileTimeline(
-                    TimelineBuilders.Timeline.Builder()
+                    TileTimelineBuilders.Timeline.Builder()
                         .addTimelineEntry(
-                            TimelineBuilders.TimelineEntry.Builder()
+                            TileTimelineBuilders.TimelineEntry.Builder()
                                 .setLayout(
-                                    TimelineBuilders.Layout.Builder()
+                                    TileTimelineBuilders.Layout.Builder()
                                         .setRoot(layout(stats))
                                         .build()
                                 )
@@ -44,9 +47,9 @@ class HealthTileService : TileService() {
         })
     }
 
-    override fun onResourcesRequest(requestParams: RequestBuilders.ResourcesRequest): ListenableFuture<ResourceBuilders.Resources> {
+    override fun onResourcesRequest(requestParams: RequestBuilders.ResourcesRequest): ListenableFuture<TileResourceBuilders.Resources> {
         return kotlinx.coroutines.guava.Futures.toListenableFuture(serviceScope.async {
-            ResourceBuilders.Resources.Builder()
+            TileResourceBuilders.Resources.Builder()
                 .setVersion("1")
                 .build()
         })
@@ -160,11 +163,11 @@ class HealthTileService : TileService() {
                         .setWidth(DimensionBuilders.dp(barWidth))
                         .setHeight(DimensionBuilders.dp(barHeight))
                         .setModifiers(
-                            LayoutElementBuilders.Modifiers.Builder()
+                            ModifiersBuilders.Modifiers.Builder()
                                 .setBackground(
-                                    LayoutElementBuilders.Background.Builder()
+                                    ModifiersBuilders.Background.Builder()
                                         .setColor(ColorBuilders.argb(getHeartRateColor(hr.toFloat(), maxHr)))
-                                        .setCorner(LayoutElementBuilders.Corner.Builder().setRadius(DimensionBuilders.dp(1f)).build())
+                                        .setCorner(ModifiersBuilders.Corner.Builder().setRadius(DimensionBuilders.dp(1f)).build())
                                         .build()
                                 )
                                 .build()
