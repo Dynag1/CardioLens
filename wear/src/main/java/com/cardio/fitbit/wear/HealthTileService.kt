@@ -12,31 +12,30 @@ import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.protolayout.material.CircularProgressIndicator
 import androidx.wear.protolayout.material.Text
 import androidx.wear.protolayout.material.Typography
-import androidx.wear.protolayout.material.LayoutDefaults
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
-import androidx.wear.tiles.TimelineBuilders as TileTimelineBuilders
 import androidx.wear.tiles.ResourceBuilders as TileResourceBuilders
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.guava.asListenableFuture
 
 class HealthTileService : TileService() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> {
-        return kotlinx.coroutines.guava.Futures.toListenableFuture(serviceScope.async {
+        return serviceScope.async {
             val stats = fetchLatestData()
             TileBuilders.Tile.Builder()
                 .setResourcesVersion("1")
                 .setTileTimeline(
-                    TileTimelineBuilders.Timeline.Builder()
+                    TimelineBuilders.Timeline.Builder()
                         .addTimelineEntry(
-                            TileTimelineBuilders.TimelineEntry.Builder()
+                            TimelineBuilders.TimelineEntry.Builder()
                                 .setLayout(
-                                    TileTimelineBuilders.Layout.Builder()
+                                    TimelineBuilders.Layout.Builder()
                                         .setRoot(layout(stats))
                                         .build()
                                 )
@@ -44,15 +43,15 @@ class HealthTileService : TileService() {
                         )
                         .build()
                 ).build()
-        })
+        }.asListenableFuture()
     }
 
     override fun onResourcesRequest(requestParams: RequestBuilders.ResourcesRequest): ListenableFuture<TileResourceBuilders.Resources> {
-        return kotlinx.coroutines.guava.Futures.toListenableFuture(serviceScope.async {
+        return serviceScope.async {
             TileResourceBuilders.Resources.Builder()
                 .setVersion("1")
                 .build()
-        })
+        }.asListenableFuture()
     }
 
     data class TileData(
@@ -81,7 +80,7 @@ class HealthTileService : TileService() {
                         hrv = dataMap.getInt("hrv"),
                         readiness = dataMap.getInt("readiness"),
                         steps = dataMap.getInt("steps"),
-                        hrSeries = dataMap.getIntArray("hr_series") ?: intArrayOf(),
+                        hrSeries = dataMap.getIntegerArrayList("hr_series")?.toIntArray() ?: intArrayOf(),
                         maxHr = dataMap.getInt("max_hr").let { if (it > 0) it else 220 }
                     )
                 }

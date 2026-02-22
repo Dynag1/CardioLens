@@ -94,7 +94,7 @@ object WearIntegrationManager {
             rhr?.let { putDataMapReq.dataMap.putInt(KEY_RHR, it) }
             rhrDay?.let { putDataMapReq.dataMap.putInt(KEY_RHR_DAY, it) }
             rhrNight?.let { putDataMapReq.dataMap.putInt(KEY_RHR_NIGHT, it) }
-            hrSeries?.let { putDataMapReq.dataMap.putIntArray(KEY_HR_SERIES, it) }
+            hrSeries?.let { putDataMapReq.dataMap.putIntegerArrayList(KEY_HR_SERIES, ArrayList(it.toList())) }
             maxHr?.let { putDataMapReq.dataMap.putInt(KEY_MAX_HR, it) }
             hrv?.let { putDataMapReq.dataMap.putInt(KEY_HRV, it) }
             readiness?.let { putDataMapReq.dataMap.putInt(KEY_READINESS, it) }
