@@ -11,12 +11,15 @@ class WearDataListenerService : WearableListenerService() {
     override fun onDataChanged(dataEvents: DataEventBuffer) {
         for (event in dataEvents) {
             if (event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == "/health_stats") {
-                // Data updated, request complication refresh
+                // Data updated, request complication and tile refresh
                 val requester = ComplicationDataSourceUpdateRequester.create(
                     this,
                     ComponentName(this, HealthComplicationService::class.java)
                 )
                 requester.requestUpdateAll()
+
+                androidx.wear.tiles.TileService.getUpdater(this)
+                    .requestUpdate(HealthTileService::class.java)
             }
         }
     }

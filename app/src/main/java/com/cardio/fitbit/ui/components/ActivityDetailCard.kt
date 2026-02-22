@@ -127,6 +127,12 @@ fun ActivityDetailCard(
                      continuousMinutes.map { it.heartRate }.filter { it > 0 }.average().toInt()
                 } else 0
             }
+            
+            val maxHrReached = remember(avgHr, continuousMinutes) {
+                if (continuousMinutes.isNotEmpty()) {
+                    continuousMinutes.map { it.heartRate }.maxOrNull() ?: avgHr
+                } else avgHr
+            }
 
             // --- Header ---
             Row(
@@ -146,16 +152,29 @@ fun ActivityDetailCard(
                         style = MaterialTheme.typography.bodySmall
                     )
                     
-                    // --- Cardio Intensity Estimation (New) ---
+                    // --- Cardio Intensity Estimation (Improved Logic) ---
                     val cardioIntensity = if (avgHr > 0) {
                         val hrRatio = avgHr.toFloat() / userMaxHr.toFloat()
-                        when {
-                            hrRatio >= 0.90f -> 5
-                            hrRatio >= 0.80f -> 4
-                            hrRatio >= 0.70f -> 3
-                            hrRatio >= 0.60f -> 2
+                        val pkRatio = maxHrReached.toFloat() / userMaxHr.toFloat()
+                        
+                        // Weighted rating combining Average and Peak
+                        val avgRating = when {
+                            hrRatio >= 0.82f -> 5 // Max
+                            hrRatio >= 0.72f -> 4 // Hard
+                            hrRatio >= 0.62f -> 3 // Moderate
+                            hrRatio >= 0.52f -> 2 // Light
+                            else -> 1             // Very Light
+                        }
+                        
+                        val pkRating = when {
+                            pkRatio >= 0.92f -> 5
+                            pkRatio >= 0.85f -> 4
+                            pkRatio >= 0.75f -> 3
+                            pkRatio >= 0.65f -> 2
                             else -> 1
                         }
+                        
+                        maxOf(avgRating, pkRating)
                     } else null
 
                     // Intensity Display
@@ -266,11 +285,11 @@ fun ActivityDetailCard(
             // --- Zones Distribution (New) ---
             if (avgHr > 0) {
                  val maxHr = userMaxHr.toFloat()
-                 val zoneStart = maxHr * 0.30f
-                 val zone1End = maxHr * 0.40f
-                 val zone2End = maxHr * 0.50f
-                 val zone3End = maxHr * 0.65f
-                 val zone4End = maxHr * 0.80f
+                 val zoneStart = maxHr * 0.35f
+                 val zone1End = maxHr * 0.45f
+                 val zone2End = maxHr * 0.55f
+                 val zone3End = maxHr * 0.70f
+                 val zone4End = maxHr * 0.85f
                  
                  // Calculate time in each zone
                  var z0 = 0 // < 30% (Sedentary/Rest)
@@ -703,11 +722,11 @@ fun ActivityHeartRateChart(
             fun getHeartRateColor(bpm: Float): Int {
                 val maxHr = userMaxHr.toFloat()
                 
-                val zoneStart = maxHr * 0.30f
-                val zone1End = maxHr * 0.40f
-                val zone2End = maxHr * 0.50f
-                val zone3End = maxHr * 0.65f
-                val zone4End = maxHr * 0.80f
+                val zoneStart = maxHr * 0.35f
+                val zone1End = maxHr * 0.45f
+                val zone2End = maxHr * 0.55f
+                val zone3End = maxHr * 0.70f
+                val zone4End = maxHr * 0.85f
 
                 val colorBlue = Color.parseColor("#42A5F5")
                 val colorCyan = Color.parseColor("#06B6D4")

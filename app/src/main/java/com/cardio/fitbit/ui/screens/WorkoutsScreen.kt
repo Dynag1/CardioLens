@@ -51,6 +51,7 @@ fun WorkoutsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val intradayCache by viewModel.intradayCache.collectAsState()
+    val dateOfBirth by viewModel.dateOfBirth.collectAsState()
     
     // Pagination detection
     val listState = rememberLazyListState()
@@ -557,7 +558,7 @@ fun WorkoutsScreen(
                                             activity = item.activity,
                                             allMinuteData = minuteData,
                                             selectedDate = item.date,
-                                            dateOfBirth = null,
+                                            dateOfBirth = dateOfBirth,
                                             onIntensityChange = { activityId, intensity ->
                                                 viewModel.saveWorkoutIntensity(activityId, intensity)
                                             }

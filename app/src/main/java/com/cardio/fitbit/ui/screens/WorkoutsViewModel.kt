@@ -58,6 +58,9 @@ class WorkoutsViewModel @Inject constructor(
     // Available activity types from loaded workouts
     private val _availableActivityTypes = MutableStateFlow<List<String>>(listOf("Tous"))
     val availableActivityTypes: StateFlow<List<String>> = _availableActivityTypes.asStateFlow()
+
+    val dateOfBirth: StateFlow<Long?> = userPreferencesRepository.dateOfBirth
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     
     // Sort order
     enum class SortOrder { RECENT, DURATION, INTENSITY }

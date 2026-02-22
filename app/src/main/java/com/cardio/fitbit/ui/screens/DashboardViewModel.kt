@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 
 @HiltViewModel
@@ -472,12 +474,19 @@ class DashboardViewModel @Inject constructor(
 
         // --- 2. Push to Wear OS Companion ---
         viewModelScope.launch {
+            val maxHr = userMaxHr.first()
+            val hrSeries = sampleHeartRateForWear(_aggregatedMinuteData.value)
+            
             com.cardio.fitbit.utils.WearIntegrationManager.pushStatsToWear(
                 context = context,
-                    rhr = currentRhrNight,
-                    hrv = currentHrv,
-                    readiness = totalScore,
-                    steps = _stepsData.value.find { DateUtils.isSameDay(it.date, java.util.Date()) }?.steps ?: 0
+                rhr = currentRhrNight, // legacy
+                rhrDay = _rhrDay.value,
+                rhrNight = currentRhrNight,
+                hrSeries = hrSeries,
+                maxHr = maxHr,
+                hrv = currentHrv,
+                readiness = totalScore,
+                steps = _stepsData.value.find { DateUtils.isSameDay(it.date, java.util.Date()) }?.steps ?: 0
             )
         }
 
@@ -1007,19 +1016,53 @@ class DashboardViewModel @Inject constructor(
     }
     fun forceSyncToWear() {
         viewModelScope.launch {
+            // Check if app is installed on watch first
+            val isInstalled = com.cardio.fitbit.utils.WearIntegrationManager.isWearAppInstalled(context)
+            
+            if (!isInstalled) {
+                android.util.Log.d("DashboardViewModel", "Wear app not detected. Opening Play Store on watch.")
+                
+                // Show a toast to inform the user
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        context, 
+                        "Application non détectée sur la montre. Ouverture du Play Store sur votre montre...", 
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+                
+                com.cardio.fitbit.utils.WearIntegrationManager.openPlayStoreOnWear(context)
+            }
+
             val hrv = _hrvDailyAverage.value
             val rhr = _rhrNight.value
+            val rhrDay = _rhrDay.value
             val readiness = _readinessData.value?.score ?: 0
             val steps = _stepsData.value.find { DateUtils.isSameDay(it.date, java.util.Date()) }?.steps ?: 0
+            val maxHr = userMaxHr.first()
+            val hrSeries = sampleHeartRateForWear(_aggregatedMinuteData.value)
             
             com.cardio.fitbit.utils.WearIntegrationManager.pushStatsToWear(
                 context = context,
-                rhr = rhr,
+                rhr = rhr, // legacy
+                rhrDay = rhrDay,
+                rhrNight = rhr,
+                hrSeries = hrSeries,
+                maxHr = maxHr,
                 hrv = hrv,
                 readiness = readiness,
                 steps = steps
             )
         }
+    }
+
+    private fun sampleHeartRateForWear(data: List<MinuteData>): IntArray {
+        if (data.isEmpty()) return intArrayOf()
+        val targetCount = 80
+        val step = (data.size / targetCount).coerceAtLeast(1)
+        return data.filterIndexed { index, _ -> index % step == 0 }
+            .map { it.heartRate }
+            .toIntArray()
     }
 }
 

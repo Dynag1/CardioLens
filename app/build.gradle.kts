@@ -14,8 +14,8 @@ android {
         applicationId = "com.cardio.fitbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 88
-        versionName = "1.3.38"
+        versionCode = 89
+        versionName = "1.3.39"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -167,4 +167,5 @@ dependencies {
 
     // Wearable Data Layer
     implementation("com.google.android.gms:play-services-wearable:18.1.0")
+    implementation("androidx.wear:wear-remote-interactions:1.0.0")
 }

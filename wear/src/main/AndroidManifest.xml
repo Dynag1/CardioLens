@@ -40,6 +40,20 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".HealthTileService"
+            android:exported="true"
+            android:label="CardioLens Tile"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@mipmap/ic_launcher_foreground" />
+        </service>
+
     </application>
 
 </manifest>
