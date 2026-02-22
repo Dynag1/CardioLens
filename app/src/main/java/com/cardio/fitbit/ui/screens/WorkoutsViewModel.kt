@@ -11,6 +11,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,7 +22,8 @@ import java.util.Calendar
 
 @HiltViewModel
 class WorkoutsViewModel @Inject constructor(
-    private val healthRepository: HealthRepository
+    private val healthRepository: HealthRepository,
+    private val userPreferencesRepository: com.cardio.fitbit.data.repository.UserPreferencesRepository
 ) : ViewModel() {
 
     // Helper data class to pair Activity with its Date (ActivityData parent)
@@ -371,7 +373,8 @@ class WorkoutsViewModel @Inject constructor(
             avgIntensity = intensity,
             avgHeartRate = avgHr,
             avgSpeed = avgSpeed,
-            avgSteps = avgSteps
+            avgSteps = avgSteps,
+            totalCalories = totalCalories
         )
     }
     
@@ -440,6 +443,59 @@ class WorkoutsViewModel @Inject constructor(
             totalCalories = totalCalories,
             avgSpeed = avgSpeed
         )
+
+        // Calculate MonthlySummaries for the list
+        val groupedByMonth = activities.groupBy { item ->
+            val cal = Calendar.getInstance().apply { time = item.date }
+            "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.MONTH) + 1}"
+        }
+
+        val monthSummaries = groupedByMonth.map { (key, acts) ->
+            val parts = key.split("-")
+            val year = parts[0].toInt()
+            val month = parts[1].toInt()
+            
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.MONTH, month - 1)
+            val monthName = cal.getDisplayName(Calendar.MONTH, Calendar.LONG, java.util.Locale.FRENCH) ?: "Mois $month"
+
+            val count = acts.size
+            val effectiveActs = acts.map { it to calculateEffectiveDurationMs(it, cache[DateUtils.formatForApi(it.date)]) }
+            val totalDuration = effectiveActs.sumOf { it.second }
+            val avgDuration = if (count > 0) totalDuration / count else 0L
+            val totalCalories = acts.sumOf { it.activity.calories }
+            val totalMinutes = totalDuration / 60000.0
+            val intensity = if (totalMinutes > 0) totalCalories / totalMinutes else 0.0
+            
+            val validHrActs = acts.filter { (it.activity.averageHeartRate ?: 0) > 0 }
+            val avgHr = if (validHrActs.isNotEmpty()) validHrActs.map { it.activity.averageHeartRate!! }.average().toInt() else 0
+            
+            val speedActs = effectiveActs.filter { (item, _) -> (item.activity.distance ?: 0.0) > 0.0 && item.activity.duration > 0 }
+            val avgSpeed = if (speedActs.isNotEmpty()) {
+                val totalDist = speedActs.sumOf { it.first.activity.distance!! }
+                val totalDurHours = speedActs.sumOf { it.second } / 3600000.0
+                if (totalDurHours > 0) totalDist / totalDurHours else 0.0
+            } else 0.0
+            
+            val stepActs = acts.filter { (it.activity.steps ?: 0) > 0 }
+            val avgSteps = if (stepActs.isNotEmpty()) stepActs.sumOf { it.activity.steps ?: 0 } / stepActs.size else 0
+
+            MonthlySummary(
+                year = year,
+                month = month,
+                monthName = monthName.replaceFirstChar { it.uppercase() },
+                count = count,
+                totalDuration = totalDuration,
+                avgDuration = avgDuration,
+                avgIntensity = intensity,
+                avgHeartRate = avgHr,
+                avgSpeed = avgSpeed,
+                avgSteps = avgSteps,
+                totalCalories = totalCalories
+            )
+        }.sortedByDescending { it.year * 100 + it.month }
+        
+        _monthlySummaries.value = monthSummaries
     }
 
     private val _weeklySummaries = MutableStateFlow<List<WeeklySummary>>(emptyList())
@@ -451,6 +507,9 @@ class WorkoutsViewModel @Inject constructor(
     
     private val _isExporting = MutableStateFlow(false)
     val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
+
+    private val _monthlySummaries = MutableStateFlow<List<MonthlySummary>>(emptyList())
+    val monthlySummaries: StateFlow<List<MonthlySummary>> = _monthlySummaries.asStateFlow()
 
     private val _vibrantExportEvent = MutableStateFlow<java.io.File?>(null)
     val vibrantExportEvent: StateFlow<java.io.File?> = _vibrantExportEvent.asStateFlow()
@@ -493,7 +552,52 @@ class WorkoutsViewModel @Inject constructor(
             val freshSummary = calculateWeeklySummaryForActivities(summary.year, summary.week, weekActivities, _intradayCache.value)
 
             // 4. Generate PDF
-            val file = com.cardio.fitbit.utils.PdfGenerator.generateWeeklyReport(context, freshSummary, dataList)
+            val dob = userPreferencesRepository.dateOfBirth.firstOrNull()
+            val file = com.cardio.fitbit.utils.PdfGenerator.generateWeeklyReport(context, freshSummary, dataList, dob)
+            
+            if (file != null) {
+                _exportEvent.value = file
+            }
+            
+            _isExporting.value = false
+        }
+    }
+
+    fun exportMonthlyPdf(context: android.content.Context, summary: MonthlySummary) {
+        viewModelScope.launch {
+            _isExporting.value = true
+            
+            // 1. Filter activities for this month
+            val monthActivities = allActivities.filter { item ->
+                val cal = Calendar.getInstance().apply { time = item.date }
+                cal.get(Calendar.MONTH) + 1 == summary.month && cal.get(Calendar.YEAR) == summary.year
+            }.sortedByDescending { it.fullDateOfActivity }
+
+            // 2. Ensure we have intraday data for all
+            val dataList = mutableListOf<Pair<Activity, List<MinuteData>>>()
+            
+            monthActivities.forEach { item ->
+                val dateStr = DateUtils.formatForApi(item.date)
+                var minuteData = _intradayCache.value[dateStr]
+                
+                if (minuteData == null) {
+                    val date = DateUtils.parseApiDate(dateStr)
+                    if (date != null) {
+                        val result = healthRepository.getIntradayData(date)
+                        if (result.isSuccess) {
+                            val data = result.getOrNull()
+                            val fetchedData = if (!data?.preciseData.isNullOrEmpty()) data?.preciseData!! else (data?.minuteData ?: emptyList())
+                            _intradayCache.value += (dateStr to fetchedData)
+                            minuteData = fetchedData
+                        }
+                    }
+                }
+                dataList.add(item.activity to (minuteData ?: emptyList()))
+            }
+
+            // 3. Generate PDF
+            val dob = userPreferencesRepository.dateOfBirth.firstOrNull()
+            val file = com.cardio.fitbit.utils.PdfGenerator.generateMonthlyReport(context, summary, dataList, dob)
             
             if (file != null) {
                 _exportEvent.value = file
@@ -520,6 +624,20 @@ class WorkoutsViewModel @Inject constructor(
                 _vibrantExportEvent.value = file
             } catch (e: Exception) {
                 android.util.Log.e("WorkoutsViewModel", "Error exporting vibrant summary", e)
+            } finally {
+                _isExporting.value = false
+            }
+        }
+    }
+
+    fun exportMonthlyVibrantSummary(context: android.content.Context, summary: MonthlySummary) {
+        viewModelScope.launch {
+            _isExporting.value = true
+            try {
+                val file = com.cardio.fitbit.utils.SocialShareGenerator.generateMonthlyVibrantCard(context, summary)
+                _vibrantExportEvent.value = file
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutsViewModel", "Error exporting monthly vibrant summary", e)
             } finally {
                 _isExporting.value = false
             }
@@ -579,7 +697,22 @@ data class WeeklySummary(
     val avgIntensity: Double, // Cal/min
     val avgHeartRate: Int,
     val avgSpeed: Double, // km/h
-    val avgSteps: Int
+    val avgSteps: Int,
+    val totalCalories: Int
+)
+
+data class MonthlySummary(
+    val year: Int,
+    val month: Int, // 1-12
+    val monthName: String,
+    val count: Int,
+    val totalDuration: Long,
+    val avgDuration: Long,
+    val avgIntensity: Double, // Cal/min
+    val avgHeartRate: Int,
+    val avgSpeed: Double, // km/h
+    val avgSteps: Int,
+    val totalCalories: Int
 )
 
 sealed class WorkoutsUiState {

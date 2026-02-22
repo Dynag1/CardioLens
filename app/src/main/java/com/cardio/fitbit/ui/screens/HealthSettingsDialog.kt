@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,7 +34,8 @@ fun HealthSettingsDialog(
     dailyStepGoal: Int,
     onDailyStepGoalChange: (Int) -> Unit,
     dateOfBirthState: Long?,
-    onDateOfBirthChange: (Long) -> Unit
+    onDateOfBirthChange: (Long) -> Unit,
+    onSyncToWear: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -180,6 +182,36 @@ fun HealthSettingsDialog(
                             DatePicker(state = datePickerState)
                         }
                     }
+                }
+                
+                Divider()
+                
+                // Wear OS Sync Button
+                Column {
+                    Text("Montre Wear OS", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = onSyncToWear,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Watch,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Forcer la synchronisation")
+                    }
+                    Text(
+                        "Envoie immédiatement votre score de récupération et vos pas à la montre.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
         },

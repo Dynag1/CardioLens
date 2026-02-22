@@ -206,7 +206,8 @@ fun AppNavigation() {
                  dailyStepGoal = dailyStepGoal,
                  onDailyStepGoalChange = settingsViewModel::updateDailyStepGoal,
                  dateOfBirthState = dateOfBirth,
-                 onDateOfBirthChange = settingsViewModel::setDateOfBirth
+                 onDateOfBirthChange = settingsViewModel::setDateOfBirth,
+                 onSyncToWear = settingsViewModel::forceSyncToWear
             )
         }
 

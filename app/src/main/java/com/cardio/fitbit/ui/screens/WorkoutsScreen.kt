@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.foundation.clickable
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cardio.fitbit.ui.components.ActivityDetailCard
@@ -181,13 +182,44 @@ fun WorkoutsScreen(
                                 ) {
                                     Column(
                                         modifier = Modifier.padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Text(
-                                            "Ce mois-ci",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "Ce mois-ci",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            
+                                            val monthlySummaries by viewModel.monthlySummaries.collectAsState()
+                                            Row {
+                                                if (monthlySummaries.isNotEmpty()) {
+                                                    val recentSummary = monthlySummaries.first()
+                                                    
+                                                    TextButton(
+                                                        onClick = { viewModel.exportMonthlyVibrantSummary(context, recentSummary) },
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                        Spacer(Modifier.width(4.dp))
+                                                        Text("Partager", style = MaterialTheme.typography.labelLarge)
+                                                    }
+                                                    
+                                                    TextButton(
+                                                        onClick = { viewModel.exportMonthlyPdf(context, recentSummary) },
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                        Spacer(Modifier.width(4.dp))
+                                                        Text("Rapport PDF", style = MaterialTheme.typography.labelLarge)
+                                                    }
+                                                }
+                                            }
+                                        }
                                         
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),

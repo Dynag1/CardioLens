@@ -1005,6 +1005,22 @@ class DashboardViewModel @Inject constructor(
             }
         }
     }
+    fun forceSyncToWear() {
+        viewModelScope.launch {
+            val hrv = _hrvDailyAverage.value
+            val rhr = _rhrNight.value
+            val readiness = _readinessData.value?.score ?: 0
+            val steps = _stepsData.value.find { DateUtils.isSameDay(it.date, java.util.Date()) }?.steps ?: 0
+            
+            com.cardio.fitbit.utils.WearIntegrationManager.pushStatsToWear(
+                context = context,
+                rhr = rhr,
+                hrv = hrv,
+                readiness = readiness,
+                steps = steps
+            )
+        }
+    }
 }
 
 sealed class DashboardUiState {

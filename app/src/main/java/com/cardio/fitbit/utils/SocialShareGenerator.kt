@@ -3,6 +3,7 @@ package com.cardio.fitbit.utils
 import android.content.Context
 import android.graphics.*
 import com.cardio.fitbit.ui.screens.WeeklySummary
+import com.cardio.fitbit.ui.screens.MonthlySummary
 import com.cardio.fitbit.utils.DateUtils
 import java.io.File
 import java.io.FileOutputStream
@@ -78,21 +79,106 @@ object SocialShareGenerator {
         val startX = 100f
         
         if (summary.avgHeartRate > 0) {
-            canvas.drawText("â¤ï¸ Pouls Moyen: ${summary.avgHeartRate} bpm", startX, bottomY, textPaint)
+            canvas.drawText("❤️ Pouls Moyen: ${summary.avgHeartRate} bpm", startX, bottomY, textPaint)
             bottomY += 60f
         }
         if (summary.avgSpeed > 0) {
-            canvas.drawText("âš¡ Vitesse Moyenne: ${String.format("%.1f", summary.avgSpeed)} km/h", startX, bottomY, textPaint)
+            canvas.drawText("⚡ Vitesse Moyenne: ${String.format("%.1f", summary.avgSpeed)} km/h", startX, bottomY, textPaint)
         }
 
         // 6. Footer
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.textSize = 32f
         textPaint.alpha = 150
-        canvas.drawText("GÃ©nÃ©rÃ© par CardioLens - Votre santÃ© au cÅ“ur de vos donnÃ©es", width / 2f, height - 80f, textPaint)
+        canvas.drawText("Généré par CardioLens - Votre santé au cœur de vos données", width / 2f, height - 80f, textPaint)
 
         // Save
         val file = File(context.cacheDir, "Vibrant_Weekly_${System.currentTimeMillis()}.png")
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, FileOutputStream(file))
+        return file
+    }
+
+    fun generateMonthlyVibrantCard(context: Context, summary: MonthlySummary): File {
+        val width = 1080
+        val height = 1350
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        // 1. Background Gradient - Different from weekly (maybe more towards Emerald/Teal)
+        val bgPaint = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, height.toFloat(),
+                Color.parseColor("#004D40"), // Deep Teal
+                Color.parseColor("#1A237E"), // Deep Indigo
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+
+        // Subtle accent patterns
+        val accentPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 15
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            isAntiAlias = true
+        }
+        for (i in 0..10) {
+            canvas.drawCircle(width / 2f, height / 2f, 200f + i * 100f, accentPaint)
+        }
+
+        val textPaint = Paint().apply {
+            isAntiAlias = true
+            color = Color.WHITE
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+
+        // 2. Branding
+        textPaint.textSize = 48f
+        textPaint.alpha = 200
+        canvas.drawText("CardioLens", width / 2f, 100f, textPaint)
+
+        // 3. Title & Month
+        textPaint.alpha = 255
+        textPaint.textSize = 85f
+        canvas.drawText("BILAN MENSUEL", width / 2f, 250f, textPaint)
+        
+        textPaint.textSize = 54f
+        textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        canvas.drawText("${summary.monthName} ${summary.year}", width / 2f, 330f, textPaint)
+
+        // 4. Stats Grid
+        val margin = 60f
+        val cardW = (width - 3 * margin) / 2f
+        val cardH = 350f
+        val top = 450f
+        
+        drawStatCard(canvas, margin, top, cardW, cardH, "Activités", summary.count.toString(), "#00BFA5")
+        drawStatCard(canvas, width / 2f + margin / 2f, top, cardW, cardH, "Durée Totale", DateUtils.formatDuration(summary.totalDuration), "#2979FF")
+        drawStatCard(canvas, margin, top + cardH + margin, cardW, cardH, "Pouls Moyen", "${summary.avgHeartRate} bpm", "#F50057")
+        drawStatCard(canvas, width / 2f + margin / 2f, top + cardH + margin, cardW, cardH, "Pas Moyens", summary.avgSteps.toString(), "#FFEA00")
+
+        // 5. Bonus Stats
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.textSize = 40f
+        var bonusY = 1160f
+        val startX = 100f
+        
+        if (summary.avgSpeed > 0) {
+            canvas.drawText("⚡ Vitesse Moyenne: ${String.format("%.1f", summary.avgSpeed)} km/h", startX, bonusY, textPaint)
+            bonusY += 60f
+        }
+        canvas.drawText("🔥 Intensité: ${String.format("%.1f", summary.avgIntensity)} cal/min", startX, bonusY, textPaint)
+
+        // 6. Footer
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = 32f
+        textPaint.alpha = 150
+        canvas.drawText("Votre santé, vos données - CardioLens", width / 2f, height - 80f, textPaint)
+
+        // Save
+        val file = File(context.cacheDir, "Vibrant_Monthly_${System.currentTimeMillis()}.png")
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, FileOutputStream(file))
         return file
     }

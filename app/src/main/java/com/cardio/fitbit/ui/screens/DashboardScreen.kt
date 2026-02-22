@@ -332,7 +332,7 @@ fun DashboardScreen(
                                                     val hasAlert = insights.any { it.type == DashboardViewModel.InsightType.HEALTH_ALERT }
                                                     if (hasAlert) {
                                                         Text(
-                                                            text = "â  ALERTE SANTÃ",
+                                                            text = "⚠️ ALERTE SANTÉ",
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = androidx.compose.ui.graphics.Color(0xFFD32F2F),
                                                             fontWeight = FontWeight.Bold
