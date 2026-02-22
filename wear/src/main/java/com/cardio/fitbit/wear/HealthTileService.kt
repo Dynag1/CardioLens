@@ -35,7 +35,7 @@ class HealthTileService : TileService() {
                         .addTimelineEntry(
                             TimelineBuilders.TimelineEntry.Builder()
                                 .setLayout(
-                                    TimelineBuilders.Layout.Builder()
+                                    LayoutElementBuilders.Layout.Builder()
                                         .setRoot(layout(stats))
                                         .build()
                                 )
