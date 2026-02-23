@@ -54,14 +54,21 @@ fun CardioTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
+            var context = view.context
+            while (context is android.content.ContextWrapper) {
+                if (context is Activity) break
+                context = context.baseContext
+            }
+            val window = (context as? Activity)?.window
             
-            // Set Status Bar Color
-            window.statusBarColor = if (darkTheme) Color.Black.toArgb() else Color.White.toArgb()
-            
-            // isAppearanceLightStatusBars = true means DARK icons (for light background)
-            val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = !darkTheme
+            if (window != null) {
+                // Set Status Bar Color
+                window.statusBarColor = if (darkTheme) Color.Black.toArgb() else Color.White.toArgb()
+                
+                // isAppearanceLightStatusBars = true means DARK icons (for light background)
+                val insetsController = WindowCompat.getInsetsController(window, view)
+                insetsController.isAppearanceLightStatusBars = !darkTheme
+            }
         }
     }
 

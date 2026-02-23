@@ -12,11 +12,23 @@ import java.time.ZoneId
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 @Singleton
 class HealthConnectProvider @Inject constructor(
-    private val healthConnectClient: HealthConnectClient
+    @ApplicationContext private val context: android.content.Context
 ) : HealthDataProvider {
+
+    private val healthConnectClient: HealthConnectClient? by lazy {
+        try {
+            if (HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE) {
+                HealthConnectClient.getOrCreate(context)
+            } else null
+        } catch (e: Exception) { null }
+    }
+
+    private val client: HealthConnectClient
+        get() = healthConnectClient ?: throw IllegalStateException("Health Connect is not available on this device.")
 
     override val providerId: String = "health_connect"
 
@@ -48,7 +60,7 @@ class HealthConnectProvider @Inject constructor(
             
             do {
                 pageCount++
-                val response = healthConnectClient.readRecords(
+                val response = client.readRecords(
                     ReadRecordsRequest(
                         HeartRateRecord::class,
                         timeRangeFilter = TimeRangeFilter.between(
@@ -137,7 +149,7 @@ class HealthConnectProvider @Inject constructor(
             val exercises = mutableListOf<ExerciseSessionRecord>()
             var exPageToken: String? = null
             do {
-                val exerciseResponse = healthConnectClient.readRecords(
+                val exerciseResponse = client.readRecords(
                     ReadRecordsRequest(
                         ExerciseSessionRecord::class,
                         timeRangeFilter = TimeRangeFilter.between(
@@ -156,7 +168,7 @@ class HealthConnectProvider @Inject constructor(
             val allHrRecords = mutableListOf<HeartRateRecord>()
             var hrPageToken: String? = null
             do {
-                val response = healthConnectClient.readRecords(
+                val response = client.readRecords(
                     ReadRecordsRequest(
                         HeartRateRecord::class,
                         timeRangeFilter = TimeRangeFilter.between(
@@ -176,7 +188,7 @@ class HealthConnectProvider @Inject constructor(
             val allStepsRecords = mutableListOf<StepsRecord>()
             var stepsPageToken: String? = null
             do {
-                val response = healthConnectClient.readRecords(
+                val response = client.readRecords(
                     ReadRecordsRequest(
                         StepsRecord::class,
                         timeRangeFilter = TimeRangeFilter.between(
@@ -286,7 +298,7 @@ class HealthConnectProvider @Inject constructor(
             val allHrRecords = mutableListOf<HeartRateRecord>()
             var hrPageToken: String? = null
             do {
-                val response = healthConnectClient.readRecords(
+                val response = client.readRecords(
                     ReadRecordsRequest(
                         HeartRateRecord::class,
                         timeRangeFilter = TimeRangeFilter.between(searchStart.toInstant(), endDate.toInstant()),
@@ -302,7 +314,7 @@ class HealthConnectProvider @Inject constructor(
             val allStepsRecords = mutableListOf<StepsRecord>()
             var stepsPageToken: String? = null
             do {
-                val response = healthConnectClient.readRecords(
+                val response = client.readRecords(
                     ReadRecordsRequest(
                         StepsRecord::class,
                         timeRangeFilter = TimeRangeFilter.between(startDate.toInstant(), endDate.toInstant()),
@@ -372,7 +384,7 @@ class HealthConnectProvider @Inject constructor(
 
     override suspend fun getStepsData(startDate: Date, endDate: Date): Result<List<StepsData>> {
         try {
-            val response = healthConnectClient.readRecords(
+            val response = client.readRecords(
                 ReadRecordsRequest(
                     StepsRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
@@ -410,7 +422,7 @@ class HealthConnectProvider @Inject constructor(
             
 
             
-            val response = healthConnectClient.readRecords(
+            val response = client.readRecords(
                 ReadRecordsRequest(
                     SleepSessionRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
@@ -478,7 +490,7 @@ class HealthConnectProvider @Inject constructor(
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
             
-            val response = healthConnectClient.readRecords(
+            val response = client.readRecords(
                 ReadRecordsRequest(
                     ExerciseSessionRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
@@ -500,7 +512,7 @@ class HealthConnectProvider @Inject constructor(
                 var avgHr: Long? = null
 
                 try {
-                     val aggregateResponse = healthConnectClient.aggregate(
+                     val aggregateResponse = client.aggregate(
                         androidx.health.connect.client.request.AggregateRequest(
                             metrics = setOf(
                                 ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL,
@@ -581,7 +593,7 @@ class HealthConnectProvider @Inject constructor(
             var totalDailyCalories = 0.0
             
             try {
-                val aggregateResponse = healthConnectClient.aggregate(
+                val aggregateResponse = client.aggregate(
                     androidx.health.connect.client.request.AggregateRequest(
                         metrics = setOf(
                             StepsRecord.COUNT_TOTAL,
@@ -600,7 +612,7 @@ class HealthConnectProvider @Inject constructor(
                 totalDailyCalories = if (totalCals > 0) totalCals else activeCals
                 
                 if (totalDailySteps == 0L) {
-                     val fallbackResponse = healthConnectClient.readRecords(
+                     val fallbackResponse = client.readRecords(
                         ReadRecordsRequest(
                             StepsRecord::class,
                             timeRangeFilter = TimeRangeFilter.between(
@@ -687,7 +699,7 @@ class HealthConnectProvider @Inject constructor(
     }
 
     override suspend fun isAuthorized(): Boolean {
-        val granted = healthConnectClient.permissionController.getGrantedPermissions()
+        val granted = client.permissionController.getGrantedPermissions()
         return PERMISSIONS.all { it in granted }
     }
 
@@ -700,7 +712,7 @@ class HealthConnectProvider @Inject constructor(
     override suspend fun getHeartRateHistory(startDate: Date, endDate: Date): Result<List<HeartRateData>> {
         // For efficiency, we can query range and group by day.
         try {
-            val response = healthConnectClient.readRecords(
+            val response = client.readRecords(
                 ReadRecordsRequest(
                     HeartRateRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
@@ -740,7 +752,7 @@ class HealthConnectProvider @Inject constructor(
              // This ensures we capture the sleep session that contributes to the RHR of 'startDate'
              val searchStart = Date(startDate.time - (24 * 60 * 60 * 1000))
 
-             val response = healthConnectClient.readRecords(
+             val response = client.readRecords(
                 ReadRecordsRequest(
                     SleepSessionRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
@@ -776,7 +788,7 @@ class HealthConnectProvider @Inject constructor(
             var pageToken: String? = null
             
             do {
-                val response = healthConnectClient.readRecords(
+                val response = client.readRecords(
                     ReadRecordsRequest(
                         HeartRateRecord::class,
                         timeRangeFilter = TimeRangeFilter.between(
@@ -820,7 +832,7 @@ class HealthConnectProvider @Inject constructor(
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
 
-            val response = healthConnectClient.readRecords(
+            val response = client.readRecords(
                 ReadRecordsRequest(
                     HeartRateVariabilityRmssdRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
@@ -849,7 +861,7 @@ class HealthConnectProvider @Inject constructor(
     override suspend fun getHrvHistory(startDate: Date, endDate: Date): Result<List<HrvRecord>> {
         // Health Connect simply queries by range
         try {
-            val response = healthConnectClient.readRecords(
+            val response = client.readRecords(
                 ReadRecordsRequest(
                     HeartRateVariabilityRmssdRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
@@ -878,7 +890,7 @@ class HealthConnectProvider @Inject constructor(
             val startOfDay = DateUtils.getStartOfDay(date)
             val endOfDay = DateUtils.getEndOfDay(date)
 
-            val response = healthConnectClient.readRecords(
+            val response = client.readRecords(
                 ReadRecordsRequest(
                     OxygenSaturationRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(
@@ -909,7 +921,7 @@ class HealthConnectProvider @Inject constructor(
 
     override suspend fun getSpO2History(startDate: Date, endDate: Date): Result<List<SpO2Data>> {
          try {
-            val response = healthConnectClient.readRecords(
+            val response = client.readRecords(
                 ReadRecordsRequest(
                     OxygenSaturationRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(

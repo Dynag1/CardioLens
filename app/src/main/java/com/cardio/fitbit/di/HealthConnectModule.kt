@@ -17,18 +17,10 @@ object HealthConnectModule {
 
     @Provides
     @Singleton
-    fun provideHealthConnectClient(
-        @ApplicationContext context: Context
-    ): HealthConnectClient {
-        return HealthConnectClient.getOrCreate(context)
-    }
-
-    @Provides
-    @Singleton
     fun provideHealthDataProvider(
-        healthConnectClient: HealthConnectClient
-    ): HealthConnectProvider { // Keeping concrete type here for any other specific injections? 
-        return HealthConnectProvider(healthConnectClient)
+        @ApplicationContext context: Context
+    ): HealthConnectProvider {
+        return HealthConnectProvider(context)
     }
 
     @Provides

@@ -425,7 +425,7 @@ fun WorkoutsScreen(
 
                             groupedActivities.forEach { weekGroup ->
                                 val groupKey = weekGroup.year * 100 + weekGroup.weekNumber
-                                val isExpanded = expandedWeeks.getOrPut(groupKey) { false }
+                                val isExpanded = expandedWeeks[groupKey] ?: false
                                 
                                 // Week Header
                                 item {
