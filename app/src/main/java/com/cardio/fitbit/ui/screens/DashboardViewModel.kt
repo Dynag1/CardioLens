@@ -769,6 +769,13 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    fun renameActivity(activityId: Long, newName: String) {
+        viewModelScope.launch {
+            healthRepository.saveActivityName(activityId, newName)
+            loadActivity(_selectedDate.value, forceRefresh = false)
+        }
+    }
+
     fun updateHighHrThreshold(value: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setHighHrThreshold(value)

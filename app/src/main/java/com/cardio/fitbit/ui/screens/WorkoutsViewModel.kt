@@ -106,15 +106,16 @@ class WorkoutsViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     
-    // Normalize activity type names (group Walk/Marche, Run/Course, etc.)
-    private fun normalizeActivityType(activityName: String): String {
+     // Normalize activity type names (group Walk/Marche, Run/Course, etc.)
+    private fun normalizeActivityType(activity: Activity): String {
+        val name = activity.customName ?: activity.activityName
         return when {
-            activityName.contains("walk", ignoreCase = true) || activityName.contains("marche", ignoreCase = true) -> "Marche"
-            activityName.contains("run", ignoreCase = true) || activityName.contains("course", ignoreCase = true) -> "Course"
-            activityName.contains("bike", ignoreCase = true) || activityName.contains("vélo", ignoreCase = true) || activityName.contains("cycling", ignoreCase = true) -> "Vélo"
-            activityName.contains("swim", ignoreCase = true) || activityName.contains("natation", ignoreCase = true) -> "Natation"
-            activityName.contains("workout", ignoreCase = true) || activityName.contains("exercice", ignoreCase = true) || activityName.contains("exercise", ignoreCase = true) -> "Exercice"
-            else -> activityName.trim() // Keep original for other types, trimmed
+            name.contains("walk", ignoreCase = true) || name.contains("marche", ignoreCase = true) -> "Marche"
+            name.contains("run", ignoreCase = true) || name.contains("course", ignoreCase = true) -> "Course"
+            name.contains("bike", ignoreCase = true) || name.contains("vélo", ignoreCase = true) || name.contains("cycling", ignoreCase = true) -> "Vélo"
+            name.contains("swim", ignoreCase = true) || name.contains("natation", ignoreCase = true) -> "Natation"
+            name.contains("workout", ignoreCase = true) || name.contains("exercice", ignoreCase = true) || name.contains("exercise", ignoreCase = true) -> "Exercice"
+            else -> name.trim() // Keep original or custom name, trimmed
         }
     }
 
@@ -154,12 +155,19 @@ class WorkoutsViewModel @Inject constructor(
                 allActivities = flatList
                 filteredActivities = flatList
                 
-                // Extract unique activity types (normalized)
-                val types = flatList
-                    .map { normalizeActivityType(it.activity.activityName) }
+                // Extract unique activity types (normalized) from list
+                val listTypes = flatList
+                    .map { normalizeActivityType(it.activity) }
+                    .distinct()
+
+                // Merge with explicit custom tags from database
+                val customTags = healthRepository.getWorkoutTags()
+                
+                val allTypes = (listTypes + customTags)
                     .distinct()
                     .sorted()
-                _availableActivityTypes.value = listOf("Tous") + types
+                
+                _availableActivityTypes.value = listOf("Tous") + allTypes
                 
                 calculateWeeklySummaries(flatList)
                 calculateMonthlyStats(flatList)
@@ -192,7 +200,7 @@ class WorkoutsViewModel @Inject constructor(
             allActivities
         } else {
             allActivities.filter { item ->
-                normalizeActivityType(item.activity.activityName) == _selectedActivityType.value
+                normalizeActivityType(item.activity) == _selectedActivityType.value
             }
         }
         
@@ -670,7 +678,7 @@ class WorkoutsViewModel @Inject constructor(
         val minutes = duration % 60
         
         return buildString {
-            appendLine("🏃 ${activity.activityName}")
+            appendLine("🏃 ${activity.customName ?: activity.activityName}")
             appendLine("📅 $dateStr")
             appendLine("⏱️ Durée: ${hours}h ${minutes}min")
             activity.distance?.let { appendLine("📏 Distance: ${String.format("%.2f", it)} km") }
@@ -685,6 +693,13 @@ class WorkoutsViewModel @Inject constructor(
             healthRepository.saveWorkoutIntensity(activityId, intensity)
             // Reload workouts to reflect the change
             loadWorkouts()
+        }
+    }
+
+    fun renameActivity(activityId: Long, newName: String) {
+        viewModelScope.launch {
+            healthRepository.saveActivityName(activityId, newName)
+            loadWorkouts() // Reload to update state and tags
         }
     }
 }

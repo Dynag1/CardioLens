@@ -94,7 +94,8 @@ data class Activity(
     val distance: Double?,
     val steps: Int?,
     val averageHeartRate: Int?,
-    val intensity: Int? = null // Scale 1-5 (1=light, 5=maximum)
+    val intensity: Int? = null, // Scale 1-5 (1=light, 5=maximum)
+    val customName: String? = null
 ) : Parcelable
 
 @Parcelize

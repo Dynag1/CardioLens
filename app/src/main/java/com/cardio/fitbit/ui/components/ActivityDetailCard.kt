@@ -33,6 +33,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Straighten
@@ -51,7 +52,8 @@ fun ActivityDetailCard(
     allMinuteData: List<MinuteData>,
     selectedDate: Date,
     dateOfBirth: Long?,
-    onIntensityChange: ((Long, Int) -> Unit)? = null
+    onIntensityChange: ((Long, Int) -> Unit)? = null,
+    onRename: ((Long, String) -> Unit)? = null
 ) {
     // Determine context for notification (optional trigger)
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -72,6 +74,8 @@ fun ActivityDetailCard(
     
     // State for Reference Expansion
     var isExpanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showRenameDialog by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var newName by remember { androidx.compose.runtime.mutableStateOf(activity.customName ?: activity.activityName) }
 
     Card(
         modifier = Modifier
@@ -141,11 +145,26 @@ fun ActivityDetailCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(
-                        text = activity.activityName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = activity.customName ?: activity.activityName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (onRename != null) {
+                            IconButton(
+                                onClick = { showRenameDialog = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Renommer",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
                     Text(
                         text = "${DateUtils.formatTimeForDisplay(activity.startTime)} - " +
                                 DateUtils.formatDuration(activity.duration),
@@ -534,6 +553,39 @@ fun ActivityDetailCard(
                 }
             }
         }
+    }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Renommer l'entraînement") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Nom de l'activité") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newName.isNotBlank()) {
+                            onRename?.invoke(activity.activityId, newName)
+                        }
+                        showRenameDialog = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("Annuler")
+                }
+            }
+        )
     }
 }
 

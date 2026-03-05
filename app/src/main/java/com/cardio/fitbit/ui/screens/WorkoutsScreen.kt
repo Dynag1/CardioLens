@@ -479,7 +479,7 @@ fun WorkoutsScreen(
                                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
                                                 Icon(
-                                                    imageVector = getActivityIcon(item.activity.activityName),
+                                                    imageVector = getActivityIcon(item.activity.customName ?: item.activity.activityName),
                                                     contentDescription = null,
                                                     modifier = Modifier.size(16.dp),
                                                     tint = MaterialTheme.colorScheme.primary
@@ -561,6 +561,9 @@ fun WorkoutsScreen(
                                             dateOfBirth = dateOfBirth,
                                             onIntensityChange = { activityId, intensity ->
                                                 viewModel.saveWorkoutIntensity(activityId, intensity)
+                                            },
+                                            onRename = { activityId, newName ->
+                                                viewModel.renameActivity(activityId, newName)
                                             }
                                         )
                                     }

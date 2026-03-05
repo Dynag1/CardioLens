@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.util.Date
 
 /**
  * Repository for health data
@@ -30,6 +31,8 @@ class HealthRepository @Inject constructor(
     private val spo2Dao: com.cardio.fitbit.data.local.dao.SpO2Dao,
     private val symptomDao: com.cardio.fitbit.data.local.dao.SymptomDao,
     private val workoutIntensityDao: com.cardio.fitbit.data.local.dao.WorkoutIntensityDao,
+    private val activityCustomNameDao: com.cardio.fitbit.data.local.dao.ActivityCustomNameDao,
+    private val workoutTagDao: com.cardio.fitbit.data.local.dao.WorkoutTagDao,
     private val gson: com.google.gson.Gson
 ) {
     // Specialized Memory Caches (as requested)
@@ -90,6 +93,33 @@ class HealthRepository @Inject constructor(
     
     suspend fun getAllWorkoutIntensities(): Map<Long, Int> = withContext(Dispatchers.IO) {
         workoutIntensityDao.getAllIntensities().associate { it.activityId to it.intensity }
+    }
+
+    // Activity Custom Names & Tags
+    suspend fun saveActivityName(activityId: Long, name: String) = withContext(Dispatchers.IO) {
+        // 1. Save custom name
+        activityCustomNameDao.insertCustomName(
+            com.cardio.fitbit.data.local.entities.ActivityCustomNameEntity(
+                activityId = activityId,
+                customName = name,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+        // 2. Add to tags
+        workoutTagDao.insertTag(
+            com.cardio.fitbit.data.local.entities.WorkoutTagEntity(
+                tag = name,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun getAllCustomNames(): Map<Long, String> = withContext(Dispatchers.IO) {
+        activityCustomNameDao.getAllCustomNames().associate { it.activityId to it.customName }
+    }
+
+    suspend fun getWorkoutTags(): List<String> = withContext(Dispatchers.IO) {
+        workoutTagDao.getAllTags().map { it.tag }
     }
 
     private suspend fun getProvider(): HealthDataProvider {
@@ -667,9 +697,9 @@ class HealthRepository @Inject constructor(
             if (!forceRefresh) {
                 val inMem = _activityCache[dateString]
                 if (inMem != null) {
-                    // Load intensities and merge
-                    val withIntensities = mergeIntensities(inMem)
-                    return@withContext Result.success(withIntensities)
+                    // Load intensities, custom names and merge
+                    val merged = mergeCustomData(inMem)
+                    return@withContext Result.success(merged)
                 }
             }
 
@@ -679,10 +709,10 @@ class HealthRepository @Inject constructor(
                 if (cached != null) {
                     try {
                         val data = gson.fromJson(cached.data, ActivityData::class.java)
-                        // Load intensities and merge
-                        val withIntensities = mergeIntensities(data)
-                        _activityCache[dateString] = withIntensities // Populate memory
-                        return@withContext Result.success(withIntensities)
+                        // Load intensities, custom names and merge
+                        val merged = mergeCustomData(data)
+                        _activityCache[dateString] = merged // Populate memory
+                        return@withContext Result.success(merged)
                     } catch (e: Exception) {}
                 }
             }
@@ -694,10 +724,10 @@ class HealthRepository @Inject constructor(
                 val data = result.getOrNull()
                 // Cache
                 if (data != null) {
-                    // Load intensities and merge
-                    val withIntensities = mergeIntensities(data)
-                    _activityCache[dateString] = withIntensities // Populate memory
-                    val json = gson.toJson(data) // Save original without intensities to cache
+                    // Load intensities, custom names and merge
+                    val merged = mergeCustomData(data)
+                    _activityCache[dateString] = merged // Populate memory
+                    val json = gson.toJson(data) // Save original without extras to cache
                     activityDataDao.insert(
                         com.cardio.fitbit.data.local.entities.ActivityDataEntity(
                             date = dateString,
@@ -705,7 +735,7 @@ class HealthRepository @Inject constructor(
                             timestamp = System.currentTimeMillis()
                         )
                     )
-                    Result.success(withIntensities)
+                    Result.success(merged)
                 } else {
                     Result.success(null)
                 }
@@ -717,15 +747,24 @@ class HealthRepository @Inject constructor(
         }
     }
     
-    private suspend fun mergeIntensities(activityData: ActivityData): ActivityData {
+    private suspend fun mergeCustomData(activityData: ActivityData): ActivityData {
         val intensities = getAllWorkoutIntensities()
+        val customNames = getAllCustomNames()
+        
         val updatedActivities = activityData.activities.map { activity ->
+            var updated = activity
+            
             val intensity = intensities[activity.activityId]
             if (intensity != null) {
-                activity.copy(intensity = intensity)
-            } else {
-                activity
+                updated = updated.copy(intensity = intensity)
             }
+            
+            val customName = customNames[activity.activityId]
+            if (customName != null) {
+                updated = updated.copy(customName = customName)
+            }
+            
+            updated
         }
         return activityData.copy(activities = updatedActivities)
     }
@@ -746,10 +785,10 @@ class HealthRepository @Inject constructor(
                 }
             }.sortedByDescending { it.date } // Most recent first
             
-            // Merge manual intensities
-            val resultWithIntensities = result.map { mergeIntensities(it) }
+            // Merge manual intensities & custom names
+            val resultWithExtras = result.map { mergeCustomData(it) }
             
-            Result.success(resultWithIntensities)
+            Result.success(resultWithExtras)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -861,10 +900,10 @@ class HealthRepository @Inject constructor(
                  }
             }
 
-            // 4. Merge manual intensities
-            val recordsWithIntensities = finalRecords.map { mergeIntensities(it) }
+            // 4. Merge manual intensities & custom names
+            val recordsWithExtras = finalRecords.map { mergeCustomData(it) }
              
-            Result.success(recordsWithIntensities.sortedBy { it.date })
+            Result.success(recordsWithExtras.sortedBy { it.date })
         } catch (e: Exception) {
             Result.failure(e)
         }

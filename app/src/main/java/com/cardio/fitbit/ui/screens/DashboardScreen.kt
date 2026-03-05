@@ -671,6 +671,9 @@ fun DashboardScreen(
                                     dateOfBirth = dateOfBirth,
                                     onIntensityChange = { activityId, intensity ->
                                         viewModel.saveWorkoutIntensity(activityId, intensity)
+                                    },
+                                    onRename = { activityId, newName ->
+                                        viewModel.renameActivity(activityId, newName)
                                     }
                                 )
                             }
