@@ -554,6 +554,9 @@ fun WorkoutsScreen(
                                             }
                                         }
                                         
+                                        val activityTypes by viewModel.availableActivityTypes.collectAsState()
+                                        val availableTags = activityTypes.filter { it != "Tous" }
+
                                         ActivityDetailCard(
                                             activity = item.activity,
                                             allMinuteData = minuteData,
@@ -564,7 +567,8 @@ fun WorkoutsScreen(
                                             },
                                             onRename = { activityId, newName ->
                                                 viewModel.renameActivity(activityId, newName)
-                                            }
+                                            },
+                                            availableTags = availableTags
                                         )
                                     }
                                 }

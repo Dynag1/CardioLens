@@ -4,6 +4,8 @@ import android.graphics.Color
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -53,7 +55,8 @@ fun ActivityDetailCard(
     selectedDate: Date,
     dateOfBirth: Long?,
     onIntensityChange: ((Long, Int) -> Unit)? = null,
-    onRename: ((Long, String) -> Unit)? = null
+    onRename: ((Long, String) -> Unit)? = null,
+    availableTags: List<String> = emptyList()
 ) {
     // Determine context for notification (optional trigger)
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -556,17 +559,41 @@ fun ActivityDetailCard(
     }
 
     if (showRenameDialog) {
+        val availableTagsList = availableTags
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
             title = { Text("Renommer l'entraînement") },
             text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("Nom de l'activité") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("Nom de l'activité") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    if (availableTagsList.isNotEmpty()) {
+                        Text(
+                            "Tags existants:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            availableTagsList.forEach { tag ->
+                                SuggestionChip(
+                                    onClick = { newName = tag },
+                                    label = { Text(tag) }
+                                )
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(

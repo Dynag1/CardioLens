@@ -71,7 +71,8 @@ fun DashboardScreen(
     val readiness by viewModel.readinessData.collectAsState()
     val insights by viewModel.insights.collectAsState()
     val goalProgress by viewModel.goalProgress.collectAsState()
-
+    val availableTags by viewModel.availableTags.collectAsState()
+    
     // Handle Deep Linking / Navigation with Date
     LaunchedEffect(initialDate) {
         if (initialDate != null && initialDate > 0) {
@@ -674,7 +675,8 @@ fun DashboardScreen(
                                     },
                                     onRename = { activityId, newName ->
                                         viewModel.renameActivity(activityId, newName)
-                                    }
+                                    },
+                                    availableTags = availableTags
                                 )
                             }
                         }

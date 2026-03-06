@@ -64,6 +64,9 @@ class DashboardViewModel @Inject constructor(
     private val _dailySymptoms = MutableStateFlow<String?>(null)
     val dailySymptoms: StateFlow<String?> = _dailySymptoms.asStateFlow()
 
+    private val _availableTags = MutableStateFlow<List<String>>(emptyList())
+    val availableTags: StateFlow<List<String>> = _availableTags.asStateFlow()
+
     private var _hasRepairedGaps = false
 
     // Comparison Stats (Today vs 15-Day Avg)
@@ -631,6 +634,12 @@ class DashboardViewModel @Inject constructor(
         val result = healthRepository.getActivityData(date, forceRefresh)
         result.onSuccess { data ->
             _activityData.value = data
+            
+            // Update available tags
+            viewModelScope.launch {
+                val tags = healthRepository.getWorkoutTags()
+                _availableTags.value = tags.sorted()
+            }
         }
     }
 
