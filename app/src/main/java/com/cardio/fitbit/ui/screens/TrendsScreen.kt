@@ -45,6 +45,13 @@ fun TrendsScreen(
         com.cardio.fitbit.ui.components.TrendMetric.NIGHT, 
         com.cardio.fitbit.ui.components.TrendMetric.DAY
     )) }
+    
+    var selectedSleepMetrics by remember { mutableStateOf(setOf(
+        com.cardio.fitbit.ui.components.TrendMetric.SLEEP_TOTAL,
+        com.cardio.fitbit.ui.components.TrendMetric.SLEEP_DEEP,
+        com.cardio.fitbit.ui.components.TrendMetric.SLEEP_LIGHT,
+        com.cardio.fitbit.ui.components.TrendMetric.SLEEP_REM
+    )) }
 
     Scaffold(
         topBar = {
@@ -265,6 +272,61 @@ fun TrendsScreen(
                                     selectedMetrics = selectedMetrics,
                                     modifier = Modifier.fillMaxSize()
                                 )
+                            }
+                        }
+
+                        // Sleep Trends Chart
+                        if (state.data.any { it.sleepMinutes != null }) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().height(450.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Phases de Sommeil (Heures)",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+
+                                    // Metric Toggles (Capsules)
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                    ) {
+                                        val availableSleepMetrics = listOf(
+                                            com.cardio.fitbit.ui.components.TrendMetric.SLEEP_TOTAL to "Total",
+                                            com.cardio.fitbit.ui.components.TrendMetric.SLEEP_DEEP to "Profond",
+                                            com.cardio.fitbit.ui.components.TrendMetric.SLEEP_LIGHT to "Léger",
+                                            com.cardio.fitbit.ui.components.TrendMetric.SLEEP_REM to "Paradoxal",
+                                            com.cardio.fitbit.ui.components.TrendMetric.SLEEP_WAKE to "Éveillé"
+                                        )
+
+                                        availableSleepMetrics.forEach { (metric, label) ->
+                                            FilterChip(
+                                                selected = selectedSleepMetrics.contains(metric),
+                                                onClick = {
+                                                    selectedSleepMetrics = if (selectedSleepMetrics.contains(metric)) {
+                                                        if (selectedSleepMetrics.size > 1) selectedSleepMetrics - metric else selectedSleepMetrics
+                                                    } else {
+                                                        selectedSleepMetrics + metric
+                                                    }
+                                                },
+                                                label = { Text(label) },
+                                                leadingIcon = if (selectedSleepMetrics.contains(metric)) {
+                                                    { Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                                                } else null
+                                            )
+                                        }
+                                    }
+
+                                    com.cardio.fitbit.ui.components.SleepTrendsChart(
+                                        data = state.data,
+                                        selectedMetrics = selectedSleepMetrics,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
                         }
 

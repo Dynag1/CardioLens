@@ -50,7 +50,22 @@ class TrendMarkerView(
             if (selectedMetrics.contains(TrendMetric.WORKOUTS) && point.workoutDurationMinutes != null && point.workoutDurationMinutes > 0) {
                 sb.append("Sport: ${point.workoutDurationMinutes} min\n")
             }
-            
+            if (selectedMetrics.contains(TrendMetric.SLEEP_TOTAL) && point.sleepMinutes != null) {
+                sb.append("Total: ${point.sleepMinutes / 60}h ${point.sleepMinutes % 60}m\n")
+            }
+            if (selectedMetrics.contains(TrendMetric.SLEEP_DEEP) && point.sleepDeep != null) {
+                sb.append("Profond: ${point.sleepDeep / 60}h ${point.sleepDeep % 60}m\n")
+            }
+            if (selectedMetrics.contains(TrendMetric.SLEEP_LIGHT) && point.sleepLight != null) {
+                sb.append("Léger: ${point.sleepLight / 60}h ${point.sleepLight % 60}m\n")
+            }
+            if (selectedMetrics.contains(TrendMetric.SLEEP_REM) && point.sleepRem != null) {
+                sb.append("Paradoxal: ${point.sleepRem / 60}h ${point.sleepRem % 60}m\n")
+            }
+            if (selectedMetrics.contains(TrendMetric.SLEEP_WAKE) && point.sleepWake != null) {
+                sb.append("Éveillé: ${point.sleepWake / 60}h ${point.sleepWake % 60}m\n")
+            }
+
             // Remove last newline
             if (sb.isNotEmpty() && sb.last() == '\n') {
                 sb.setLength(sb.length - 1)

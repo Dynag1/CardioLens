@@ -30,7 +30,11 @@ data class TrendPoint(
     val workoutDurationMinutes: Int?,
     val workoutMaxIntensity: Int?, // Max intensity (1-5) from activities
     val symptoms: String?,
-    val sleepMinutes: Int?
+    val sleepMinutes: Int?,
+    val sleepDeep: Int?,
+    val sleepLight: Int?,
+    val sleepRem: Int?,
+    val sleepWake: Int?
 )
 
 data class CorrelationResult(
@@ -179,6 +183,11 @@ class TrendsViewModel @Inject constructor(
                     val workoutMaxIntensity = dailyActivity?.activities?.mapNotNull { it.intensity }?.maxOrNull()
 
                     val dailySleepMinutes = dailySleep.maxByOrNull { it.duration }?.let { (it.duration / (1000 * 60)).toInt() }
+                    val mainSleepSession = dailySleep.maxByOrNull { it.duration }
+                    val sleepDeep = mainSleepSession?.stages?.deep
+                    val sleepLight = mainSleepSession?.stages?.light
+                    val sleepRem = mainSleepSession?.stages?.rem
+                    val sleepWake = mainSleepSession?.stages?.wake
 
                     val point = TrendPoint(
                         date = targetDate,
@@ -191,7 +200,11 @@ class TrendsViewModel @Inject constructor(
                         workoutDurationMinutes = if (workoutDurationMinutes > 0) workoutDurationMinutes else null,
                         workoutMaxIntensity = workoutMaxIntensity,
                         symptoms = dailySymptoms,
-                        sleepMinutes = dailySleepMinutes
+                        sleepMinutes = dailySleepMinutes,
+                        sleepDeep = sleepDeep,
+                        sleepLight = sleepLight,
+                        sleepRem = sleepRem,
+                        sleepWake = sleepWake
                     )
                     
                     trendPoints.add(point)
