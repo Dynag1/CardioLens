@@ -34,8 +34,8 @@ fun HealthConnectPermissionsScreen(
     // Check availability
     val availability = HealthConnectClient.getSdkStatus(context)
     
-    var uiState by remember { mutableStateOf<String>("Vérification...") }
-    var showRetryButton by remember { mutableStateOf(false) }
+    var uiState by remember { mutableStateOf<String>("") }
+    var showRequestButton by remember { mutableStateOf(true) }
 
     // Launcher for permission request
     val requestPermissionActivityContract = PermissionController.createRequestPermissionResultContract()
@@ -43,13 +43,14 @@ fun HealthConnectPermissionsScreen(
         if (granted.containsAll(permissions)) {
             onPermissionsGranted()
         } else {
-            // Check partial grant
-            if (granted.contains(HealthPermission.getReadPermission(HeartRateRecord::class))) {
+            // Check if we have at least heart rate and sleep (minimum for core functionality)
+            val hasMin = granted.contains(HealthPermission.getReadPermission(HeartRateRecord::class)) &&
+                         granted.contains(HealthPermission.getReadPermission(SleepSessionRecord::class))
+            if (hasMin) {
                 onPermissionsGranted()
             } else {
-                uiState = "Permissions refusées ou incomplètes."
-                showRetryButton = true
-                // Do NOT auto-navigate to failed state, let user decide
+                uiState = "Certaines permissions sont manquantes pour un fonctionnement optimal."
+                showRequestButton = true
             }
         }
     }
@@ -60,65 +61,130 @@ fun HealthConnectPermissionsScreen(
             val granted = client.permissionController.getGrantedPermissions()
             if (granted.containsAll(permissions)) {
                 onPermissionsGranted()
-            } else {
-                try {
-                    requestPermissions.launch(permissions)
-                } catch (e: Exception) {
-                    uiState = "Erreur lors du lancement de la demande : ${e.message}"
-                    showRetryButton = true
-                }
             }
         } else {
-            uiState = "Health Connect n'est pas disponible sur cet appareil (Status: $availability)."
-            showRetryButton = false // Nothing to retry if SDK unavailable
-            // Could actally be NOT_INSTALLED, necessitating functionality to install it.
+            uiState = "Health Connect n'est pas disponible sur cet appareil."
+            showRequestButton = false
             if (availability == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED) {
                 uiState = "Une mise à jour de Health Connect est requise."
             }
         }
     }
 
-    // UI while waiting or if user denied and came back
-    Box(
+    Surface(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        color = MaterialTheme.colorScheme.background
     ) {
         Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
+            verticalArrangement = Arrangement.Center
         ) {
-            if (showRetryButton || uiState.contains("Erreur") || uiState.contains("pas disponible")) {
-                Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            } else {
-                CircularProgressIndicator()
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+            Text(
+                text = "Configuration de Health Connect",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
             
             Text(
-                text = uiState,
+                text = "Pour fonctionner, CardioLens a besoin d'accéder à vos données via Health Connect. Voici pourquoi :",
+                fontSize = 16.sp,
                 textAlign = TextAlign.Center,
-                color = if (uiState.contains("Erreur")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                lineHeight = 22.sp
             )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Justification points
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                InfoPoint(
+                    "❤️ Fréquence Cardiaque & VRC", 
+                    "Nous lisons votre pouls pour afficher des graphiques interactifs et analysons votre VRC pour évaluer votre récupération physique."
+                )
+                InfoPoint(
+                    "💤 Sommeil & SpO2", 
+                    "Nous suivons vos cycles de sommeil et votre oxygène sanguin (SpO2) pour vous aider à comprendre la qualité de votre repos."
+                )
+                InfoPoint(
+                    "🏃 Activité & Calories", 
+                    "Nous utilisons vos pas et les calories actives pour calculer votre dépense énergétique quotidienne."
+                )
+                InfoPoint(
+                    "🏋️ Sessions d'Exercice", 
+                    "Nous accédons à vos entraînements pour analyser votre réponse cardiaque durant l'effort."
+                )
+            }
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            if (showRetryButton) {
-                Button(onClick = { requestPermissions.launch(permissions) }) {
-                    Text("Réessayer la demande")
-                }
+            if (uiState.isNotEmpty()) {
+                Text(
+                    text = uiState,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Medium
+                )
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            // Always offer a way to proceed anyway (maybe they have partial data or want to skip)
+            if (showRequestButton && availability == HealthConnectClient.SDK_AVAILABLE) {
+                Button(
+                    onClick = { requestPermissions.launch(permissions) },
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("Autoriser l'Accès", fontSize = 18.sp)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             TextButton(onClick = onPermissionsDenied) {
-                Text("Continuer sans Health Connect (Dashboard vide)")
+                Text("Plus tard / Continuer sans Health Connect", color = MaterialTheme.colorScheme.secondary)
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Text(
+                text = "Vos données restent locales et ne sont jamais partagées avec des tiers.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "⚠️ CardioLens n'est PAS un dispositif médical. Cette application est destinée à un usage informatif uniquement.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(8.dp),
+                    lineHeight = 14.sp
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun InfoPoint(title: String, description: String) {
+    Column {
+        Text(text = title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(text = description, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

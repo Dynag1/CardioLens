@@ -4,6 +4,9 @@
 
 This Privacy Policy describes how CardioLens ("we", "us", or "our") collects, uses, and shares your information when you use our mobile application (the "App").
 
+## ⚠️ Important Medical Disclaimer
+**CardioLens is NOT a medical device.** The App is intended for informational and educational purposes only. It is not intended for use in the diagnosis of disease or other conditions, or in the cure, mitigation, treatment, or prevention of disease. Always seek the advice of a qualified healthcare professional for any medical concerns.
+
 ## 1. Information We Collect
 
 ### 1.1 Health and Fitness Data
@@ -43,8 +46,10 @@ Your health data is stored locally on your device in a secure database. This all
 
 If you choose to use Health Connect:
 *   The App reads data from Health Connect based on the permissions you grant.
-*   **Limited Use Requirement**: CardioLens strictly complies with the [Health Connect Permissions Policy](https://support.google.com/googleplay/android-developer/answer/12293504), including the Limited Use constraints. We only use the data for user-facing features (charts, trends, activity summaries) and do not use the data for any other purpose.
-*   **No Transfer**: We do not transfer your Health Connect data to any other app or server.
+*   **Limited Use Requirement**: CardioLens strictly complies with the [Health Connect Permissions Policy](https://support.google.com/googleplay/android-developer/answer/12293504), including the **Limited Use** requirements. 
+*   **Data Usage**: We only use the data to provide and improve user-facing features (such as heart rate charts, sleep analysis, and activity trends) that are prominent in the App's interface. 
+*   **No Transfer**: We do NOT transfer Health Connect data to third parties, advertising platforms, data brokers, or any other external entities.
+*   **No Commercial Use**: We do not use your health data for advertising, marketing, or any purpose other than providing the core functionality of the App.
 
 ## 5. Security
 We take reasonable measures to protect your information.

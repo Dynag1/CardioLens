@@ -36,11 +36,9 @@ class HealthConnectProvider @Inject constructor(
         val PERMISSIONS = setOf(
             HealthPermission.getReadPermission(HeartRateRecord::class),
             HealthPermission.getReadPermission(StepsRecord::class),
-            HealthPermission.getReadPermission(DistanceRecord::class),
             HealthPermission.getReadPermission(SleepSessionRecord::class),
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
-            HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
             HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
             HealthPermission.getReadPermission(OxygenSaturationRecord::class)
         )
@@ -516,9 +514,7 @@ class HealthConnectProvider @Inject constructor(
                         androidx.health.connect.client.request.AggregateRequest(
                             metrics = setOf(
                                 ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL,
-                                TotalCaloriesBurnedRecord.ENERGY_TOTAL,
                                 StepsRecord.COUNT_TOTAL,
-                                DistanceRecord.DISTANCE_TOTAL,
                                 HeartRateRecord.BPM_AVG
                             ),
                             timeRangeFilter = TimeRangeFilter.between(
@@ -527,12 +523,9 @@ class HealthConnectProvider @Inject constructor(
                             )
                         )
                     )
-                    val active = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
-                    val total = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
-                    calories = if (active > 0.1) active else total
-
+                    calories = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
                     steps = aggregateResponse[StepsRecord.COUNT_TOTAL]?.toInt() ?: 0
-                    distance = aggregateResponse[DistanceRecord.DISTANCE_TOTAL]?.inKilometers ?: 0.0
+                    distance = 0.0 // Removed Distance permission
                     avgHr = aggregateResponse[HeartRateRecord.BPM_AVG]
                 } catch (e: Exception) {
                     // Ignore aggregation errors
@@ -597,7 +590,6 @@ class HealthConnectProvider @Inject constructor(
                     androidx.health.connect.client.request.AggregateRequest(
                         metrics = setOf(
                             StepsRecord.COUNT_TOTAL,
-                            TotalCaloriesBurnedRecord.ENERGY_TOTAL,
                             ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL
                         ),
                         timeRangeFilter = TimeRangeFilter.between(
@@ -607,9 +599,7 @@ class HealthConnectProvider @Inject constructor(
                     )
                 )
                 totalDailySteps = aggregateResponse[StepsRecord.COUNT_TOTAL] ?: 0L
-                val totalCals = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
-                val activeCals = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
-                totalDailyCalories = if (totalCals > 0) totalCals else activeCals
+                totalDailyCalories = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
                 
                 if (totalDailySteps == 0L) {
                      val fallbackResponse = client.readRecords(
