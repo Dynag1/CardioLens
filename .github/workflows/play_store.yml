@@ -46,3 +46,4 @@ jobs:
         status: draft
         releaseName: ${{ github.ref_name }}
         whatsNewDirectory: fastlane/metadata/android/en-US/changelogs
+        changesNotSentForReview: true
