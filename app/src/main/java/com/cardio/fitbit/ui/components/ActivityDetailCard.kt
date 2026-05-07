@@ -416,8 +416,12 @@ fun ActivityDetailCard(
                 }
             }
 
+            val stepPercentage = if (durationMinutes > 0) activeMovingMinutesCount / durationMinutes else 0.0
+            val hasValidDistance = activity.distance != null && activity.distance > 0.0
+            val shouldShowSpeed = (hasValidDistance || stepPercentage >= 0.8) && durationMinutes > 0
+
             // --- Speed Stats ---
-            if (activity.distance != null && activity.distance > 0.0 && durationMinutes > 0) {
+            if (shouldShowSpeed) {
                 Spacer(modifier = Modifier.height(8.dp))
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -428,13 +432,15 @@ fun ActivityDetailCard(
                     durationMs / 3600000.0
                 }
 
-                val avgSpeedKmph = activity.distance / effectiveDurationHours
+                // Use actual distance or estimate from steps (0.75m stride)
+                val effectiveDistance = if (hasValidDistance) activity.distance!! else (displaySteps * 0.75) / 1000.0
+                val avgSpeedKmph = if (effectiveDurationHours > 0) effectiveDistance / effectiveDurationHours else 0.0
                 val paceMinPerKm = if (avgSpeedKmph > 0) 60 / avgSpeedKmph else 0.0
                 val paceSeconds = ((paceMinPerKm - paceMinPerKm.toInt()) * 60).toInt()
 
                 // Max Speed Estimation
                 val maxSpeedKmph = if (continuousMinutes.isNotEmpty()) {
-                    val avgStrideLengthM = if (displaySteps > 0) (activity.distance * 1000) / displaySteps else 0.0
+                    val avgStrideLengthM = if (displaySteps > 0) (effectiveDistance * 1000) / displaySteps else 0.0
                     val maxStepsPerMin = continuousMinutes
                         .groupBy { it.time.substring(0, 5) }
                         .values

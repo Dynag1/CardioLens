@@ -358,12 +358,17 @@ class WorkoutsViewModel @Inject constructor(
             validHrActs.map { it.activity.averageHeartRate!! }.average().toInt()
         } else 0
         
-        // Avg Speed (for all acts with distance)
-        val speedActs = effectiveActs.filter { (item, _) ->
-            (item.activity.distance ?: 0.0) > 0.0 && item.activity.duration > 0
+        // Avg Speed (for all acts with distance OR high step density > 80%)
+        val speedActs = effectiveActs.filter { (item, effectiveDur) ->
+            val hasDist = (item.activity.distance ?: 0.0) > 0.0
+            val stepDensity = effectiveDur.toDouble() / item.activity.duration.toDouble()
+            (hasDist || stepDensity >= 0.8) && item.activity.duration > 0
         }
         val avgSpeed = if (speedActs.isNotEmpty()) {
-            val totalDist = speedActs.sumOf { it.first.activity.distance!! }
+            val totalDist = speedActs.sumOf { (item, _) -> 
+                if ((item.activity.distance ?: 0.0) > 0.0) item.activity.distance!! 
+                else ((item.activity.steps ?: 0) * 0.75) / 1000.0
+            }
             val totalDurHours = speedActs.sumOf { it.second } / 3600000.0
             if (totalDurHours > 0) totalDist / totalDurHours else 0.0
         } else 0.0
@@ -431,12 +436,17 @@ class WorkoutsViewModel @Inject constructor(
         val avgDuration = if (totalActivities > 0) totalDuration / totalActivities else 0L
         val totalCalories = monthActivities.sumOf { it.activity.calories }
         
-        // Average speed for month
-        val speedActs = effectiveActs.filter { (item, _) ->
-            (item.activity.distance ?: 0.0) > 0.0 && item.activity.duration > 0
+        // Average speed for month (distance OR high step density > 80%)
+        val speedActs = effectiveActs.filter { (item, effectiveDur) ->
+            val hasDist = (item.activity.distance ?: 0.0) > 0.0
+            val stepDensity = effectiveDur.toDouble() / item.activity.duration.toDouble()
+            (hasDist || stepDensity >= 0.8) && item.activity.duration > 0
         }
         val avgSpeed = if (speedActs.isNotEmpty()) {
-            val totalDist = speedActs.sumOf { it.first.activity.distance!! }
+            val totalDist = speedActs.sumOf { (item, _) -> 
+                if ((item.activity.distance ?: 0.0) > 0.0) item.activity.distance!! 
+                else ((item.activity.steps ?: 0) * 0.75) / 1000.0
+            }
             val totalDurHours = speedActs.sumOf { it.second } / 3600000.0
             if (totalDurHours > 0) totalDist / totalDurHours else 0.0
         } else 0.0
@@ -481,9 +491,16 @@ class WorkoutsViewModel @Inject constructor(
             val validHrActs = acts.filter { (it.activity.averageHeartRate ?: 0) > 0 }
             val avgHr = if (validHrActs.isNotEmpty()) validHrActs.map { it.activity.averageHeartRate!! }.average().toInt() else 0
             
-            val speedActs = effectiveActs.filter { (item, _) -> (item.activity.distance ?: 0.0) > 0.0 && item.activity.duration > 0 }
+            val speedActs = effectiveActs.filter { (item, effectiveDur) -> 
+                val hasDist = (item.activity.distance ?: 0.0) > 0.0
+                val stepDensity = effectiveDur.toDouble() / item.activity.duration.toDouble()
+                (hasDist || stepDensity >= 0.8) && item.activity.duration > 0 
+            }
             val avgSpeed = if (speedActs.isNotEmpty()) {
-                val totalDist = speedActs.sumOf { it.first.activity.distance!! }
+                val totalDist = speedActs.sumOf { (item, _) -> 
+                    if ((item.activity.distance ?: 0.0) > 0.0) item.activity.distance!! 
+                    else ((item.activity.steps ?: 0) * 0.75) / 1000.0
+                }
                 val totalDurHours = speedActs.sumOf { it.second } / 3600000.0
                 if (totalDurHours > 0) totalDist / totalDurHours else 0.0
             } else 0.0
