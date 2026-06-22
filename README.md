@@ -53,7 +53,7 @@ Vos données vous appartiennent :
 - **Performance** : Moteur de synchronisation incrémentale (ne télécharge que ce qui manque).
 
 ---
-
+Depot F-Droid : https://dynag1.github.io/Dynag1-Fdroid/fdroid/repo/
 ## 🛠️ Stack Technique
 
 Construit avec les dernières technologies Android pour robustesse et maintenabilité :
