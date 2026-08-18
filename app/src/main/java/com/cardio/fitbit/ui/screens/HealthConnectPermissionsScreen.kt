@@ -111,8 +111,8 @@ fun HealthConnectPermissionsScreen(
                     "Nous lisons votre pouls pour afficher des graphiques interactifs et analysons votre VRC pour évaluer votre récupération physique."
                 )
                 InfoPoint(
-                    "💤 Sommeil & SpO2", 
-                    "Nous suivons vos cycles de sommeil et votre oxygène sanguin (SpO2) pour vous aider à comprendre la qualité de votre repos."
+                    "💤 Sommeil", 
+                    "Nous suivons vos cycles de sommeil pour vous aider à comprendre la qualité de votre repos."
                 )
                 InfoPoint(
                     "🏃 Activité & Calories", 

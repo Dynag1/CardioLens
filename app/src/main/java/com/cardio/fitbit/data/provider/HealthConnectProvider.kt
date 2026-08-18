@@ -39,8 +39,7 @@ class HealthConnectProvider @Inject constructor(
             HealthPermission.getReadPermission(SleepSessionRecord::class),
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
             HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
-            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
-            HealthPermission.getReadPermission(OxygenSaturationRecord::class)
+            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
         )
     }
 

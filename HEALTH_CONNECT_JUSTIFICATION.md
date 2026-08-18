@@ -15,15 +15,14 @@ CardioLens est un tableau de bord de santé global. L'application demande l'acc�
 | :--- | :--- | :--- |
 | **Cœur** | `READ_HEART_RATE` | Affichage des graphiques 24h/24 et calcul du pouls au repos (Repos N/J). |
 | **VRC** | `READ_HEART_RATE_VARIABILITY` | Utilisé dans l'onglet **Tendances** pour afficher l'évolution de la récupération physique sur 30 jours. |
-| **SpO2** | `READ_OXYGEN_SATURATION` | Affichage des niveaux d'oxygène dans l'onglet **Sommeil** pour détecter les baisses nocturnes. |
 | **Pas** | `READ_STEPS` | Suivi de l'activité quotidienne. |
 | **Calories Actives** | `READ_ACTIVE_CALORIES_BURNED` | Calcul de la dépense énergétique pour chaque session de sport. |
 | **Sommeil** | `READ_SLEEP` | Analyse détaillée des phases (Léger, Profond, REM) sur le tableau de bord. |
 | **Exercices** | `READ_EXERCISE` | Identification des sessions de sport pour permettre un zoom sur le cardio durant l'effort. |
 
 > [!IMPORTANT]
-> **Réduction du périmètre de données (Correction du 20 avril)**
-> Nous avons supprimé les permissions `READ_DISTANCE` et `READ_TOTAL_CALORIES_BURNED` car elles étaient jugées "excessives" par Google. L'application utilise maintenant uniquement les calories actives et les pas.
+> **Réduction du périmètre de données (Correction d'août 2026)**
+> Nous avons supprimé les permissions `READ_DISTANCE`, `READ_TOTAL_CALORIES_BURNED` (en avril) et `READ_OXYGEN_SATURATION` (SpO2, en août) car elles étaient jugées "excessives" par Google. L'application utilise désormais uniquement la fréquence cardiaque, la VRC, le sommeil, les séances d'entraînement, les calories actives et les pas.
 
 ### 2.1 Avertissement Médical (Health Content Policy)
 Pour respecter la politique sur les contenus de santé, l'application et sa fiche Play Store incluent désormais un **Avertissement Médical** explicite indiquant que l'app n'est pas un dispositif médical.

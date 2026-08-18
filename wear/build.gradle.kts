@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace = "com.cardio.fitbit.wear"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.cardio.fitbit"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 99
-        versionName = "1.4.2"
+        targetSdk = 36
+        versionCode = 100
+        versionName = "1.4.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
