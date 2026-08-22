@@ -1,6 +1,6 @@
 # Privacy Policy for CardioLens
 
-**Last updated: April 7, 2026**
+**Last updated: August 22, 2026**
 
 This Privacy Policy describes how CardioLens ("we", "us", or "our") collects, uses, and shares your information when you use our mobile application (the "App").
 
@@ -12,8 +12,8 @@ This Privacy Policy describes how CardioLens ("we", "us", or "our") collects, us
 ### 1.1 Health and Fitness Data
 CardioLens accesses and reads health data from third-party services you authorize, specifically **Fitbit**, **Google Fit**, and **Health Connect**. This data includes:
 *   **Heart Rate Data**: Resting heart rate, beats per minute (BPM) during activities, and Heart Rate Variability (HRV).
-*   **Oxygen Saturation (SpO2)**: Blood oxygen levels during sleep and rest.
-*   **Activity Data**: Step count, distance traveled, calories burned, and active minutes.
+*   **Oxygen Saturation (SpO2)**: Blood oxygen levels during sleep and rest (accessed via Fitbit/Google Fit APIs only).
+*   **Activity Data**: Step count, active calories burned, and exercise sessions (active minutes).
 *   **Sleep Data**: Sleep duration, sleep stages (light, deep, REM), and sleep scores.
 
 ### 1.2 Device and App Usage Data
@@ -47,7 +47,14 @@ Your health data is stored locally on your device in a secure database. This all
 If you choose to use Health Connect:
 *   The App reads data from Health Connect based on the permissions you grant.
 *   **Limited Use Requirement**: CardioLens strictly complies with the [Health Connect Permissions Policy](https://support.google.com/googleplay/android-developer/answer/12293504), including the **Limited Use** requirements. 
-*   **Data Usage**: We only use the data to provide and improve user-facing features (such as heart rate charts, sleep analysis, and activity trends) that are prominent in the App's interface. 
+*   **Data Usage**: We only use the data to provide and improve user-facing features (such as heart rate charts, sleep analysis, and activity trends) that are prominent in the App's interface. Specifically, the App only requests read permissions from Health Connect for the following:
+    *   **Heart Rate** (`READ_HEART_RATE`)
+    -   **Heart Rate Variability (HRV)** (`READ_HEART_RATE_VARIABILITY`)
+    -   **Sleep Session** (`READ_SLEEP`)
+    -   **Steps** (`READ_STEPS`)
+    -   **Active Calories Burned** (`READ_ACTIVE_CALORIES_BURNED`)
+    -   **Exercise Session** (`READ_EXERCISE`)
+    *   No other Health Connect permissions (such as Distance, Oxygen Saturation / SpO2, or Total Calories Burned) are requested or accessed through Health Connect.
 *   **No Transfer**: We do NOT transfer Health Connect data to third parties, advertising platforms, data brokers, or any other external entities.
 *   **No Commercial Use**: We do not use your health data for advertising, marketing, or any purpose other than providing the core functionality of the App.
 

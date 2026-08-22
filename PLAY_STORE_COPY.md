@@ -53,7 +53,6 @@ Whether you are an athlete looking to optimize performance or simply concerned a
 CardioLens requests access to the following Health Connect data to provide its core features:
 *   **Heart Rate & HRV**: To display interactive continuous heart rate charts and calculate recovery trends.
 *   **Sleep**: To visualize sleep cycles and stages.
-*   **Oxygen Saturation (SpO2)**: To monitor blood oxygen levels during rest.
 *   **Steps & Active Calories**: To provide a daily summary of your physical activity.
 *   **Exercise Sessions**: To identify workout periods and analyze heart rate response during effort.
 
@@ -113,7 +112,6 @@ Conçu pour ceux qui veulent une vue d'ensemble claire de leur santé sans fiori
 CardioLens demande l'accès aux données suivantes pour ses fonctionnalités principales :
 *   **Fréquence Cardiaque & VRC** : Pour afficher les graphiques continus et évaluer la récupération.
 *   **Sommeil** : Pour visualiser la structure de vos nuits.
-*   **Saturation en Oxygène (SpO2)** : Pour suivre l'oxygénation pendant le repos.
 *   **Pas & Calories Actives** : Pour fournir un résumé quotidien de votre activité.
 *   **Sessions d'Exercice** : Pour analyser votre réponse cardiaque durant l'effort.
 
