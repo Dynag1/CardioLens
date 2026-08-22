@@ -1,6 +1,16 @@
 # Historique des Versions (Changelog)
-+
-+## Version 82 (v1.3.32) - 2026-02-21
+
+## Version 101 (v1.4.4) - 2026-08-22
+### Conformité Play Store & Correction Health Connect
+- Suppression totale des références de permissions et de récupération des données de SpO2 (Oxygen Saturation), Distance, et Calories Totales pour se conformer à la politique "Minimum Scope" de Health Connect.
+- Mise à jour des explications de transparence et des justifications dans la politique de confidentialité, la fiche Play Store et la console Google Play.
+
+## Version 100 (v1.4.3) - 2026-08-18
+### Conformité & Cible SDK
+- Mise à jour de targetSdk à 36.
+- Retrait initial des permissions de SpO2.
+
+## Version 82 (v1.3.32) - 2026-02-21
 +### Optimisations des Performances & Analyses
 +- **Calculs de Vitesse Avancés** : Intégration globale du filtrage des périodes d'inactivité (siestes/pauses) dans tous les résumés (hebdomadaires et mensuels).
 +- **Visibilité Accrue** : Ajout de la vitesse moyenne mensuelle directement sur le tableau de bord des entraînements.
